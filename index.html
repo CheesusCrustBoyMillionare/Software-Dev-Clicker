@@ -1340,19 +1340,19 @@ const GEN = [
 
 const EMP_UPS = [
   { id:'desk', tiers:[
-    { name:'Folding Table',      desc:'+50% speed',   mult:1.5,  baseCost:75 },
-    { name:'Office Desk',        desc:'+100% speed',  mult:2.0,  baseCost:750 },
-    { name:'Standing Desk',      desc:'+200% speed',  mult:3.0,  baseCost:7500 },
+    { name:'Folding Table',      desc:'+25% speed',   mult:1.25, baseCost:75 },
+    { name:'Office Desk',        desc:'+50% speed',   mult:1.5,  baseCost:750 },
+    { name:'Standing Desk',      desc:'+100% speed',  mult:2.0,  baseCost:7500 },
   ], gr:2.5 },
   { id:'chair', tiers:[
-    { name:'Refurbished Chair',  desc:'+75% speed',   mult:1.75, baseCost:300 },
-    { name:'Office Chair',       desc:'+150% speed',  mult:2.5,  baseCost:3000 },
-    { name:'Ergonomic Chair',    desc:'+300% speed',  mult:4.0,  baseCost:30000 },
+    { name:'Refurbished Chair',  desc:'+37% speed',   mult:1.375,baseCost:300 },
+    { name:'Office Chair',       desc:'+75% speed',   mult:1.75, baseCost:3000 },
+    { name:'Ergonomic Chair',    desc:'+150% speed',  mult:2.5,  baseCost:30000 },
   ], gr:3 },
   { id:'computer', tiers:[
-    { name:'Refurbished PC',     desc:'+150% speed',  mult:2.5,  baseCost:1500 },
-    { name:'Office Workstation', desc:'+300% speed',  mult:4.0,  baseCost:15000 },
-    { name:'Dev Powerhouse',     desc:'+600% speed',  mult:7.0,  baseCost:150000 },
+    { name:'Refurbished PC',     desc:'+75% speed',   mult:1.75, baseCost:1500 },
+    { name:'Office Workstation', desc:'+150% speed',  mult:2.5,  baseCost:15000 },
+    { name:'Dev Powerhouse',     desc:'+300% speed',  mult:4.0,  baseCost:150000 },
   ], gr:4 },
 ];
 
@@ -1363,16 +1363,16 @@ const RECRUITER_UPS = [
 ];
 
 const CLK = [
-  { name: 'Catered Lunches',    desc: '+0.5 LoC/click per coder',        base: 300,      gr: 4  },
-  { name: 'Free Energy Drinks', desc: '+15% all production',             base: 750,      gr: 3  },
-  { name: 'Standing Desks',     desc: '-5% coder hire costs',            base: 5000,     gr: 5  },
-  { name: 'On-Site Daycare',    desc: '×1.3 all production',             base: 30000,    gr: 6  },
-  { name: 'Pet-Friendly Office',desc: '+1 auto-click/s',                 base: 50000,    gr: 10 },
-  { name: 'Gym Membership',     desc: '+20% all production',             base: 150000,   gr: 10 },
-  { name: 'Game Room',          desc: '+35% click power',                base: 200000,   gr: 8  },
-  { name: 'Unlimited PTO',      desc: '-10% coder hire costs',           base: 500000,   gr: 10 },
-  { name: 'Nap Pods',           desc: 'Burst: 8s production every 50s',  base: 1000000,  gr: 10 },
-  { name: 'Company Retreat',    desc: '×1.75 all production',            base: 3000000,  gr: 10 },
+  { name: 'Catered Lunches',    desc: '+0.5 LoC/click per coder',        base: 600,      gr: 4  },
+  { name: 'Free Energy Drinks', desc: '+15% all production',             base: 1500,     gr: 3  },
+  { name: 'Standing Desks',     desc: '-5% coder hire costs',            base: 10000,    gr: 5  },
+  { name: 'On-Site Daycare',    desc: '×1.3 all production',             base: 60000,    gr: 6  },
+  { name: 'Pet-Friendly Office',desc: '+1 auto-click/s',                 base: 100000,   gr: 10 },
+  { name: 'Gym Membership',     desc: '+20% all production',             base: 300000,   gr: 10 },
+  { name: 'Game Room',          desc: '+35% click power',                base: 400000,   gr: 8  },
+  { name: 'Unlimited PTO',      desc: '-10% coder hire costs',           base: 1000000,  gr: 10 },
+  { name: 'Nap Pods',           desc: 'Burst: 8s production every 50s',  base: 2000000,  gr: 10 },
+  { name: 'Company Retreat',    desc: '×1.75 all production',            base: 6000000,  gr: 10 },
 ];
 
 const FACILITY_UPS = [
@@ -3182,6 +3182,10 @@ function openSettings() {
     setSfxVol(v);
     playSfx('click');
   }));
+  const ver = document.createElement('div');
+  ver.style.cssText = 'text-align:center;color:#484f58;font-size:.65rem;margin-top:12px';
+  ver.textContent = 'v0.2.0';
+  panel.appendChild(ver);
   const close = document.createElement('button');
   close.className = 'st-close';
   close.textContent = '\u00d7';
@@ -3792,26 +3796,58 @@ function tick(now) {
 
     if (a === 'g') {
       const i = ref.idx;
-      const n = effectiveQty(gMax, i);
-      const strictBulk = buyQty !== Infinity && buyQty > 1;
-      cost = strictBulk ? gBulkCost(i, buyQty) : (n > 0 ? gBulkCost(i, n) : gCost(i));
-      owned = S.g[i]; afford = strictBulk ? (n >= buyQty && S.loc >= cost) : (n > 0 && S.loc >= cost);
-      costEl.textContent = fmt(cost);
-      ownEl.textContent = owned ? '×' + owned : '';
-      if (ref.rateEl) ref.rateEl.textContent = owned ? fmt(GEN[i].rate * owned * euMul(i) * genSpeedMul() * genSynergyMul() * prodMul()) + '/s' : '';
-      el.classList.toggle('best', i === bestIdx);
+      const gUnlocked = 3 + S.shipped;
+      const isNext = i === gUnlocked && i < GEN.length;
+      locked = i > gUnlocked;
+      if (isNext) {
+        afford = false;
+        costEl.textContent = '';
+        ownEl.textContent = '\u{1F512}';
+        if (ref.rateEl) ref.rateEl.textContent = '';
+        el.classList.remove('best');
+      } else if (i < gUnlocked) {
+        const n = effectiveQty(gMax, i);
+        const strictBulk = buyQty !== Infinity && buyQty > 1;
+        cost = strictBulk ? gBulkCost(i, buyQty) : (n > 0 ? gBulkCost(i, n) : gCost(i));
+        owned = S.g[i]; afford = strictBulk ? (n >= buyQty && S.loc >= cost) : (n > 0 && S.loc >= cost);
+        costEl.textContent = fmt(cost);
+        ownEl.textContent = owned ? '×' + owned : '';
+        if (ref.rateEl) {
+          const perUnit = GEN[i].rate * euMul(i) * genSpeedMul() * genSynergyMul() * prodMul();
+          ref.rateEl.textContent = owned ? fmt(perUnit * owned) + '/s (+' + fmt(perUnit) + ')' : '+' + fmt(perUnit) + '/s';
+        }
+        el.classList.toggle('best', i === bestIdx);
+      }
     } else if (a === 'c') {
       const i = ref.idx;
-      owned = S.c[i]; maxed = owned >= 1;
-      cost = cCost(i); afford = !maxed && S.loc >= cost;
-      costEl.textContent = maxed ? '' : fmt(cost);
-      ownEl.textContent = maxed ? '\u2713' : '';
+      const cUnlocked = 3 + S.shipped;
+      const isNext = i === cUnlocked && i < CLK.length;
+      locked = i > cUnlocked;
+      if (isNext) {
+        afford = false;
+        costEl.textContent = '';
+        ownEl.textContent = '\u{1F512}';
+      } else if (i < cUnlocked) {
+        owned = S.c[i]; maxed = owned >= 1;
+        cost = cCost(i); afford = !maxed && S.loc >= cost;
+        costEl.textContent = maxed ? '' : fmt(cost);
+        ownEl.textContent = maxed ? '\u2713' : '';
+      }
     } else if (a === 'ss') {
       const i = ref.idx;
-      owned = S.ss[i]; maxed = owned >= 1;
-      cost = ssCost(i); afford = !maxed && S.loc >= cost;
-      costEl.textContent = maxed ? '' : fmt(cost);
-      ownEl.textContent = maxed ? '\u2713' : '';
+      const ssUnlocked = 1 + S.shipped;
+      const isNext = i === ssUnlocked && i < SUPPORT.length;
+      locked = i > ssUnlocked;
+      if (isNext) {
+        afford = false;
+        costEl.textContent = '';
+        ownEl.textContent = '\u{1F512}';
+      } else if (i < ssUnlocked) {
+        owned = S.ss[i]; maxed = owned >= 1;
+        cost = ssCost(i); afford = !maxed && S.loc >= cost;
+        costEl.textContent = maxed ? '' : fmt(cost);
+        ownEl.textContent = maxed ? '\u2713' : '';
+      }
     } else if (a === 'cb') {
       const i = ref.idx;
       const unlocked = i < S.cb;
