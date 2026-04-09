@@ -1562,7 +1562,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.9';
+const GAME_VERSION = '5.10';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1657,13 +1657,13 @@ const FAME_TREE = [
   { id:'click', name:'Click Power', color:'#58a6ff', upgrades:[
     { id:'aimTrainer',     name:'Aim Trainer',      desc:'Toggle: fast-bubble challenge mode', cost:1, max:1, req:-1 },
     { id:'clickDouble',    name:'Double Tap',       desc:'+100% click power',           cost:1,  max:3,  req:-1 },
-    { id:'autoClick',      name:'Macro Script',     desc:'1 auto-click/s',              cost:3,  max:5,  req:0 },
-    { id:'clickFrenzy',    name:'Code Frenzy',      desc:'Nap Pod bursts 5\u00d7 stronger', cost:5, max:1,  req:1 },
-    { id:'clickPrecision', name:'Precision Click',  desc:'+1% of LoC/s per click',      cost:2,  max:5,  req:0 },
-    { id:'clickLucky',     name:'Lucky Click',      desc:'8% chance of 15\u00d7 click', cost:3,  max:3,  req:0 },
-    { id:'autoBotnet',     name:'Bot Net',          desc:'+2 auto-clicks/s',            cost:4,  max:3,  req:1 },
-    { id:'clickHackathon', name:'Hackathon',        desc:'Burst duration +50%',         cost:6,  max:2,  req:2 },
-    { id:'clickCaffeine',  name:'Caffeine IV',      desc:'Auto-clicks charge bursts',   cost:8,  max:1,  req:2 },
+    { id:'autoClick',      name:'Macro Script',     desc:'1 auto-click/s',              cost:3,  max:5,  req:1 },
+    { id:'clickFrenzy',    name:'Code Frenzy',      desc:'Nap Pod bursts 5\u00d7 stronger', cost:5, max:1,  req:2 },
+    { id:'clickPrecision', name:'Precision Click',  desc:'+1% of LoC/s per click',      cost:2,  max:5,  req:1 },
+    { id:'clickLucky',     name:'Lucky Click',      desc:'8% chance of 15\u00d7 click', cost:3,  max:3,  req:1 },
+    { id:'autoBotnet',     name:'Bot Net',          desc:'+2 auto-clicks/s',            cost:4,  max:3,  req:2 },
+    { id:'clickHackathon', name:'Hackathon',        desc:'Burst duration +50%',         cost:6,  max:2,  req:3 },
+    { id:'clickCaffeine',  name:'Caffeine IV',      desc:'Auto-clicks charge bursts',   cost:8,  max:1,  req:3 },
   ]},
   { id:'prestige', name:'Prestige', color:'#f0883e', upgrades:[
     { id:'engine',         name:'Engine License',   desc:'Start with Tier 3 on reset',  cost:2,  max:1,  req:-1 },
@@ -3777,8 +3777,9 @@ const BRANCH_POS = [
   // Gen (upper-left): spine + 5 subs
   [{ x:605, y:396 }, { x:442, y:280 }, { x:279, y:163 },
    { x:488, y:481 }, { x:697, y:295 }, { x:325, y:373 }, { x:170, y:264 }, { x:380, y:86 }],
-  // Click (upper-right): spine + 5 subs
-  [{ x:945, y:396 }, { x:1108, y:280 }, { x:1271, y:163 },
+  // Click (upper-right): aim trainer (standalone) + spine + 5 subs
+  [{ x:880, y:460 },
+   { x:945, y:396 }, { x:1108, y:280 }, { x:1271, y:163 },
    { x:1062, y:481 }, { x:853, y:295 }, { x:1225, y:373 }, { x:1380, y:264 }, { x:1170, y:86 }],
   // Prestige (lower-left): spine + 5 subs
   [{ x:605, y:644 }, { x:442, y:760 }, { x:279, y:877 },
