@@ -304,10 +304,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .aim-toggle.active{background:#7ee787;color:#0d1117;opacity:1}
 .aim-acc{position:absolute;top:6px;left:6px;z-index:60;padding:3px 8px;background:rgba(13,17,23,.85);color:#7ee787;border:1px solid #30363d;border-radius:4px;font-size:.6rem;font-weight:700;font-variant-numeric:tabular-nums;pointer-events:none;display:none}
 .aim-acc.show{display:block}
-.aim-sliders{position:absolute;top:28px;right:6px;z-index:60;background:rgba(13,17,23,.9);border:1px solid #30363d;border-radius:4px;padding:6px 8px;display:none;flex-direction:column;gap:4px;width:130px}
+.aim-sliders{position:absolute;top:28px;right:6px;z-index:60;background:rgba(13,17,23,.9);border:1px solid #30363d;border-radius:4px;padding:6px 8px;display:none;flex-direction:column;gap:4px;width:260px}
 .aim-sliders.show{display:flex}
 .aim-sliders label{display:flex;align-items:center;gap:4px;font-size:.55rem;color:#8b949e;font-weight:600}
-.aim-sliders input[type=range]{flex:1;height:4px;-webkit-appearance:none;appearance:none;background:#21262d;border-radius:2px;outline:none}
+.aim-sliders input[type=range]{flex:1;min-width:0;height:4px;-webkit-appearance:none;appearance:none;background:#21262d;border-radius:2px;outline:none}
 .aim-sliders input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:#7ee787;cursor:pointer}
 .aim-sliders input[type=range]::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:#7ee787;cursor:pointer;border:none}
 .aim-sliders .aim-val{min-width:24px;text-align:right;color:#7ee787;font-size:.55rem;font-variant-numeric:tabular-nums}
@@ -1569,7 +1569,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.12';
+const GAME_VERSION = '5.13';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
