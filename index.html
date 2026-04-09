@@ -1544,6 +1544,8 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
+const GAME_VERSION = '4.9';
+
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
   { name: 'Junior Dev',         desc: 'Knows one framework well',      base: 610,           rate: 2.1,    gr: 1.15 },
@@ -3483,7 +3485,7 @@ function openSettings() {
   }));
   const ver = document.createElement('div');
   ver.style.cssText = 'text-align:center;color:#484f58;font-size:.65rem;margin-top:12px';
-  ver.textContent = 'v4.9';
+  ver.textContent = 'v' + GAME_VERSION;
   panel.appendChild(ver);
   const close = document.createElement('button');
   close.className = 'st-close';
