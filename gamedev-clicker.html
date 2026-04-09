@@ -298,6 +298,12 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .bubble:hover{transform:scale(1.2)}
 .bubble.blue{background:radial-gradient(circle at 35% 35%,#6eb5ff,#1a6eff)}
 .bubble.red{background:radial-gradient(circle at 35% 35%,#ff6e6e,#d62828)}
+.bubble.green{background:radial-gradient(circle at 35% 35%,#7eef7e,#1eaa1e)}
+.aim-toggle{position:absolute;top:6px;right:6px;z-index:60;padding:3px 8px;background:#21262d;color:#7ee787;border:1px solid #30363d;border-radius:4px;font-size:.6rem;font-weight:700;cursor:pointer;opacity:.7;transition:all .15s}
+.aim-toggle:hover{opacity:1;border-color:#7ee787}
+.aim-toggle.active{background:#7ee787;color:#0d1117;opacity:1}
+.aim-acc{position:absolute;top:6px;left:6px;z-index:60;padding:3px 8px;background:rgba(13,17,23,.85);color:#7ee787;border:1px solid #30363d;border-radius:4px;font-size:.6rem;font-weight:700;font-variant-numeric:tabular-nums;pointer-events:none;display:none}
+.aim-acc.show{display:block}
 .bubble-pop{position:absolute;width:28px;height:28px;border-radius:50%;z-index:50;pointer-events:none;animation:bubblePop .35s ease-out forwards}
 @keyframes bubbleIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes bubbleFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
@@ -1556,7 +1562,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.8';
+const GAME_VERSION = '5.9';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1649,6 +1655,7 @@ const FAME_TREE = [
     { id:'genPair',       name:'Pair Programming',  desc:'\u00d71.5 coder production',  cost:8,  max:1,  req:2 },
   ]},
   { id:'click', name:'Click Power', color:'#58a6ff', upgrades:[
+    { id:'aimTrainer',     name:'Aim Trainer',      desc:'Toggle: fast-bubble challenge mode', cost:1, max:1, req:-1 },
     { id:'clickDouble',    name:'Double Tap',       desc:'+100% click power',           cost:1,  max:3,  req:-1 },
     { id:'autoClick',      name:'Macro Script',     desc:'1 auto-click/s',              cost:3,  max:5,  req:0 },
     { id:'clickFrenzy',    name:'Code Frenzy',      desc:'Nap Pod bursts 5\u00d7 stronger', cost:5, max:1,  req:1 },
@@ -1881,7 +1888,7 @@ const defaults = () => ({
   f: { marketing:0, publisher:0, engine:0,
        genSpeed:0, genCheap:0, genSynergy:0,
        genThreads:0, genReview:0, genAcquihire:0, genOpenSource:0, genPair:0,
-       clickDouble:0, autoClick:0, clickFrenzy:0,
+       aimTrainer:0, clickDouble:0, autoClick:0, clickFrenzy:0,
        clickPrecision:0, clickLucky:0, autoBotnet:0, clickHackathon:0, clickCaffeine:0,
        ventureCapital:0, goldenParachute:0, viralMarketing:0, franchise:0, ipo:0,
        streakUnlock:0, streakPower:0, streakMastery:0,
@@ -3261,21 +3268,87 @@ function acPenalty() { return _ac.infested ? 0.1 : 1; }
 // ========== BUBBLE MINIGAME ==========
 const _bub = {
   timer: 0,
-  INTERVAL: 10,       // spawn every 10s
-  activeMul: 1,       // current multiplier (0.5 or 2 or 1)
-  mulEnd: 0,          // when multiplier expires
-  activeEl: null,      // current bubble DOM element
+  INTERVAL: 10,        // normal: spawn every 10s
+  AIM_INTERVAL: 0.1,   // aim trainer: spawn every 0.1s
+  DESPAWN: 5000,        // normal: 5s despawn
+  AIM_DESPAWN: 50,      // aim trainer: 50ms despawn
+  activeMul: 1,
+  mulEnd: 0,
+  activeEl: null,
+  aimActive: false,     // aim trainer toggle state
+  aimHits: 0,
+  aimMisses: 0,
+  aimToggleEl: null,
+  aimAccEl: null,
+  despawnTimeout: null,
 };
 
+function bubbleInitAimUI() {
+  const container = document.querySelector('.left');
+  if (!container || _bub.aimToggleEl) return;
+  container.style.position = 'relative';
+  // Toggle button
+  const tog = document.createElement('button');
+  tog.className = 'aim-toggle';
+  tog.textContent = '\uD83C\uDFAF AIM';
+  tog.addEventListener('click', (e) => {
+    e.stopPropagation();
+    _bub.aimActive = !_bub.aimActive;
+    tog.classList.toggle('active', _bub.aimActive);
+    if (_bub.aimActive) {
+      _bub.aimHits = 0; _bub.aimMisses = 0;
+      _bub.timer = _bub.AIM_INTERVAL; // spawn immediately
+    } else {
+      // Remove active bubble when toggling off
+      if (_bub.activeEl) { _bub.activeEl.remove(); _bub.activeEl = null; }
+      if (_bub.despawnTimeout) { clearTimeout(_bub.despawnTimeout); _bub.despawnTimeout = null; }
+    }
+    aimAccUpdate();
+  });
+  container.appendChild(tog);
+  _bub.aimToggleEl = tog;
+  // Accuracy readout
+  const acc = document.createElement('div');
+  acc.className = 'aim-acc';
+  container.appendChild(acc);
+  _bub.aimAccEl = acc;
+  // Miss detection: clicks on .left that don't hit a bubble
+  container.addEventListener('click', (e) => {
+    if (!_bub.aimActive) return;
+    if (e.target.closest('.bubble') || e.target.closest('.aim-toggle') || e.target.closest('#mon')) return;
+    // Missed — penalize like red bubble
+    _bub.aimMisses++;
+    _bub.activeMul = 0.5;
+    _bub.mulEnd = performance.now() + 10000;
+    aimAccUpdate();
+    float(e.clientX - 15, e.clientY - 20, 'MISS!');
+  });
+}
+
+function aimAccUpdate() {
+  if (!_bub.aimAccEl) return;
+  const total = _bub.aimHits + _bub.aimMisses;
+  if (_bub.aimActive && total > 0) {
+    const pct = ((_bub.aimHits / total) * 100).toFixed(1);
+    _bub.aimAccEl.textContent = '\uD83C\uDFAF ' + pct + '% (' + _bub.aimHits + '/' + total + ')';
+    _bub.aimAccEl.classList.add('show');
+  } else if (_bub.aimActive) {
+    _bub.aimAccEl.textContent = '\uD83C\uDFAF 0/0';
+    _bub.aimAccEl.classList.add('show');
+  } else {
+    _bub.aimAccEl.classList.remove('show');
+  }
+}
+
 function bubbleSpawn() {
-  if (_bub.activeEl) return; // one at a time
+  if (_bub.activeEl) return;
   const container = document.querySelector('.left');
   if (!container) return;
   const rect = container.getBoundingClientRect();
-  const isBlue = Math.random() < 0.5;
+  const aim = _bub.aimActive;
+  const isGood = aim ? true : Math.random() < 0.5; // aim mode: always green; normal: 50/50 blue/red
   const el = document.createElement('div');
-  el.className = 'bubble ' + (isBlue ? 'blue' : 'red');
-  // Random position within the left panel area
+  el.className = 'bubble ' + (aim ? 'green' : (isGood ? 'blue' : 'red'));
   const margin = 30;
   const x = margin + Math.random() * (rect.width - margin * 2 - 28);
   const y = margin + Math.random() * (rect.height - margin * 2 - 28);
@@ -3283,38 +3356,46 @@ function bubbleSpawn() {
   el.style.top = y + 'px';
   el.addEventListener('click', (e) => {
     e.stopPropagation();
-    bubblePop(el, isBlue);
+    bubblePop(el, isGood);
   });
   container.style.position = 'relative';
   container.appendChild(el);
   _bub.activeEl = el;
-  // Auto-remove after 5s if not clicked
-  setTimeout(() => {
+  const despawn = aim ? _bub.AIM_DESPAWN : _bub.DESPAWN;
+  _bub.despawnTimeout = setTimeout(() => {
     if (_bub.activeEl === el) {
       el.remove();
       _bub.activeEl = null;
+      if (aim) { _bub.aimMisses++; aimAccUpdate(); }
     }
-  }, 5000);
+  }, despawn);
 }
 
-function bubblePop(el, isBlue) {
-  const rect = el.getBoundingClientRect();
+function bubblePop(el, isGood) {
   const container = el.parentElement;
   el.remove();
   _bub.activeEl = null;
+  if (_bub.despawnTimeout) { clearTimeout(_bub.despawnTimeout); _bub.despawnTimeout = null; }
   // Pop animation
   const pop = document.createElement('div');
   pop.className = 'bubble-pop';
   pop.style.left = el.style.left;
   pop.style.top = el.style.top;
-  pop.style.background = isBlue ? 'radial-gradient(circle,#6eb5ff,#1a6eff)' : 'radial-gradient(circle,#ff6e6e,#d62828)';
+  pop.style.background = _bub.aimActive
+    ? 'radial-gradient(circle,#7eef7e,#1eaa1e)'
+    : (isGood ? 'radial-gradient(circle,#6eb5ff,#1a6eff)' : 'radial-gradient(circle,#ff6e6e,#d62828)');
   container.appendChild(pop);
   pop.addEventListener('animationend', () => pop.remove());
   // Apply effect
-  if (isBlue) {
+  if (isGood) {
     _bub.activeMul = 2;
     _bub.mulEnd = performance.now() + 10000;
-    toast('\uD83D\uDD35 Code Rush! 2\u00d7 production for 10s');
+    if (_bub.aimActive) {
+      _bub.aimHits++;
+      aimAccUpdate();
+    } else {
+      toast('\uD83D\uDD35 Code Rush! 2\u00d7 production for 10s');
+    }
   } else {
     _bub.activeMul = 0.5;
     _bub.mulEnd = performance.now() + 10000;
@@ -3324,14 +3405,18 @@ function bubblePop(el, isBlue) {
 }
 
 function bubbleTick(dt) {
+  const interval = _bub.aimActive ? _bub.AIM_INTERVAL : _bub.INTERVAL;
   _bub.timer += dt;
-  if (_bub.timer >= _bub.INTERVAL) {
+  if (_bub.timer >= interval) {
     _bub.timer = 0;
     bubbleSpawn();
   }
   if (_bub.activeMul !== 1 && performance.now() >= _bub.mulEnd) {
     _bub.activeMul = 1;
   }
+  // Show/hide aim trainer toggle based on fame unlock
+  if (S.f.aimTrainer && !_bub.aimToggleEl) bubbleInitAimUI();
+  if (_bub.aimToggleEl) _bub.aimToggleEl.style.display = S.f.aimTrainer ? '' : 'none';
 }
 
 function bubbleMul() { return _bub.activeMul; }
