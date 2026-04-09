@@ -1551,7 +1551,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.2';
+const GAME_VERSION = '5.3';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -3178,15 +3178,112 @@ const CODE_LINES = [
 let codeIdx = 0;
 const codeVisible = [];
 
+// ========== AUTOCLICKER DETECTION ==========
+const _ac = {
+  times: [],        // last N click timestamps
+  positions: [],    // last N click {x, y}
+  untrusted: 0,     // count of isTrusted===false clicks
+  strikes: 0,       // accumulated suspicion
+  infested: false,   // currently penalized?
+  infestEnd: 0,     // when penalty ends (performance.now)
+  cooldown: 0,      // grace period after infestation ends
+  WINDOW: 30,       // clicks to analyze
+  INTERVAL_CV_THRESH: 0.06,  // coefficient of variation below this = bot
+  POS_STD_THRESH: 3,         // pixel std dev below this = bot
+  UNTRUSTED_THRESH: 5,       // untrusted clicks in window = bot
+  STRIKE_THRESH: 3,          // strikes before infestation triggers
+  INFEST_DUR: 30000,         // 30s penalty
+};
+
+function acRecord(e) {
+  const now = performance.now();
+  _ac.times.push(now);
+  _ac.positions.push({ x: e.clientX, y: e.clientY });
+  if (_ac.times.length > _ac.WINDOW) _ac.times.shift();
+  if (_ac.positions.length > _ac.WINDOW) _ac.positions.shift();
+  if (!e.isTrusted) _ac.untrusted++; else _ac.untrusted = Math.max(0, _ac.untrusted - 1);
+}
+
+function acCheck() {
+  if (_ac.infested || _ac.times.length < _ac.WINDOW) return false;
+  const now = performance.now();
+  if (_ac.cooldown > now) return false;
+
+  let dominated = false;
+
+  // 1. isTrusted check
+  if (_ac.untrusted >= _ac.UNTRUSTED_THRESH) dominated = true;
+
+  // 2. Click interval variance (coefficient of variation)
+  if (!dominated) {
+    const intervals = [];
+    for (let i = 1; i < _ac.times.length; i++) intervals.push(_ac.times[i] - _ac.times[i - 1]);
+    const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    if (mean > 0) {
+      const variance = intervals.reduce((a, v) => a + (v - mean) ** 2, 0) / intervals.length;
+      const cv = Math.sqrt(variance) / mean;
+      if (cv < _ac.INTERVAL_CV_THRESH) dominated = true;
+    }
+  }
+
+  // 3. Click position clustering
+  if (!dominated) {
+    const xs = _ac.positions.map(p => p.x);
+    const ys = _ac.positions.map(p => p.y);
+    const mx = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const my = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const stdX = Math.sqrt(xs.reduce((a, v) => a + (v - mx) ** 2, 0) / xs.length);
+    const stdY = Math.sqrt(ys.reduce((a, v) => a + (v - my) ** 2, 0) / ys.length);
+    if (stdX < _ac.POS_STD_THRESH && stdY < _ac.POS_STD_THRESH) dominated = true;
+  }
+
+  if (dominated) {
+    _ac.strikes++;
+    if (_ac.strikes >= _ac.STRIKE_THRESH) {
+      acTriggerInfestation();
+      return true;
+    }
+  } else {
+    _ac.strikes = Math.max(0, _ac.strikes - 1);
+  }
+  return false;
+}
+
+function acTriggerInfestation() {
+  _ac.infested = true;
+  _ac.infestEnd = performance.now() + _ac.INFEST_DUR;
+  _ac.strikes = 0;
+  _ac.times.length = 0;
+  _ac.positions.length = 0;
+  _ac.untrusted = 0;
+  log('\uD83D\uDC1B Bug Infestation! Production halted \u2014 bugs are eating your code!');
+  toast('\uD83D\uDC1B Bug Infestation! -90% production for 30s');
+  playSfx('event');
+}
+
+function acTick() {
+  if (!_ac.infested) return;
+  if (performance.now() >= _ac.infestEnd) {
+    _ac.infested = false;
+    _ac.cooldown = performance.now() + 15000; // 15s grace after recovery
+    log('\uD83D\uDEE0\uFE0F Bugs exterminated! Production restored.');
+    toast('\uD83D\uDEE0\uFE0F Bugs exterminated!');
+  }
+}
+
+function acPenalty() { return _ac.infested ? 0.1 : 1; }
+
 function doClick(e) {
+  acRecord(e);
+  if (acCheck()) return; // infestation just triggered, swallow click
   ensureAudio();
   playSfx('click');
-  let pw = clickPow() * streakMul;
+  let pw = clickPow() * streakMul * acPenalty();
   // Precision Click: +1% of LoC/s per click per level
-  if (S.f.clickPrecision) pw += lps() * 0.01 * S.f.clickPrecision;
-  // Combo Breaker: +0.5 LoC/click per whole streak multiplier per level
-  if (S.f.streakCombo) pw += lps() * 0.001 * S.f.streakCombo * Math.floor(streakMul);
-  // Lucky Click: 5% chance per level of 10× click
+  if (S.f.clickPrecision) pw += lps() * 0.01 * S.f.clickPrecision * acPenalty();
+  // Combo Breaker: +0.1% LoC/s per click per streak per level
+  if (S.f.streakCombo) pw += lps() * 0.001 * S.f.streakCombo * Math.floor(streakMul) * acPenalty();
+  // Lucky Click: 8% chance per level of 15× click
   if (S.f.clickLucky && Math.random() < 0.08 * S.f.clickLucky) { pw *= 15; float(e.clientX + 10, e.clientY - 40, '\u2728 LUCKY!'); }
   S.loc += pw;
   S.tLoc += pw;
@@ -3865,6 +3962,7 @@ function tick(now) {
 
   // Random events
   tickEvents(dt);
+  acTick();
 
   // Click streak system
   const nowMs = performance.now();
@@ -3896,7 +3994,7 @@ function tick(now) {
     const napInterval = NAP_INTERVAL / (1 + 0.5 * S.f.clickHackathon);
     if (napTimer >= napInterval) {
       napTimer = 0;
-      const burst = lps() * NAP_BURST_MUL * S.c[P.NAP] * (S.f.clickFrenzy ? 5 : 1) * streakMul * zoneMul;
+      const burst = lps() * NAP_BURST_MUL * S.c[P.NAP] * (S.f.clickFrenzy ? 5 : 1) * streakMul * zoneMul * acPenalty();
       S.loc += burst; S.tLoc += burst;
       toast(t('napBurst') + ' +' + fmt(burst) + ' ' + t('loc'));
     }
@@ -3910,8 +4008,9 @@ function tick(now) {
   // Production
   const rate = lps();
   const acRate = (S.f.autoClick + S.f.autoBotnet * 2 + petAutoClick()) * clickPow();
-  S.loc += (rate + acRate) * dt * streakMul * zoneMul;
-  S.tLoc += (rate + acRate) * dt * streakMul * zoneMul;
+  const totalProd = (rate + acRate) * dt * streakMul * zoneMul * acPenalty();
+  S.loc += totalProd;
+  S.tLoc += totalProd;
 
   // Pet dog animation
   if (!_petEl) _petEl = document.getElementById('petDog');
