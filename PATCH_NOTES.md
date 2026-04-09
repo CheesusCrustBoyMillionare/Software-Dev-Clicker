@@ -456,3 +456,20 @@
   - Company Retreat: ×1.75 → ×2.5 production
 - **Settings button relocated**: Moved from gear icon in top bar to a button below Stats in the right panel; gear icon and its CSS/handler removed
 - Save migration for trainer arrays and 5th support staff slot
+
+## v4.8 — Mobile-Responsive UI
+- **Bottom tab navigation**: Fixed tab bar at the bottom of the screen on phones and tablets (≤768px)
+  - 4 tabs: Desk, Coders, Upgrades, Log — each shows its corresponding panel full-width
+  - Tab labels translated across all 6 languages (EN, ES, PT, FR, DE, Zoomer)
+  - Active tab highlighted in blue; icons + text labels for clarity
+- **Desk scene responsive scaling**: Monitor scales from 2× (desktop) to 1.3× (tablet) / 1.1× (phone)
+  - Monitor fits comfortably at 242px wide on a 375px screen with thermometer and pet visible
+- **Touch-friendly targets**: All interactive elements enlarged for finger tapping
+  - Upgrade rows: 12px padding (from 7px), training sub-rows: 10px padding (from 4px)
+  - Equipment/pause toggles: 36px (from 20px), quantity buttons: 10px padding (from 5px)
+- **Top bar responsive**: Stats wrap to 2 rows on narrow screens with reduced font sizes
+- **Modals responsive**: Fame tree goes fullscreen on mobile; achievements, stats, and settings panels use `calc(100vw - 24px)` width
+- **Banners repositioned**: Event banners, NYT headlines, and toasts moved above the tab bar (`bottom:60px`) for thumb-zone accessibility
+- **Slot screen stacked**: Save slot buttons stack vertically on mobile instead of side-by-side
+- **Desktop layout unchanged**: All mobile CSS is inside `@media(max-width:768px)` — zero impact above that breakpoint
+- No HTML restructuring; implemented entirely with CSS media queries + ~35 lines of tab bar JS
