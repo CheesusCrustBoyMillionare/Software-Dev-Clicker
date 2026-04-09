@@ -1546,13 +1546,13 @@ function ta(k,fb){return T[lang]?.[k]??fb}
 // ========== CONFIG ==========
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
-  { name: 'Junior Dev',         desc: 'Knows one framework well',      base: 610,           rate: 3.5,    gr: 1.15 },
-  { name: 'Mid-Level Dev',      desc: 'Can Google anything',           base: 20000,         rate: 14,     gr: 1.15 },
-  { name: 'Senior Dev',         desc: 'Has mass-deleted prod before',  base: 810000,        rate: 70,     gr: 1.15 },
-  { name: 'Staff Engineer',     desc: 'Writes docs nobody reads',       base: 33000000,      rate: 350,    gr: 1.15 },
-  { name: 'Principal Engineer', desc: 'Speaks only in abstractions',   base: 1100000000,    rate: 1400,   gr: 1.15 },
-  { name: 'Tech Lead',          desc: '50% meetings, 50% Slack',      base: 44000000000,   rate: 7000,   gr: 1.15 },
-  { name: 'CTO',                desc: "Sends 'thoughts?' emails at 3am", base: 1800000000000, rate: 35000,  gr: 1.15 },
+  { name: 'Junior Dev',         desc: 'Knows one framework well',      base: 610,           rate: 2.1,    gr: 1.15 },
+  { name: 'Mid-Level Dev',      desc: 'Can Google anything',           base: 20000,         rate: 6.3,    gr: 1.15 },
+  { name: 'Senior Dev',         desc: 'Has mass-deleted prod before',  base: 810000,        rate: 19,     gr: 1.15 },
+  { name: 'Staff Engineer',     desc: 'Writes docs nobody reads',       base: 33000000,      rate: 57,     gr: 1.15 },
+  { name: 'Principal Engineer', desc: 'Speaks only in abstractions',   base: 1100000000,    rate: 170,    gr: 1.15 },
+  { name: 'Tech Lead',          desc: '50% meetings, 50% Slack',      base: 44000000000,   rate: 510,    gr: 1.15 },
+  { name: 'CTO',                desc: "Sends 'thoughts?' emails at 3am", base: 1800000000000, rate: 1530,   gr: 1.15 },
 ];
 
 const EMP_UPS = [
@@ -1996,7 +1996,7 @@ function markDirty() { _dirty = true; }
 function recalcIfDirty() {
   if (!_dirty) return;
   _dirty = false;
-  _C.fameMul = 1 + 0.1 * S.tFame;
+  _C.fameMul = 1 + 0.12 * S.tFame;
   let pm = energyPerkMul() * daycareMul() * gymMul() * retreatMul() * _C.fameMul * (1 + cbBonus('prod'));
   // Open Source: +5% production per shipped game per level
   if (S.f.genOpenSource) pm *= (1 + 0.05 * S.f.genOpenSource * S.shipped);
@@ -2026,7 +2026,7 @@ function recalcIfDirty() {
   _C.shipAt = Math.floor(1e6 * 10 ** S.shipped * (0.9 ** S.f.franchise));
 }
 
-function shipInflation() { return 1.05 ** S.shipped; }
+function shipInflation() { return 1.03 ** S.shipped; }
 const cCost = i => Math.floor(CLK[i].base * CLK[i].gr ** S.c[i] * shipInflation());
 const fameMul = () => { recalcIfDirty(); return _C.fameMul; };
 
@@ -2667,7 +2667,7 @@ function eventClickMul() { return (activeEvent && !activeEvent.pending) ? active
 function clickPow() { recalcIfDirty(); return _C.clickPow; }
 function lps() { recalcIfDirty(); return _C.lps; }
 function fameGain() {
-  let base = 1 + 0.5 * S.f.marketing;
+  let base = 2 + 0.5 * S.f.marketing;
   // Viral Marketing: +25% Fame per ship per level
   if (S.f.viralMarketing) base *= (1 + 0.25 * S.f.viralMarketing);
   // IPO: +1 Fame per 5 lifetime ships
@@ -4140,7 +4140,7 @@ function tick(now) {
 
     if (a === 'g') {
       const i = ref.idx;
-      const gUnlocked = 3 + S.shipped;
+      const gUnlocked = 3 + Math.floor(S.shipped / 2);
       const isNext = i === gUnlocked && i < GEN.length;
       locked = i > gUnlocked;
       if (isNext) {
@@ -4165,7 +4165,7 @@ function tick(now) {
       }
     } else if (a === 'c') {
       const i = ref.idx;
-      const cUnlocked = 3 + S.shipped;
+      const cUnlocked = 3 + Math.floor(S.shipped / 2);
       const isNext = i === cUnlocked && i < CLK.length;
       locked = i > cUnlocked;
       if (isNext) {
@@ -4180,7 +4180,7 @@ function tick(now) {
       }
     } else if (a === 'ss') {
       const i = ref.idx;
-      const ssUnlocked = 1 + S.shipped;
+      const ssUnlocked = 1 + Math.floor(S.shipped / 2);
       const isNext = i === ssUnlocked && i < SUPPORT.length;
       locked = i > ssUnlocked;
       if (isNext) {

@@ -473,3 +473,27 @@
 - **Slot screen stacked**: Save slot buttons stack vertically on mobile instead of side-by-side
 - **Desktop layout unchanged**: All mobile CSS is inside `@media(max-width:768px)` — zero impact above that breakpoint
 - No HTML restructuring; implemented entirely with CSS media queries + ~35 lines of tab bar JS
+
+## v4.9 — Economy Rebalance
+Simulation-driven rebalance targeting a consistent ~1.5× time increase per ship. Built an optimal-play economy simulator (`simulate.py`) that uses ROI-based purchasing to find the true production curve, then tuned 5 parameters to smooth out the progression.
+
+### Core Changes
+- **Compressed coder rate curve**: Reduced per-tier rate multiplier from ~5× to ~3×
+  - Intern 0.7 → Junior 2.1 → Mid 6.3 → Senior 19 → Staff 57 → Principal 170 → Tech Lead 510 → CTO 1530
+  - Prevents massive production spikes when new coder types unlock
+- **Slower unlock progression**: New coder types, perks, and staff now unlock every **2 ships** instead of every ship
+  - `3 + Math.floor(shipped / 2)` coders/perks available (was `3 + shipped`)
+  - `1 + Math.floor(shipped / 2)` staff available (was `1 + shipped`)
+  - Spreads power gains over more ships, reducing the "unlock cliff" effect
+- **Doubled base fame gain**: Ships now award `2 + 0.5×marketing` base fame (was `1 + 0.5×marketing`)
+  - Players get meaningful fame earlier, enabling more strategic fame tree investment
+- **Reduced ship inflation**: Cost multiplier per ship lowered from 1.05× to 1.03×
+  - Late-game purchases don't become prohibitively expensive
+- **Increased fame multiplier**: Each fame point now gives +12% production (was +10%)
+  - Fame investment feels more impactful and rewarding
+
+### Design Notes
+- Perfectly consistent 1.5× ratios are mathematically impossible with discrete unlock steps — this is intentional
+- Unlock ships (where new coder types become available) feel rewarding (faster), non-unlock ships provide challenge (slower)
+- The saw-tooth pattern averages out to ~1.5× across the full progression
+- Simulation showed average ratio of 1.49× across 10 ships with times progressing from ~9 min to ~59 min
