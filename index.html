@@ -293,6 +293,16 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .update-banner .ub-close:hover{color:#fff}
 @keyframes ubIn{from{transform:translateY(-100%)}to{transform:translateY(0)}}
 
+/* Bubbles */
+.bubble{position:absolute;width:28px;height:28px;border-radius:50%;cursor:pointer;z-index:50;pointer-events:auto;animation:bubbleIn .3s ease,bubbleFloat 3s ease-in-out infinite;box-shadow:inset -3px -3px 6px rgba(0,0,0,.2),inset 3px 3px 6px rgba(255,255,255,.3);transition:transform .1s}
+.bubble:hover{transform:scale(1.2)}
+.bubble.blue{background:radial-gradient(circle at 35% 35%,#6eb5ff,#1a6eff)}
+.bubble.red{background:radial-gradient(circle at 35% 35%,#ff6e6e,#d62828)}
+.bubble-pop{position:absolute;width:28px;height:28px;border-radius:50%;z-index:50;pointer-events:none;animation:bubblePop .35s ease-out forwards}
+@keyframes bubbleIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes bubbleFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes bubblePop{0%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.5}100%{transform:scale(2);opacity:0}}
+
 /* Toasts */
 .toasts{position:fixed;top:105px;left:50%;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none}
 .toast{padding:6px 14px;background:#238636;color:#fff;border-radius:6px;font-size:.8rem;font-weight:600;animation:tIn .25s ease,tOut .3s ease 1.8s forwards}
@@ -1551,7 +1561,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.5';
+const GAME_VERSION = '5.6';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1829,7 +1839,7 @@ const NYT_HEADLINES = {
   2025:["Trump Launches Sweeping Tariffs, Rattling Global Trade Order","Deadly Wildfires Ravage Los Angeles, Forcing Mass Evacuations","Pope Francis Dies at 88; Vatican Prepares for Conclave","DeepSeek AI Sends Shockwaves Through Markets and Silicon Valley","Gaza Ceasefire Brokered After 15 Months of Devastating Conflict"],
 };
 
-let activeEvent = null, eventCooldown = 0, isShipping = false, achCheckAcc = 0, petPawTimer = 0, buyerTimer = 0, facilityTimer = 0, managerTimer = 0, trainerTimer = 0, nytShown = false, pendingOfflineMsg = null;
+let activeEvent = null, eventCooldown = 0, isShipping = false, achCheckAcc = 0, petPawTimer = 0, buyerTimer = 0, facilityTimer = 0, managerTimer = 0, trainerTimer = 0, nytShown = 0, pendingOfflineMsg = null;
 // Ring buffer for click times
 const CT_SIZE = 200;
 const _ct = new Float64Array(CT_SIZE);
@@ -3263,16 +3273,94 @@ function acTick() {
 
 function acPenalty() { return _ac.infested ? 0.1 : 1; }
 
+// ========== BUBBLE MINIGAME ==========
+const _bub = {
+  timer: 0,
+  INTERVAL: 10,       // spawn every 10s
+  activeMul: 1,       // current multiplier (0.5 or 2 or 1)
+  mulEnd: 0,          // when multiplier expires
+  activeEl: null,      // current bubble DOM element
+};
+
+function bubbleSpawn() {
+  if (_bub.activeEl) return; // one at a time
+  const container = document.querySelector('.left');
+  if (!container) return;
+  const rect = container.getBoundingClientRect();
+  const isBlue = Math.random() < 0.5;
+  const el = document.createElement('div');
+  el.className = 'bubble ' + (isBlue ? 'blue' : 'red');
+  // Random position within the left panel area
+  const margin = 30;
+  const x = margin + Math.random() * (rect.width - margin * 2 - 28);
+  const y = margin + Math.random() * (rect.height - margin * 2 - 28);
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    bubblePop(el, isBlue);
+  });
+  container.style.position = 'relative';
+  container.appendChild(el);
+  _bub.activeEl = el;
+  // Auto-remove after 5s if not clicked
+  setTimeout(() => {
+    if (_bub.activeEl === el) {
+      el.remove();
+      _bub.activeEl = null;
+    }
+  }, 5000);
+}
+
+function bubblePop(el, isBlue) {
+  const rect = el.getBoundingClientRect();
+  const container = el.parentElement;
+  el.remove();
+  _bub.activeEl = null;
+  // Pop animation
+  const pop = document.createElement('div');
+  pop.className = 'bubble-pop';
+  pop.style.left = el.style.left;
+  pop.style.top = el.style.top;
+  pop.style.background = isBlue ? 'radial-gradient(circle,#6eb5ff,#1a6eff)' : 'radial-gradient(circle,#ff6e6e,#d62828)';
+  container.appendChild(pop);
+  pop.addEventListener('animationend', () => pop.remove());
+  // Apply effect
+  if (isBlue) {
+    _bub.activeMul = 2;
+    _bub.mulEnd = performance.now() + 10000;
+    toast('\uD83D\uDD35 Code Rush! 2\u00d7 production for 10s');
+  } else {
+    _bub.activeMul = 0.5;
+    _bub.mulEnd = performance.now() + 10000;
+    toast('\uD83D\uDD34 Bug Report! 0.5\u00d7 production for 10s');
+  }
+  playSfx('click');
+}
+
+function bubbleTick(dt) {
+  _bub.timer += dt;
+  if (_bub.timer >= _bub.INTERVAL) {
+    _bub.timer = 0;
+    bubbleSpawn();
+  }
+  if (_bub.activeMul !== 1 && performance.now() >= _bub.mulEnd) {
+    _bub.activeMul = 1;
+  }
+}
+
+function bubbleMul() { return _bub.activeMul; }
+
 function doClick(e) {
   acRecord(e);
   if (acCheck()) return; // infestation just triggered, swallow click
   ensureAudio();
   playSfx('click');
-  let pw = clickPow() * streakMul * acPenalty();
+  let pw = clickPow() * streakMul * acPenalty() * bubbleMul();
   // Precision Click: +1% of LoC/s per click per level
-  if (S.f.clickPrecision) pw += lps() * 0.01 * S.f.clickPrecision * acPenalty();
+  if (S.f.clickPrecision) pw += lps() * 0.01 * S.f.clickPrecision * acPenalty() * bubbleMul();
   // Combo Breaker: +0.1% LoC/s per click per streak per level
-  if (S.f.streakCombo) pw += lps() * 0.001 * S.f.streakCombo * Math.floor(streakMul) * acPenalty();
+  if (S.f.streakCombo) pw += lps() * 0.001 * S.f.streakCombo * Math.floor(streakMul) * acPenalty() * bubbleMul();
   // Lucky Click: 8% chance per level of 15× click
   if (S.f.clickLucky && Math.random() < 0.08 * S.f.clickLucky) { pw *= 15; float(e.clientX + 10, e.clientY - 40, '\u2728 LUCKY!'); }
   S.loc += pw;
@@ -3790,7 +3878,7 @@ function ship() {
   S.ru = RECRUITER_UPS.map(() => 0);
   S.fu = FACILITY_UPS.map(() => 0);
   markDirty();
-  napTimer = 0; buyerTimer = 0; facilityTimer = 0; managerTimer = 0; trainerTimer = 0; nytShown = false;
+  napTimer = 0; buyerTimer = 0; facilityTimer = 0; managerTimer = 0; trainerTimer = 0; nytShown = 0;
   ctReset(); streakMul = 1; lastClickTime = 0;
   if (S.f.engine) { S.g[0] = 10; S.g[1] = 5; S.g[2] = 3; }
   // Venture Capital: start with 1000×Lv LoC
@@ -3953,6 +4041,7 @@ function tick(now) {
   // Random events
   tickEvents(dt);
   acTick();
+  bubbleTick(dt);
 
   // Click streak system
   const nowMs = performance.now();
@@ -3984,7 +4073,7 @@ function tick(now) {
     const napInterval = NAP_INTERVAL / (1 + 0.5 * S.f.clickHackathon);
     if (napTimer >= napInterval) {
       napTimer = 0;
-      const burst = lps() * NAP_BURST_MUL * S.c[P.NAP] * (S.f.clickFrenzy ? 5 : 1) * streakMul * zoneMul * acPenalty();
+      const burst = lps() * NAP_BURST_MUL * S.c[P.NAP] * (S.f.clickFrenzy ? 5 : 1) * streakMul * zoneMul * acPenalty() * bubbleMul();
       S.loc += burst; S.tLoc += burst;
       toast(t('napBurst') + ' +' + fmt(burst) + ' ' + t('loc'));
     }
@@ -3998,7 +4087,7 @@ function tick(now) {
   // Production
   const rate = lps();
   const acRate = (S.f.autoClick + S.f.autoBotnet * 2 + petAutoClick()) * clickPow();
-  const totalProd = (rate + acRate) * dt * streakMul * zoneMul * acPenalty();
+  const totalProd = (rate + acRate) * dt * streakMul * zoneMul * acPenalty() * bubbleMul();
   S.loc += totalProd;
   S.tLoc += totalProd;
 
@@ -4208,9 +4297,10 @@ function tick(now) {
     }
   }
 
-  // NYT headline at 25% ship progress (random pick from 5)
-  if (!nytShown && pct >= 0.25) {
-    nytShown = true;
+  // NYT headlines at 10%, 22%, 40% ship progress
+  const nytThresholds = [0.10, 0.22, 0.40];
+  if (nytShown < nytThresholds.length && pct >= nytThresholds[nytShown]) {
+    nytShown++;
     const yr = currentYear();
     const hls = NYT_HEADLINES[yr];
     if (hls) showNYTBanner(yr, hls[Math.floor(Math.random() * hls.length)]);
