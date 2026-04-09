@@ -1561,7 +1561,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.6';
+const GAME_VERSION = '5.7';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1839,7 +1839,7 @@ const NYT_HEADLINES = {
   2025:["Trump Launches Sweeping Tariffs, Rattling Global Trade Order","Deadly Wildfires Ravage Los Angeles, Forcing Mass Evacuations","Pope Francis Dies at 88; Vatican Prepares for Conclave","DeepSeek AI Sends Shockwaves Through Markets and Silicon Valley","Gaza Ceasefire Brokered After 15 Months of Devastating Conflict"],
 };
 
-let activeEvent = null, eventCooldown = 0, isShipping = false, achCheckAcc = 0, petPawTimer = 0, buyerTimer = 0, facilityTimer = 0, managerTimer = 0, trainerTimer = 0, nytShown = 0, pendingOfflineMsg = null;
+let activeEvent = null, eventCooldown = 0, isShipping = false, achCheckAcc = 0, petPawTimer = 0, buyerTimer = 0, facilityTimer = 0, managerTimer = 0, trainerTimer = 0, nytShown = 0, _nytPicked = null, pendingOfflineMsg = null;
 // Ring buffer for click times
 const CT_SIZE = 200;
 const _ct = new Float64Array(CT_SIZE);
@@ -3117,9 +3117,10 @@ function buildUI() {
 }
 
 // ========== TOAST ==========
-function toast(msg) {
+function toast(msg, color) {
   const el = document.createElement('div');
   el.className = 'toast';
+  if (color) el.style.background = color;
   el.textContent = msg;
   toasts.appendChild(el);
   el.addEventListener('animationend', e => { if (e.animationName === 'tOut') el.remove(); });
@@ -3333,7 +3334,7 @@ function bubblePop(el, isBlue) {
   } else {
     _bub.activeMul = 0.5;
     _bub.mulEnd = performance.now() + 10000;
-    toast('\uD83D\uDD34 Bug Report! 0.5\u00d7 production for 10s');
+    toast('\uD83D\uDD34 Bug Report! 0.5\u00d7 production for 10s', '#da3633');
   }
   playSfx('click');
 }
@@ -3878,7 +3879,7 @@ function ship() {
   S.ru = RECRUITER_UPS.map(() => 0);
   S.fu = FACILITY_UPS.map(() => 0);
   markDirty();
-  napTimer = 0; buyerTimer = 0; facilityTimer = 0; managerTimer = 0; trainerTimer = 0; nytShown = 0;
+  napTimer = 0; buyerTimer = 0; facilityTimer = 0; managerTimer = 0; trainerTimer = 0; nytShown = 0; _nytPicked = null;
   ctReset(); streakMul = 1; lastClickTime = 0;
   if (S.f.engine) { S.g[0] = 10; S.g[1] = 5; S.g[2] = 3; }
   // Venture Capital: start with 1000×Lv LoC
@@ -4297,13 +4298,19 @@ function tick(now) {
     }
   }
 
-  // NYT headlines at 10%, 22%, 40% ship progress
+  // NYT headlines at 10%, 22%, 40% ship progress (no repeats per ship)
   const nytThresholds = [0.10, 0.22, 0.40];
   if (nytShown < nytThresholds.length && pct >= nytThresholds[nytShown]) {
     nytShown++;
     const yr = currentYear();
     const hls = NYT_HEADLINES[yr];
-    if (hls) showNYTBanner(yr, hls[Math.floor(Math.random() * hls.length)]);
+    if (hls) {
+      if (!_nytPicked) {
+        const shuffled = hls.slice().sort(() => Math.random() - 0.5);
+        _nytPicked = shuffled.slice(0, 3);
+      }
+      showNYTBanner(yr, _nytPicked[nytShown - 1]);
+    }
   }
 
   // Milestone checks (alongside achievements)
