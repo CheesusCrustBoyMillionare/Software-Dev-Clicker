@@ -255,6 +255,17 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .settings-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#58a6ff;cursor:pointer;border:2px solid #161b22}
 .settings-val{font-size:.7rem;color:#58a6ff;min-width:32px;text-align:right;font-variant-numeric:tabular-nums}
 
+/* Fun Popup */
+.fun-panel{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:28px 32px;width:340px;text-align:center}
+.fun-panel h2{margin:0 0 8px;font-size:1.2rem;color:#e6edf3}
+.fun-panel p{margin:0 0 20px;font-size:.85rem;color:#8b949e}
+.fun-btns{display:flex;gap:10px;justify-content:center}
+.fun-btns button{padding:8px 18px;border-radius:6px;border:1px solid #30363d;font-size:.8rem;font-weight:600;cursor:pointer;transition:background .15s}
+.fun-btn-yes{background:#238636;color:#fff;border-color:#238636!important}
+.fun-btn-yes:hover{background:#2ea043}
+.fun-btn-fb{background:#21262d;color:#58a6ff}
+.fun-btn-fb:hover{background:#30363d}
+
 /* Stats Panel */
 .stats-panel{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;width:480px;max-height:75vh;overflow-y:auto}
 .stats-title{font-size:1.1rem;font-weight:800;color:#e6edf3;margin-bottom:12px;text-align:center}
@@ -1571,7 +1582,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.14';
+const GAME_VERSION = '5.15';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1909,7 +1920,8 @@ const defaults = () => ({
   trainerSSCount: SUPPORT.map(() => 0),
   ach: [],
   games: [],
-  musicVol: 0.5, sfxVol: 0.7
+  musicVol: 0.5, sfxVol: 0.7,
+  funShown: 0
 });
 
 let S = defaults();
@@ -3611,6 +3623,35 @@ function buyFU(ui) {
 }
 function updateFUSub() { _updateTrainingSub('fu-sub', 'fu-row', S.fu, fuCost, SS.FACILITY); }
 
+// ========== FUN POPUP ==========
+function showFunPopup() {
+  if (S.funShown) return;
+  S.funShown = 1; markDirty();
+  const ov = document.createElement('div');
+  ov.className = 'st-ov';
+  const panel = document.createElement('div');
+  panel.className = 'fun-panel';
+  const h = document.createElement('h2');
+  h.textContent = 'You are having fun';
+  const p = document.createElement('p');
+  p.textContent = 'Right?';
+  const btns = document.createElement('div');
+  btns.className = 'fun-btns';
+  const yesBtn = document.createElement('button');
+  yesBtn.className = 'fun-btn-yes';
+  yesBtn.textContent = 'I am having fun';
+  yesBtn.onclick = () => { ov.remove(); playSfx('buy'); };
+  const fbBtn = document.createElement('button');
+  fbBtn.className = 'fun-btn-fb';
+  fbBtn.textContent = 'Feedback';
+  fbBtn.onclick = () => { window.open('https://github.com/CheesusCrustBoyMillionare/Software-Dev-Clicker/issues/new', '_blank'); ov.remove(); };
+  btns.append(yesBtn, fbBtn);
+  panel.append(h, p, btns);
+  ov.appendChild(panel);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
 // ========== STATS MODAL ==========
 function openStats() {
   const ov = document.createElement('div');
@@ -4382,6 +4423,9 @@ function tick(now) {
       }
     }
   }
+
+  // "Having fun" popup — halfway through second year
+  if (!S.funShown && S.shipped === 1 && pct >= 0.5) showFunPopup();
 
   // NYT headlines at 10%, 22%, 40% ship progress (no repeats per ship)
   const nytThresholds = [0.10, 0.22, 0.40];
