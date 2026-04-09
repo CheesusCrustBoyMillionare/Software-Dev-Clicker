@@ -286,6 +286,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .ship-no{background:#30363d;color:#c9d1d9}
 .ship-no:hover{background:#484f58}
 
+/* Update Banner */
+.update-banner{position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 16px;background:#1f6feb;color:#fff;font-size:.85rem;font-weight:600;box-shadow:0 2px 12px rgba(0,0,0,.5);cursor:pointer;animation:ubIn .4s ease}
+.update-banner:hover{background:#388bfd}
+.update-banner .ub-close{margin-left:8px;background:none;border:none;color:rgba(255,255,255,.7);font-size:1.1rem;cursor:pointer;padding:0 4px}
+.update-banner .ub-close:hover{color:#fff}
+@keyframes ubIn{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+
 /* Toasts */
 .toasts{position:fixed;top:105px;left:50%;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none}
 .toast{padding:6px 14px;background:#238636;color:#fff;border-radius:6px;font-size:.8rem;font-weight:600;animation:tIn .25s ease,tOut .3s ease 1.8s forwards}
@@ -4386,6 +4393,40 @@ window.addEventListener('beforeunload', () => { if (!gameEl.classList.contains('
   }
   mq.addEventListener('change', onResize);
   onResize(mq);
+})();
+
+// ========== VERSION CHECK ==========
+(function versionCheck() {
+  let dismissed = false;
+  function check() {
+    if (dismissed) return;
+    fetch('version.json?_=' + Date.now())
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data || !data.version) return;
+        if (data.version !== GAME_VERSION) showUpdateBanner(data.version);
+      })
+      .catch(() => {});  // silently ignore network errors
+  }
+  function showUpdateBanner(newVer) {
+    if (document.querySelector('.update-banner')) return;
+    const bar = document.createElement('div');
+    bar.className = 'update-banner';
+    bar.innerHTML = '\u26A1 A new version (v' + newVer + ') is available!';
+    const refreshBtn = document.createElement('button');
+    refreshBtn.style.cssText = 'margin-left:8px;padding:4px 12px;background:#fff;color:#1f6feb;border:none;border-radius:4px;font-weight:700;font-size:.8rem;cursor:pointer';
+    refreshBtn.textContent = 'Refresh';
+    refreshBtn.onclick = function(e) { e.stopPropagation(); location.reload(); };
+    bar.appendChild(refreshBtn);
+    const close = document.createElement('button');
+    close.className = 'ub-close';
+    close.textContent = '\u2715';
+    close.onclick = function(e) { e.stopPropagation(); bar.remove(); dismissed = true; };
+    bar.appendChild(close);
+    document.body.appendChild(bar);
+  }
+  check();
+  setInterval(check, 60000);
 })();
 </script>
 </body>
