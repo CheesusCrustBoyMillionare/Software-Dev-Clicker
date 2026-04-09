@@ -1637,9 +1637,9 @@ const FAME_TREE = [
   { id:'gen', name:'Coders', color:'#7ee787', upgrades:[
     { id:'genSpeed',      name:'Overclock',         desc:'+25% coder speed',            cost:1,  max:5,  req:-1 },
     { id:'genCheap',      name:'Bulk Discount',     desc:'-10% coder costs',            cost:3,  max:3,  req:0 },
-    { id:'genSynergy',    name:'Team Synergy',      desc:'+1% per coder type owned',    cost:5,  max:1,  req:1 },
+    { id:'genSynergy',    name:'Team Synergy',      desc:'+3% per coder type owned',    cost:5,  max:1,  req:1 },
     { id:'genThreads',    name:'Parallel Threads',  desc:'+15% coder speed',            cost:2,  max:3,  req:0 },
-    { id:'genReview',     name:'Code Review',       desc:'+2% speed per coder type',    cost:4,  max:1,  req:0 },
+    { id:'genReview',     name:'Code Review',       desc:'+5% speed per coder type',    cost:4,  max:1,  req:0 },
     { id:'genAcquihire',  name:'Acqui-hire',        desc:'-15% coder hire costs',       cost:3,  max:2,  req:1 },
     { id:'genOpenSource', name:'Open Source',        desc:'+5% production per ship',     cost:7,  max:3,  req:2 },
     { id:'genPair',       name:'Pair Programming',  desc:'\u00d71.5 coder production',  cost:8,  max:1,  req:2 },
@@ -1649,7 +1649,7 @@ const FAME_TREE = [
     { id:'autoClick',      name:'Macro Script',     desc:'1 auto-click/s',              cost:3,  max:5,  req:0 },
     { id:'clickFrenzy',    name:'Code Frenzy',      desc:'Nap Pod bursts 5\u00d7 stronger', cost:5, max:1,  req:1 },
     { id:'clickPrecision', name:'Precision Click',  desc:'+1% of LoC/s per click',      cost:2,  max:5,  req:0 },
-    { id:'clickLucky',     name:'Lucky Click',      desc:'5% chance of 10\u00d7 click', cost:3,  max:3,  req:0 },
+    { id:'clickLucky',     name:'Lucky Click',      desc:'8% chance of 15\u00d7 click', cost:3,  max:3,  req:0 },
     { id:'autoBotnet',     name:'Bot Net',          desc:'+2 auto-clicks/s',            cost:4,  max:3,  req:1 },
     { id:'clickHackathon', name:'Hackathon',        desc:'Burst duration +50%',         cost:6,  max:2,  req:2 },
     { id:'clickCaffeine',  name:'Caffeine IV',      desc:'Auto-clicks charge bursts',   cost:8,  max:1,  req:2 },
@@ -1658,18 +1658,18 @@ const FAME_TREE = [
     { id:'engine',         name:'Engine License',   desc:'Start with Tier 3 on reset',  cost:2,  max:1,  req:-1 },
     { id:'marketing',      name:'Marketing Team',   desc:'+50% Fame per ship',          cost:1,  max:99, req:0 },
     { id:'publisher',      name:'Publisher Deal',   desc:'Auto-ship at threshold',      cost:3,  max:1,  req:1 },
-    { id:'ventureCapital', name:'Venture Capital',  desc:'Start with 1000\u00d7Lv LoC', cost:3,  max:5,  req:0 },
-    { id:'goldenParachute',name:'Golden Parachute', desc:'Keep 5%\u00d7Lv LoC on ship', cost:5,  max:3,  req:0 },
+    { id:'ventureCapital', name:'Venture Capital',  desc:'Start with 2%\u00d7Lv of ship target', cost:3,  max:5,  req:0 },
+    { id:'goldenParachute',name:'Golden Parachute', desc:'Keep 15%\u00d7Lv LoC on ship', cost:5,  max:3,  req:0 },
     { id:'viralMarketing', name:'Viral Marketing',  desc:'+25% Fame per ship',          cost:2,  max:5,  req:1 },
     { id:'franchise',      name:'Franchise',        desc:'Ship threshold -10%',         cost:5,  max:3,  req:2 },
-    { id:'ipo',            name:'IPO',              desc:'+1 Fame per 5 ships',         cost:10, max:1,  req:2 },
+    { id:'ipo',            name:'IPO',              desc:'+1 Fame per 3 ships',         cost:6,  max:1,  req:2 },
   ]},
   { id:'streak', name:'Click Streak', color:'#da3633', upgrades:[
     { id:'streakUnlock',    name:'Adrenaline Rush', desc:'Unlock streak (2\u00d7 max)', cost:2,  max:1,  req:-1 },
     { id:'streakPower',     name:'Overdrive',       desc:'+1\u00d7 max streak',        cost:3,  max:3,  req:0 },
     { id:'streakMastery',   name:'Flow State',      desc:'2\u00d7 faster build, 2\u00d7 slower decay', cost:5, max:1, req:1 },
     { id:'streakSecondWind',name:'Second Wind',     desc:'Streak decays 50% slower',    cost:3,  max:2,  req:0 },
-    { id:'streakCombo',     name:'Combo Breaker',   desc:'+0.5 LoC/click per streak',   cost:3,  max:3,  req:0 },
+    { id:'streakCombo',     name:'Combo Breaker',   desc:'+0.1% LoC/s per click per streak', cost:3, max:3, req:0 },
     { id:'streakTurbo',     name:'Turbo Mode',      desc:'+2\u00d7 max streak',        cost:4,  max:2,  req:1 },
     { id:'streakZone',      name:'The Zone',        desc:'At max: +25% production',     cost:7,  max:2,  req:2 },
     { id:'streakTranscend', name:'Transcendence',   desc:'Streak min floor = 1.5\u00d7',cost:10, max:1,  req:2 },
@@ -2014,8 +2014,8 @@ function recalcIfDirty() {
   _C.genSpeedMul = (1 + 0.25 * S.f.genSpeed) * (1 + 0.15 * S.f.genThreads) * (1 + cbBonus('speed'));
   // Count coder types owned (used by synergy + code review)
   let _types = 0; for (let i = 0; i < GEN.length; i++) if (S.g[i] > 0) _types++;
-  let synMul = S.f.genSynergy ? (1 + 0.01 * _types) : 1;
-  if (S.f.genReview) synMul *= (1 + 0.02 * _types);
+  let synMul = S.f.genSynergy ? (1 + 0.03 * _types) : 1;
+  if (S.f.genReview) synMul *= (1 + 0.05 * _types);
   _C.genSynergyMul = synMul;
   // Pair Programming: ×1.5 coder production
   const pairMul = S.f.genPair ? 1.5 : 1;
@@ -2680,7 +2680,7 @@ function fameGain() {
   // Viral Marketing: +25% Fame per ship per level
   if (S.f.viralMarketing) base *= (1 + 0.25 * S.f.viralMarketing);
   // IPO: +1 Fame per 5 lifetime ships
-  if (S.f.ipo) base += Math.floor(S.shipped / 5);
+  if (S.f.ipo) base += Math.floor(S.shipped / 3);
   return Math.max(1, Math.floor(base));
 }
 
@@ -3185,9 +3185,9 @@ function doClick(e) {
   // Precision Click: +1% of LoC/s per click per level
   if (S.f.clickPrecision) pw += lps() * 0.01 * S.f.clickPrecision;
   // Combo Breaker: +0.5 LoC/click per whole streak multiplier per level
-  if (S.f.streakCombo) pw += 0.5 * S.f.streakCombo * Math.floor(streakMul);
+  if (S.f.streakCombo) pw += lps() * 0.001 * S.f.streakCombo * Math.floor(streakMul);
   // Lucky Click: 5% chance per level of 10× click
-  if (S.f.clickLucky && Math.random() < 0.05 * S.f.clickLucky) { pw *= 10; float(e.clientX + 10, e.clientY - 40, '\u2728 LUCKY!'); }
+  if (S.f.clickLucky && Math.random() < 0.08 * S.f.clickLucky) { pw *= 15; float(e.clientX + 10, e.clientY - 40, '\u2728 LUCKY!'); }
   S.loc += pw;
   S.tLoc += pw;
   const nowClick = performance.now();
@@ -3684,7 +3684,7 @@ function ship() {
   S.fame += gain; S.tFame += gain;
   S.shipped++;
   // Golden Parachute: keep 5%×Lv of total LoC
-  const keepLoc = S.f.goldenParachute ? S.tLoc * 0.05 * S.f.goldenParachute : 0;
+  const keepLoc = S.f.goldenParachute ? S.tLoc * 0.15 * S.f.goldenParachute : 0;
   S.loc = 0;
   S.tLoc = 0;
   S.g = GEN.map(() => 0);
@@ -3698,7 +3698,7 @@ function ship() {
   ctReset(); streakMul = 1; lastClickTime = 0;
   if (S.f.engine) { S.g[0] = 10; S.g[1] = 5; S.g[2] = 3; }
   // Venture Capital: start with 1000×Lv LoC
-  if (S.f.ventureCapital) { S.loc += 1000 * S.f.ventureCapital; S.tLoc += 1000 * S.f.ventureCapital; }
+  if (S.f.ventureCapital) { const vc = Math.floor(shipAt() * 0.02 * S.f.ventureCapital); S.loc += vc; S.tLoc += vc; }
   // Golden Parachute: carry over LoC
   if (keepLoc > 0) { S.loc += keepLoc; S.tLoc += keepLoc; }
   isShipping = true;
