@@ -304,6 +304,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .aim-toggle.active{background:#7ee787;color:#0d1117;opacity:1}
 .aim-acc{position:absolute;top:6px;left:6px;z-index:60;padding:3px 8px;background:rgba(13,17,23,.85);color:#7ee787;border:1px solid #30363d;border-radius:4px;font-size:.6rem;font-weight:700;font-variant-numeric:tabular-nums;pointer-events:none;display:none}
 .aim-acc.show{display:block}
+.aim-sliders{position:absolute;top:28px;right:6px;z-index:60;background:rgba(13,17,23,.9);border:1px solid #30363d;border-radius:4px;padding:6px 8px;display:none;flex-direction:column;gap:4px;width:130px}
+.aim-sliders.show{display:flex}
+.aim-sliders label{display:flex;align-items:center;gap:4px;font-size:.55rem;color:#8b949e;font-weight:600}
+.aim-sliders input[type=range]{flex:1;height:4px;-webkit-appearance:none;appearance:none;background:#21262d;border-radius:2px;outline:none}
+.aim-sliders input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:#7ee787;cursor:pointer}
+.aim-sliders input[type=range]::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:#7ee787;cursor:pointer;border:none}
+.aim-sliders .aim-val{min-width:24px;text-align:right;color:#7ee787;font-size:.55rem;font-variant-numeric:tabular-nums}
 .bubble-pop{position:absolute;width:28px;height:28px;border-radius:50%;z-index:50;pointer-events:none;animation:bubblePop .35s ease-out forwards}
 @keyframes bubbleIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes bubbleFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
@@ -1562,7 +1569,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.11';
+const GAME_VERSION = '5.12';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -3280,7 +3287,10 @@ const _bub = {
   aimMisses: 0,
   aimToggleEl: null,
   aimAccEl: null,
+  aimSlidersEl: null,
   despawnTimeout: null,
+  aimSpeed: 1,         // speed multiplier (0.25 to 4)
+  aimSize: 28,         // bubble size in px (12 to 56)
 };
 
 function bubbleInitAimUI() {
@@ -3295,9 +3305,10 @@ function bubbleInitAimUI() {
     e.stopPropagation();
     _bub.aimActive = !_bub.aimActive;
     tog.classList.toggle('active', _bub.aimActive);
+    if (_bub.aimSlidersEl) _bub.aimSlidersEl.classList.toggle('show', _bub.aimActive);
     if (_bub.aimActive) {
       _bub.aimHits = 0; _bub.aimMisses = 0;
-      _bub.timer = _bub.AIM_INTERVAL; // spawn immediately
+      _bub.timer = _bub.AIM_INTERVAL / _bub.aimSpeed; // spawn immediately
     } else {
       // Remove active bubble when toggling off
       if (_bub.activeEl) { _bub.activeEl.remove(); _bub.activeEl = null; }
@@ -3312,10 +3323,43 @@ function bubbleInitAimUI() {
   acc.className = 'aim-acc';
   container.appendChild(acc);
   _bub.aimAccEl = acc;
+  // Sliders panel
+  const sliders = document.createElement('div');
+  sliders.className = 'aim-sliders';
+  // Speed slider
+  const spdLbl = document.createElement('label');
+  spdLbl.innerHTML = '\u26A1 Speed';
+  const spdVal = document.createElement('span'); spdVal.className = 'aim-val'; spdVal.textContent = '1.0x';
+  const spdSlider = document.createElement('input');
+  spdSlider.type = 'range'; spdSlider.min = '-2'; spdSlider.max = '2'; spdSlider.step = '0.25'; spdSlider.value = '0';
+  spdSlider.addEventListener('input', (e) => {
+    e.stopPropagation();
+    _bub.aimSpeed = Math.pow(2, +spdSlider.value);
+    spdVal.textContent = _bub.aimSpeed.toFixed(1) + 'x';
+  });
+  spdSlider.addEventListener('click', (e) => e.stopPropagation());
+  spdLbl.append(spdSlider, spdVal);
+  sliders.appendChild(spdLbl);
+  // Size slider
+  const sizeLbl = document.createElement('label');
+  sizeLbl.innerHTML = '\uD83D\uDD35 Size';
+  const sizeVal = document.createElement('span'); sizeVal.className = 'aim-val'; sizeVal.textContent = '28px';
+  const sizeSlider = document.createElement('input');
+  sizeSlider.type = 'range'; sizeSlider.min = '12'; sizeSlider.max = '56'; sizeSlider.step = '2'; sizeSlider.value = '28';
+  sizeSlider.addEventListener('input', (e) => {
+    e.stopPropagation();
+    _bub.aimSize = +sizeSlider.value;
+    sizeVal.textContent = _bub.aimSize + 'px';
+  });
+  sizeSlider.addEventListener('click', (e) => e.stopPropagation());
+  sizeLbl.append(sizeSlider, sizeVal);
+  sliders.appendChild(sizeLbl);
+  container.appendChild(sliders);
+  _bub.aimSlidersEl = sliders;
   // Miss detection: clicks on .left that don't hit a bubble
   container.addEventListener('click', (e) => {
     if (!_bub.aimActive) return;
-    if (e.target.closest('.bubble') || e.target.closest('.aim-toggle') || e.target.closest('#mon')) return;
+    if (e.target.closest('.bubble') || e.target.closest('.aim-toggle') || e.target.closest('.aim-sliders') || e.target.closest('#mon')) return;
     // Missed — penalize like red bubble
     _bub.aimMisses++;
     _bub.activeMul = 0.5;
@@ -3349,9 +3393,11 @@ function bubbleSpawn() {
   const isGood = aim ? true : Math.random() < 0.5; // aim mode: always green; normal: 50/50 blue/red
   const el = document.createElement('div');
   el.className = 'bubble ' + (aim ? 'green' : (isGood ? 'blue' : 'red'));
+  const sz = aim ? _bub.aimSize : 28;
+  if (aim) { el.style.width = sz + 'px'; el.style.height = sz + 'px'; }
   const margin = 30;
-  const x = margin + Math.random() * (rect.width - margin * 2 - 28);
-  const y = margin + Math.random() * (rect.height - margin * 2 - 28);
+  const x = margin + Math.random() * (rect.width - margin * 2 - sz);
+  const y = margin + Math.random() * (rect.height - margin * 2 - sz);
   el.style.left = x + 'px';
   el.style.top = y + 'px';
   el.addEventListener('click', (e) => {
@@ -3361,7 +3407,7 @@ function bubbleSpawn() {
   container.style.position = 'relative';
   container.appendChild(el);
   _bub.activeEl = el;
-  const despawn = aim ? _bub.AIM_DESPAWN : _bub.DESPAWN;
+  const despawn = aim ? _bub.AIM_DESPAWN / _bub.aimSpeed : _bub.DESPAWN;
   _bub.despawnTimeout = setTimeout(() => {
     if (_bub.activeEl === el) {
       el.remove();
@@ -3405,7 +3451,7 @@ function bubblePop(el, isGood) {
 }
 
 function bubbleTick(dt) {
-  const interval = _bub.aimActive ? _bub.AIM_INTERVAL : _bub.INTERVAL;
+  const interval = _bub.aimActive ? _bub.AIM_INTERVAL / _bub.aimSpeed : _bub.INTERVAL;
   _bub.timer += dt;
   if (_bub.timer >= interval) {
     _bub.timer = 0;
