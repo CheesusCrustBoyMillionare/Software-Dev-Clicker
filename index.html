@@ -3187,11 +3187,11 @@ const _ac = {
   infested: false,   // currently penalized?
   infestEnd: 0,     // when penalty ends (performance.now)
   cooldown: 0,      // grace period after infestation ends
-  WINDOW: 30,       // clicks to analyze
-  INTERVAL_CV_THRESH: 0.06,  // coefficient of variation below this = bot
-  POS_STD_THRESH: 3,         // pixel std dev below this = bot
+  WINDOW: 40,       // clicks to analyze
+  INTERVAL_CV_THRESH: 0.03,  // coefficient of variation below this = bot
+  POS_STD_THRESH: 1.5,       // pixel std dev below this = bot
   UNTRUSTED_THRESH: 5,       // untrusted clicks in window = bot
-  STRIKE_THRESH: 3,          // strikes before infestation triggers
+  STRIKE_THRESH: 5,          // strikes before infestation triggers
   INFEST_DUR: 30000,         // 30s penalty
 };
 
