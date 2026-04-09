@@ -1551,7 +1551,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.4';
+const GAME_VERSION = '5.5';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -3226,16 +3226,6 @@ function acCheck() {
     }
   }
 
-  // 3. Click position clustering
-  if (!dominated) {
-    const xs = _ac.positions.map(p => p.x);
-    const ys = _ac.positions.map(p => p.y);
-    const mx = xs.reduce((a, b) => a + b, 0) / xs.length;
-    const my = ys.reduce((a, b) => a + b, 0) / ys.length;
-    const stdX = Math.sqrt(xs.reduce((a, v) => a + (v - mx) ** 2, 0) / xs.length);
-    const stdY = Math.sqrt(ys.reduce((a, v) => a + (v - my) ** 2, 0) / ys.length);
-    if (stdX < _ac.POS_STD_THRESH && stdY < _ac.POS_STD_THRESH) dominated = true;
-  }
 
   if (dominated) {
     _ac.strikes++;
