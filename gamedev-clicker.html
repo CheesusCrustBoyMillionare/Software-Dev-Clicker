@@ -1551,7 +1551,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.1';
+const GAME_VERSION = '5.2';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -3490,8 +3490,17 @@ function openSettings() {
     setSfxVol(v);
     playSfx('click');
   }));
+  const fb = document.createElement('a');
+  fb.href = 'https://github.com/CheesusCrustBoyMillionare/Software-Dev-Clicker/issues/new';
+  fb.target = '_blank';
+  fb.rel = 'noopener';
+  fb.style.cssText = 'display:block;text-align:center;margin-top:14px;padding:8px 16px;background:#21262d;color:#58a6ff;border:1px solid #30363d;border-radius:6px;font-size:.75rem;font-weight:600;text-decoration:none;cursor:pointer;transition:background .15s';
+  fb.textContent = '\uD83D\uDCAC Send Feedback';
+  fb.addEventListener('mouseenter', () => fb.style.background = '#30363d');
+  fb.addEventListener('mouseleave', () => fb.style.background = '#21262d');
+  panel.appendChild(fb);
   const ver = document.createElement('div');
-  ver.style.cssText = 'text-align:center;color:#484f58;font-size:.65rem;margin-top:12px';
+  ver.style.cssText = 'text-align:center;color:#484f58;font-size:.65rem;margin-top:8px';
   ver.textContent = 'v' + GAME_VERSION;
   panel.appendChild(ver);
   const close = document.createElement('button');
