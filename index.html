@@ -1562,7 +1562,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.10';
+const GAME_VERSION = '5.11';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -3269,9 +3269,9 @@ function acPenalty() { return _ac.infested ? 0.1 : 1; }
 const _bub = {
   timer: 0,
   INTERVAL: 10,        // normal: spawn every 10s
-  AIM_INTERVAL: 0.1,   // aim trainer: spawn every 0.1s
+  AIM_INTERVAL: 0.5,   // aim trainer: spawn every 0.5s
   DESPAWN: 5000,        // normal: 5s despawn
-  AIM_DESPAWN: 50,      // aim trainer: 50ms despawn
+  AIM_DESPAWN: 250,     // aim trainer: 250ms despawn
   activeMul: 1,
   mulEnd: 0,
   activeEl: null,
