@@ -517,7 +517,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
   <div class="prog-bar-top">
     <div class="prog-wrap">
       <div class="prog-fill" id="pFill" style="transform:scaleX(0)"></div>
-      <div class="prog-txt" id="pTxt">0 LoC to ship</div>
+      <div class="prog-txt" id="pTxt"></div>
     </div>
   </div>
   <div class="top-bar">
@@ -3951,7 +3951,7 @@ function tick(now) {
   // Progress bar
   const pct = Math.min(S.tLoc / sa, 1);
   pFill.style.transform = 'scaleX(' + pct + ')';
-  pTxt.textContent = fmt(S.tLoc) + ' ' + t('locToShip');
+  pTxt.textContent = '';
   const gain = fameGain();
   const lm = getLandmark(currentYear());
   shipBtn.textContent = t('shipVerb') + ' ' + lm.parody + '! (+' + gain + ' ' + t('fame') + ')';
