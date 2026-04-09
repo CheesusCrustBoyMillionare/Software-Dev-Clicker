@@ -1582,7 +1582,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.15';
+const GAME_VERSION = '5.16';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1926,9 +1926,20 @@ const defaults = () => ({
 
 let S = defaults();
 
+// ========== CLOCK INTEGRITY ==========
+// trustedNow() is immune to mid-session system-clock changes because
+// it anchors to Date.now() captured once at page load and advances
+// via performance.now() which is monotonic and untamperable.
+const _tSessionDate = Date.now();
+const _tSessionPerf = performance.now();
+let _tClockOffset = 0;          // ms to subtract if network proves clock is ahead
+function trustedNow() {
+  return Math.floor(_tSessionDate + (performance.now() - _tSessionPerf) - _tClockOffset);
+}
+
 // ========== SAVE / LOAD ==========
 let KEY = 'gdc_save_1';
-function save() { S._lastSave = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); }
+function save() { S._lastSave = trustedNow(); localStorage.setItem(KEY, JSON.stringify(S)); }
 function loadSlot(raw) {
   try {
     const d = JSON.parse(raw);
@@ -2000,13 +2011,14 @@ function loadSlot(raw) {
     markDirty();
     recalcIfDirty();
     if (d._lastSave) {
-      const elapsed = Math.min((Date.now() - d._lastSave) / 1000, OFFLINE_CAP);
+      const elapsed = Math.min((trustedNow() - d._lastSave) / 1000, OFFLINE_CAP);
       if (elapsed > 10) {
         const passiveRate = lps();
         const earned = Math.floor(passiveRate * elapsed);
         if (earned > 0) {
           S.loc += earned;
           S.tLoc += earned;
+          S._offlineEarned = earned;  // stash so network clock check can claw back
           pendingOfflineMsg = t('welcomeBack') + ' ' + fmt(earned) + ' ' + t('whileAway') + ' (' + Math.floor(elapsed / 60) + 'm)';
         }
       }
@@ -4566,6 +4578,13 @@ function tick(now) {
   updateRUSub();
   updateFUSub();
 
+  // Clock drift detection — compare real elapsed (performance.now) to system clock
+  const _drift = Date.now() - trustedNow();
+  if (Math.abs(_drift) > 30000) {   // >30 s jump = clock was changed mid-session
+    _tClockOffset += _drift;         // absorb the jump so trustedNow stays correct
+    toast('\u26A0\uFE0F Clock change detected — nice try!', '#da3633');
+  }
+
   // Autosave every 30s
   saveAcc += dt;
   if (saveAcc >= AUTOSAVE_INTERVAL) { saveAcc = 0; save(); }
@@ -4736,13 +4755,33 @@ window.addEventListener('beforeunload', () => { if (!gameEl.classList.contains('
   onResize(mq);
 })();
 
-// ========== VERSION CHECK ==========
+// ========== VERSION CHECK + NETWORK CLOCK VALIDATION ==========
+let _clockValidated = false;
 (function versionCheck() {
   let dismissed = false;
   function check() {
     if (dismissed) return;
     fetch('version.json?_=' + Date.now())
-      .then(r => r.ok ? r.json() : null)
+      .then(r => {
+        // Network clock validation (once per session)
+        if (!_clockValidated) {
+          _clockValidated = true;
+          const serverDateStr = r.headers.get('Date');
+          if (serverDateStr) {
+            const serverTime = new Date(serverDateStr).getTime();
+            const localTime = Date.now();
+            const drift = localTime - serverTime;
+            if (drift > 300000) {  // local clock >5 min ahead of server
+              _tClockOffset += drift;
+              // Claw back any undeserved offline LoC
+              if (pendingOfflineMsg) { S.loc = Math.max(0, S.loc - (S._offlineEarned || 0)); S.tLoc = Math.max(0, S.tLoc - (S._offlineEarned || 0)); pendingOfflineMsg = null; }
+              S._lastSave = trustedNow(); save();
+              toast('\u26A0\uFE0F System clock is ahead — offline progress revoked', '#da3633');
+            }
+          }
+        }
+        return r.ok ? r.json() : null;
+      })
       .then(data => {
         if (!data || !data.version) return;
         if (data.version !== GAME_VERSION) showUpdateBanner(data.version);
