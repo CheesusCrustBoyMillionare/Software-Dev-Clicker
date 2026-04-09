@@ -375,6 +375,121 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .slot-num{font-size:2rem;font-weight:700;color:#58a6ff}
 .slot-info{font-size:.7rem;color:#8b949e;margin-top:6px;line-height:1.4}
 .game.hidden{display:none}
+
+/* ===== MOBILE RESPONSIVE ===== */
+.mob-tabs{display:none}
+
+@media(max-width:768px){
+  /* Tab bar */
+  .mob-tabs{display:flex;position:fixed;bottom:0;left:0;right:0;height:52px;background:#161b22;border-top:1px solid #30363d;z-index:100}
+  .mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:none;border:none;color:#8b949e;font-size:.55rem;cursor:pointer;padding:4px 0;gap:2px;-webkit-tap-highlight-color:transparent}
+  .mob-tab.active{color:#58a6ff}
+  .mob-tab-icon{font-size:1.3rem}
+
+  /* Game container */
+  .game{height:100dvh;height:100vh;padding-bottom:52px}
+
+  /* Main layout: show one panel at a time */
+  .main{flex-direction:column;overflow:hidden}
+
+  /* Default: hide all, desk tab shows center */
+  .game .left-panel,.game .right{display:none;overflow-y:auto}
+  .game .left{display:flex;flex:1;overflow-y:auto}
+
+  .game[data-tab="desk"] .left{display:flex;flex:1}
+  .game[data-tab="desk"] .left-panel,.game[data-tab="desk"] .right{display:none}
+
+  .game[data-tab="coders"] .left,.game[data-tab="coders"] .left-panel{display:none}
+  .game[data-tab="coders"] .right{display:flex;flex-direction:column;flex:1;width:100%;min-width:0;overflow-y:auto}
+  .game[data-tab="coders"] .right-log{display:none}
+  .game[data-tab="coders"] .right-coders{display:block;flex:1;overflow-y:auto;border:none}
+
+  .game[data-tab="upgrades"] .left,.game[data-tab="upgrades"] .right{display:none}
+  .game[data-tab="upgrades"] .left-panel{display:block;flex:1;width:100%;min-width:0;overflow-y:auto;border:none}
+
+  .game[data-tab="log"] .left,.game[data-tab="log"] .left-panel{display:none}
+  .game[data-tab="log"] .right{display:flex;flex-direction:column;flex:1;width:100%;min-width:0;overflow-y:auto}
+  .game[data-tab="log"] .right-log{display:block;flex:1;overflow-y:auto;border:none}
+  .game[data-tab="log"] .right-coders{display:none}
+
+  /* Top bar: wrap on small screens */
+  .top-bar{flex-wrap:wrap;padding:6px 10px;gap:2px 10px;justify-content:center}
+  .stat-val{font-size:1.1rem}
+  .stat-lbl{font-size:.6rem}
+  #dCat{font-size:.85rem}
+  .prog-bar-top{padding:3px 10px}
+
+  /* Desk scene: scale down */
+  .desk-scene{transform:scale(1.3);margin-bottom:60px}
+  .left{justify-content:flex-start;padding-top:12px}
+  .click-info{font-size:1.1rem}
+  .click-power{font-size:1.2rem}
+  .fame-mult{font-size:1.1rem}
+
+  /* Panel overrides */
+  .left-panel{width:100%;min-width:0;border-right:none;padding:10px}
+  .right{width:100%;min-width:0;border-left:none}
+  .right-log{border-right:none}
+  .right-coders{border:none}
+
+  /* Touch targets: upgrade rows */
+  .up{padding:12px 10px;gap:10px}
+  .up-name{font-size:.85rem}
+  .up-desc{font-size:.7rem}
+  .up-cost{font-size:.85rem}
+
+  /* Touch targets: buttons */
+  .eu-toggle,.fu-toggle{width:36px;height:36px;font-size:.9rem}
+  .pause-toggle{padding:6px 10px;font-size:.8rem}
+  .qty-btn{padding:10px 0;font-size:.8rem}
+  .qty-bar{gap:6px;margin-bottom:10px}
+
+  /* Touch targets: training sub-rows */
+  .eu-row,.ru-row,.fu-row{padding:10px 8px;font-size:.8rem;gap:8px}
+
+  /* Modals: fame tree fullscreen */
+  .st-graph{width:100vw;height:100vh;max-width:100vw;max-height:100vh;border-radius:0;padding:12px;-webkit-overflow-scrolling:touch}
+  .st-close{position:fixed;top:8px;right:12px;font-size:2rem;padding:10px;z-index:170}
+  .st-node{width:100px;padding:6px}
+  .st-node .st-name{font-size:.6rem}
+
+  /* Modals: panels responsive */
+  .ach-panel{width:calc(100vw - 24px);max-width:400px;max-height:85vh}
+  .ach-row{padding:10px;gap:8px}
+  .stats-panel{width:calc(100vw - 24px);max-width:480px;max-height:85vh}
+  .stats-table{font-size:.65rem}
+  .stats-table th,.stats-table td{padding:4px 3px}
+  .settings-panel{width:calc(100vw - 24px);max-width:320px}
+
+  /* Banners & toasts: above tab bar */
+  .ev-banner{top:auto;bottom:60px;max-width:calc(100vw - 20px);font-size:.75rem}
+  .ev-opt{padding:10px 12px;font-size:.75rem}
+  .nyt-banner{top:auto;bottom:60px;max-width:calc(100vw - 20px);font-size:.7rem}
+  .toasts{top:auto;bottom:120px}
+  .toast{font-size:.75rem}
+
+  /* Ship button */
+  .bot{padding:6px 10px}
+
+  /* Slot screen: stack vertically */
+  .slot-row{flex-direction:column;gap:10px;align-items:center}
+  .slot-btn{width:280px;max-width:90vw}
+
+  /* Log panel adjustments */
+  .log-panel{max-height:none}
+  .log-hdr{font-size:.85rem}
+  .log-entry{font-size:.7rem;padding:4px 0}
+}
+
+@media(max-width:480px){
+  .desk-scene{transform:scale(1.1);margin-bottom:40px}
+  .stat-val{font-size:1rem}
+  #dCat{font-size:.75rem}
+  .top-bar{padding:4px 8px;gap:1px 8px}
+  .click-info{font-size:.9rem}
+  .click-power{font-size:1rem}
+  .fame-mult{font-size:.9rem}
+}
 </style>
 </head>
 <body>
@@ -461,7 +576,7 @@ const T={en:{
   empty:'Empty',newGame:'New Game',eraseSave:'Erase this save?',yes:'Yes',no:'No',inProgress:'In progress',
   year:'Year',developing:'Currently Developing',linesOfCode:'Lines of Code',locSec:'LoC / sec',fame:'Fame',
   clickInfo:'Click the monitor to write code',locPerClick:'LoC per click',
-  coders:'Coders',supportStaff:'Support Staff',officePerks:'Office Perks',codeBase:'Code Base',
+  desk:'Desk',coders:'Coders',supportStaff:'Support Staff',officePerks:'Office Perks',codeBase:'Code Base',
   max:'Max',skillTree:'Skill Tree',achievements:'Achievements',stats:'Stats',btnContinue:'Continue',
   locToShip:'LoC to ship',shipVerb:'Ship',
   napIn:'Nap in',choose:'(choose!)',
@@ -484,7 +599,7 @@ const T={en:{
   empty:'Vacío',newGame:'Nueva Partida',eraseSave:'¿Borrar esta partida?',yes:'Sí',no:'No',inProgress:'En progreso',
   year:'Año',developing:'Desarrollando',linesOfCode:'Líneas de Código',locSec:'LdC / seg',fame:'Fama',
   clickInfo:'Haz clic en el monitor para escribir código',locPerClick:'LdC por clic',
-  coders:'Programadores',supportStaff:'Personal de Apoyo',officePerks:'Beneficios de Oficina',codeBase:'Base de Código',
+  desk:'Escritorio',coders:'Programadores',supportStaff:'Personal de Apoyo',officePerks:'Beneficios de Oficina',codeBase:'Base de Código',
   max:'Máx',skillTree:'Árbol de Habilidades',achievements:'Logros',stats:'Estadísticas',btnContinue:'Continuar',
   locToShip:'LdC para enviar',shipVerb:'Enviar',
   napIn:'Siesta en',choose:'(¡elige!)',
@@ -673,7 +788,7 @@ const T={en:{
   empty:'Vazio',newGame:'Novo Jogo',eraseSave:'Apagar este save?',yes:'Sim',no:'Não',inProgress:'Em andamento',
   year:'Ano',developing:'Desenvolvendo',linesOfCode:'Linhas de Código',locSec:'LoC / seg',fame:'Fama',
   clickInfo:'Clique no monitor para escrever código',locPerClick:'LoC por clique',
-  coders:'Programadores',supportStaff:'Equipe de Apoio',officePerks:'Benefícios do Escritório',codeBase:'Base de Código',
+  desk:'Mesa',coders:'Programadores',supportStaff:'Equipe de Apoio',officePerks:'Benefícios do Escritório',codeBase:'Base de Código',
   max:'Máx',skillTree:'Árvore de Habilidades',achievements:'Conquistas',stats:'Estatísticas',btnContinue:'Continuar',
   locToShip:'LoC para lançar',shipVerb:'Lançar',
   napIn:'Soneca em',choose:'(escolha!)',
@@ -862,7 +977,7 @@ const T={en:{
   empty:'Vide',newGame:'Nouvelle Partie',eraseSave:'Effacer cette sauvegarde ?',yes:'Oui',no:'Non',inProgress:'En cours',
   year:'Année',developing:'En développement',linesOfCode:'Lignes de Code',locSec:'LdC / sec',fame:'Gloire',
   clickInfo:'Cliquez sur le moniteur pour écrire du code',locPerClick:'LdC par clic',
-  coders:'Codeurs',supportStaff:'Personnel de soutien',officePerks:'Avantages Bureau',codeBase:'Base de Code',
+  desk:'Bureau',coders:'Codeurs',supportStaff:'Personnel de soutien',officePerks:'Avantages Bureau',codeBase:'Base de Code',
   max:'Max',skillTree:'Arbre de compétences',achievements:'Succès',stats:'Statistiques',btnContinue:'Continuer',
   locToShip:'LdC pour livrer',shipVerb:'Livrer',
   napIn:'Sieste dans',choose:'(choisissez !)',
@@ -1051,7 +1166,7 @@ const T={en:{
   empty:'Leer',newGame:'Neues Spiel',eraseSave:'Diesen Spielstand löschen?',yes:'Ja',no:'Nein',inProgress:'In Arbeit',
   year:'Jahr',developing:'In Entwicklung',linesOfCode:'Codezeilen',locSec:'LoC / Sek',fame:'Ruhm',
   clickInfo:'Klicke auf den Monitor um Code zu schreiben',locPerClick:'LoC pro Klick',
-  coders:'Programmierer',supportStaff:'Support-Personal',officePerks:'Büro-Vorteile',codeBase:'Code-Basis',
+  desk:'Schreibtisch',coders:'Programmierer',supportStaff:'Support-Personal',officePerks:'Büro-Vorteile',codeBase:'Code-Basis',
   max:'Max',skillTree:'Skill-Baum',achievements:'Erfolge',stats:'Statistiken',btnContinue:'Weiter',
   locToShip:'LoC zum Ausliefern',shipVerb:'Ausliefern',
   napIn:'Nickerchen in',choose:'(wähle!)',
@@ -1240,7 +1355,7 @@ const T={en:{
   empty:'No Cap Empty',newGame:'New Era',eraseSave:'delete this L?',yes:'Bet',no:'Nah',inProgress:'Grinding',
   year:'Era',developing:'Currently Cooking',linesOfCode:'Lines of Clout',locSec:'LoC / sec',fame:'Clout',
   clickInfo:'Tap the screen to farm content',locPerClick:'LoC per tap',
-  coders:'Creators',supportStaff:'Management',officePerks:'Vibes',codeBase:'Meta Strats',
+  desk:'Setup',coders:'Creators',supportStaff:'Management',officePerks:'Vibes',codeBase:'Meta Strats',
   max:'Max',skillTree:'Skill Tree',achievements:"W's",stats:'Analytics',btnContinue:'Less Go',
   locToShip:'LoC to drop',shipVerb:'Drop',
   napIn:'Nap in',choose:'(pick one bestie!)',
@@ -4225,6 +4340,51 @@ slotRow.addEventListener('click', e => {
 });
 
 window.addEventListener('beforeunload', () => { if (!gameEl.classList.contains('hidden')) save(); });
+
+// ========== MOBILE TAB SYSTEM ==========
+(function initMobileTabs() {
+  const mq = window.matchMedia('(max-width:768px)');
+  const tabs = document.createElement('div');
+  tabs.className = 'mob-tabs';
+  const tabDefs = [
+    { key:'desk', icon:'\u{1F5A5}\uFE0F' },
+    { key:'coders', icon:'\u{1F465}' },
+    { key:'upgrades', icon:'\u{1F527}', labelKey:'officePerks' },
+    { key:'log', icon:'\u{1F4CB}', labelKey:'activityLog' }
+  ];
+  tabDefs.forEach(td => {
+    const btn = document.createElement('button');
+    btn.className = 'mob-tab';
+    btn.dataset.tab = td.key;
+    const ico = document.createElement('span');
+    ico.className = 'mob-tab-icon';
+    ico.textContent = td.icon;
+    const lbl = document.createElement('span');
+    lbl.textContent = t(td.labelKey || td.key);
+    btn.append(ico, lbl);
+    tabs.appendChild(btn);
+  });
+  document.body.appendChild(tabs);
+
+  function activate(key) {
+    gameEl.dataset.tab = key;
+    tabs.querySelectorAll('.mob-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
+  }
+  tabs.addEventListener('click', e => {
+    const btn = e.target.closest('.mob-tab');
+    if (btn) activate(btn.dataset.tab);
+  });
+
+  function onResize(e) {
+    if (e.matches) {
+      if (!gameEl.dataset.tab) activate('desk');
+    } else {
+      delete gameEl.dataset.tab;
+    }
+  }
+  mq.addEventListener('change', onResize);
+  onResize(mq);
+})();
 </script>
 </body>
 </html>
