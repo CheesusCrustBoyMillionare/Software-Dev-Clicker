@@ -517,7 +517,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
   <div class="prog-bar-top">
     <div class="prog-wrap">
       <div class="prog-fill" id="pFill" style="transform:scaleX(0)"></div>
-      <div class="prog-txt" id="pTxt">0 / 1M LoC to ship</div>
+      <div class="prog-txt" id="pTxt">0 LoC to ship</div>
     </div>
   </div>
   <div class="top-bar">
@@ -3423,12 +3423,12 @@ function openStats() {
   if (S.games.length > 0) {
     const tbl = document.createElement('table');
     tbl.className = 'stats-table';
-    tbl.innerHTML = '<thead><tr><th>' + t('year') + '</th><th>' + t('software') + '</th><th>' + t('category') + '</th><th>' + t('fame') + '</th><th>' + t('loc') + '</th></tr></thead>';
+    tbl.innerHTML = '<thead><tr><th>' + t('year') + '</th><th>' + t('software') + '</th><th>' + t('category') + '</th><th>' + t('fame') + '</th></tr></thead>';
     const tbody = document.createElement('tbody');
     for (let i = S.games.length - 1; i >= 0; i--) {
       const g = S.games[i];
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + g.year + '</td><td>' + g.name + '</td><td>' + (g.cat || '-') + '</td><td>' + (g.fame != null ? '+' + g.fame : '-') + '</td><td>' + (g.target != null ? fmt(g.target) : '-') + '</td>';
+      tr.innerHTML = '<td>' + g.year + '</td><td>' + g.name + '</td><td>' + (g.cat || '-') + '</td><td>' + (g.fame != null ? '+' + g.fame : '-') + '</td>';
       tbody.appendChild(tr);
     }
     tbl.appendChild(tbody);
@@ -3951,7 +3951,7 @@ function tick(now) {
   // Progress bar
   const pct = Math.min(S.tLoc / sa, 1);
   pFill.style.transform = 'scaleX(' + pct + ')';
-  pTxt.textContent = fmt(S.tLoc) + ' / ' + fmt(sa) + ' ' + t('locToShip');
+  pTxt.textContent = fmt(S.tLoc) + ' ' + t('locToShip');
   const gain = fameGain();
   const lm = getLandmark(currentYear());
   shipBtn.textContent = t('shipVerb') + ' ' + lm.parody + '! (+' + gain + ' ' + t('fame') + ')';
