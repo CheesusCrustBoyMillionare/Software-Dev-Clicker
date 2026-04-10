@@ -1620,7 +1620,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.3.2';
+const GAME_VERSION = '6.3.3';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1667,7 +1667,7 @@ const CLK = [
   { name: 'Unlimited PTO',      desc: '-20% coder hire costs',           base: 1000000,  gr: 10 },
   { name: 'Nap Pods',           desc: 'Burst: 16s production every 50s', base: 2000000,  gr: 10 },
   { name: 'Company Retreat',    desc: '\u00d72.5 all production',        base: 6000000,  gr: 10 },
-  { name: 'Meeting Room',      desc: 'Pauses worst LoC/cost auto-buyer', base: 150000,   gr: 10 },
+  { name: 'Meeting Room',      desc: 'Pauses worst LoC/cost auto-buyer', base: 150000,   gr: 10, req: 3 },
 ];
 
 const FACILITY_UPS = [
@@ -4912,13 +4912,15 @@ function tick(now) {
     } else if (a === 'c') {
       const i = ref.idx;
       const cUnlocked = 3 + Math.floor(S.shipped / 2);
-      const isNext = i === cUnlocked && i < CLK.length;
-      locked = i > cUnlocked;
+      const req = CLK[i].req;
+      const isOpen = req !== undefined ? S.shipped >= req : i < cUnlocked;
+      const isNext = !isOpen && (req !== undefined ? S.shipped >= req - 1 : i === cUnlocked && i < CLK.length);
+      locked = !isOpen && !isNext;
       if (isNext) {
         afford = false;
         costEl.textContent = '';
         ownEl.textContent = '\u{1F512}';
-      } else if (i < cUnlocked) {
+      } else if (isOpen) {
         owned = S.c[i]; maxed = owned >= 1;
         cost = cCost(i); afford = !maxed && S.loc >= cost;
         costEl.textContent = maxed ? '' : fmt(cost);
