@@ -312,6 +312,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .bubble.blue{background:radial-gradient(circle at 35% 35%,#6eb5ff,#1a6eff)}
 .bubble.red{background:radial-gradient(circle at 35% 35%,#ff6e6e,#d62828)}
 .bubble.green{background:radial-gradient(circle at 35% 35%,#7eef7e,#1eaa1e)}
+.bubble.bug{background:none;box-shadow:none;display:flex;align-items:center;justify-content:center;line-height:1;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .aim-toggle{position:absolute;top:6px;right:6px;z-index:60;padding:3px 8px;background:#21262d;color:#7ee787;border:1px solid #30363d;border-radius:4px;font-size:.6rem;font-weight:700;cursor:pointer;opacity:.7;transition:all .15s}
 .aim-toggle:hover{opacity:1;border-color:#7ee787}
 .aim-toggle.active{background:#7ee787;color:#0d1117;opacity:1}
@@ -338,9 +339,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 /* Staff Speech Bubbles */
 .staff-bubble{position:fixed;z-index:99;padding:8px 12px;background:#161b22;border:1px solid #30363d;border-radius:8px;font-size:.75rem;color:#e6edf3;pointer-events:none;max-width:280px;white-space:normal;line-height:1.35;animation:sbIn .3s ease,sbOut .4s ease 5s forwards}
 .staff-bubble .sb-name{font-weight:700;margin-right:4px}
-.staff-bubble::after{content:'';position:absolute;bottom:-6px;left:20px;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #30363d}
-@keyframes sbIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-@keyframes sbOut{to{opacity:0;transform:translateY(-6px)}}
+.staff-bubble::after{content:'';position:absolute;top:10px;left:-6px;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:6px solid #30363d}
+@keyframes sbIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+@keyframes sbOut{to{opacity:0;transform:translateX(-8px)}}
 
 /* Ship Overlay */
 .ship-ov{position:fixed;inset:0;z-index:150;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(13,17,23,.9);animation:shipIn 13.3s ease forwards}
@@ -1589,7 +1590,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.17';
+const GAME_VERSION = '5.18';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -3362,18 +3363,18 @@ function acTick() {
 function acPenalty() { return _ac.infested ? 0.1 : 1; }
 
 // ========== BUBBLE MINIGAME ==========
+const BUGS = ['\uD83D\uDC1B','\uD83E\uDEB2','\uD83D\uDC1C','\uD83E\uDD97','\uD83D\uDD77\uFE0F','\uD83D\uDC1E'];
 const _bub = {
   timer: 0,
   INTERVAL: 10,        // normal: spawn every 10s
-  AIM_INTERVAL: 0.5,   // aim trainer: spawn every 0.5s
+  AIM_INTERVAL: 1.0,   // aim trainer: spawn every 1s at 1x
   DESPAWN: 5000,        // normal: 5s despawn
-  AIM_DESPAWN: 250,     // aim trainer: 250ms despawn
+  AIM_DESPAWN: 500,     // aim trainer: 500ms to click at 1x
   activeMul: 1,
   mulEnd: 0,
   activeEl: null,
   aimActive: false,     // aim trainer toggle state
-  aimHits: 0,
-  aimMisses: 0,
+  aimLog: [],           // rolling accuracy log [{t, hit}]
   aimToggleEl: null,
   aimAccEl: null,
   aimSlidersEl: null,
@@ -3396,12 +3397,13 @@ function bubbleInitAimUI() {
     tog.classList.toggle('active', _bub.aimActive);
     if (_bub.aimSlidersEl) _bub.aimSlidersEl.classList.toggle('show', _bub.aimActive);
     if (_bub.aimActive) {
-      _bub.aimHits = 0; _bub.aimMisses = 0;
+      _bub.aimLog = [];
       _bub.timer = _bub.AIM_INTERVAL / _bub.aimSpeed; // spawn immediately
     } else {
       // Remove active bubble when toggling off
       if (_bub.activeEl) { _bub.activeEl.remove(); _bub.activeEl = null; }
       if (_bub.despawnTimeout) { clearTimeout(_bub.despawnTimeout); _bub.despawnTimeout = null; }
+      _bub.aimLog = [];
     }
     aimAccUpdate();
   });
@@ -3449,8 +3451,8 @@ function bubbleInitAimUI() {
   container.addEventListener('click', (e) => {
     if (!_bub.aimActive) return;
     if (e.target.closest('.bubble') || e.target.closest('.aim-toggle') || e.target.closest('.aim-sliders') || e.target.closest('#mon')) return;
-    // Missed — penalize like red bubble
-    _bub.aimMisses++;
+    // Missed — penalize
+    _bub.aimLog.push({ t: performance.now(), hit: false });
     _bub.activeMul = 0.5;
     _bub.mulEnd = performance.now() + 10000;
     aimAccUpdate();
@@ -3458,15 +3460,32 @@ function bubbleInitAimUI() {
   });
 }
 
+function _aimAcc() {
+  const cutoff = performance.now() - 60000;
+  let hits = 0, total = 0;
+  for (let i = _bub.aimLog.length - 1; i >= 0; i--) {
+    if (_bub.aimLog[i].t < cutoff) break;
+    total++; if (_bub.aimLog[i].hit) hits++;
+  }
+  return { hits, total, pct: total > 0 ? (hits / total) * 100 : 0 };
+}
+function aimbotMul() {
+  if (!_bub.aimActive) return 1;
+  const a = _aimAcc();
+  if (a.total === 0) return 1;
+  const diff = _bub.aimSpeed * (28 / _bub.aimSize);
+  return 1 + diff * (a.pct / 100) * 0.15;
+}
 function aimAccUpdate() {
   if (!_bub.aimAccEl) return;
-  const total = _bub.aimHits + _bub.aimMisses;
-  if (_bub.aimActive && total > 0) {
-    const pct = ((_bub.aimHits / total) * 100).toFixed(1);
-    _bub.aimAccEl.textContent = '\uD83C\uDFAF ' + pct + '% (' + _bub.aimHits + '/' + total + ')';
-    _bub.aimAccEl.classList.add('show');
-  } else if (_bub.aimActive) {
-    _bub.aimAccEl.textContent = '\uD83C\uDFAF 0/0';
+  if (_bub.aimActive) {
+    const a = _aimAcc();
+    const mul = aimbotMul();
+    if (a.total > 0) {
+      _bub.aimAccEl.textContent = '\uD83C\uDFAF ' + a.pct.toFixed(1) + '% (' + a.hits + '/' + a.total + ') \u00B7 ' + mul.toFixed(2) + '\u00D7';
+    } else {
+      _bub.aimAccEl.textContent = '\uD83C\uDFAF 0/0';
+    }
     _bub.aimAccEl.classList.add('show');
   } else {
     _bub.aimAccEl.classList.remove('show');
@@ -3479,11 +3498,11 @@ function bubbleSpawn() {
   if (!container) return;
   const rect = container.getBoundingClientRect();
   const aim = _bub.aimActive;
-  const isGood = aim ? true : Math.random() < 0.5; // aim mode: always green; normal: 50/50 blue/red
+  const isGood = aim ? true : Math.random() < 0.5; // aim mode: always good; normal: 50/50 blue/red
   const el = document.createElement('div');
-  el.className = 'bubble ' + (aim ? 'green' : (isGood ? 'blue' : 'red'));
+  el.className = 'bubble ' + (aim ? 'bug' : (isGood ? 'blue' : 'red'));
   const sz = aim ? _bub.aimSize : 28;
-  if (aim) { el.style.width = sz + 'px'; el.style.height = sz + 'px'; }
+  if (aim) { el.style.width = sz + 'px'; el.style.height = sz + 'px'; el.style.fontSize = Math.max(12, sz * 0.75) + 'px'; el.textContent = BUGS[Math.floor(Math.random() * BUGS.length)]; }
   const margin = 30;
   const x = margin + Math.random() * (rect.width - margin * 2 - sz);
   const y = margin + Math.random() * (rect.height - margin * 2 - sz);
@@ -3501,7 +3520,7 @@ function bubbleSpawn() {
     if (_bub.activeEl === el) {
       el.remove();
       _bub.activeEl = null;
-      if (aim) { _bub.aimMisses++; aimAccUpdate(); }
+      if (aim) { _bub.aimLog.push({ t: performance.now(), hit: false }); aimAccUpdate(); }
     }
   }, despawn);
 }
@@ -3517,18 +3536,23 @@ function bubblePop(el, isGood) {
   pop.style.left = el.style.left;
   pop.style.top = el.style.top;
   pop.style.background = _bub.aimActive
-    ? 'radial-gradient(circle,#7eef7e,#1eaa1e)'
+    ? 'radial-gradient(circle,#ffe066,#d4a017)'
     : (isGood ? 'radial-gradient(circle,#6eb5ff,#1a6eff)' : 'radial-gradient(circle,#ff6e6e,#d62828)');
   container.appendChild(pop);
   pop.addEventListener('animationend', () => pop.remove());
   // Apply effect
   if (isGood) {
-    _bub.activeMul = 2;
-    _bub.mulEnd = performance.now() + 10000;
     if (_bub.aimActive) {
-      _bub.aimHits++;
+      _bub.aimLog.push({ t: performance.now(), hit: true });
+      // Bug kill reward: 5× click power
+      const reward = 5 * clickPow() * streakMul * acPenalty() * aimbotMul();
+      S.loc += reward; S.tLoc += reward;
+      const bRect = container.getBoundingClientRect();
+      float(bRect.left + parseFloat(el.style.left) + 10, bRect.top + parseFloat(el.style.top) - 5, '+' + fmt(reward));
       aimAccUpdate();
     } else {
+      _bub.activeMul = 2;
+      _bub.mulEnd = performance.now() + 10000;
       toast('\uD83D\uDD35 Code Rush! 2\u00d7 production for 10s');
     }
   } else {
@@ -3549,12 +3573,18 @@ function bubbleTick(dt) {
   if (_bub.activeMul !== 1 && performance.now() >= _bub.mulEnd) {
     _bub.activeMul = 1;
   }
+  // Trim old aim log entries (>60s) and refresh accuracy display
+  if (_bub.aimActive && _bub.aimLog.length > 0) {
+    const cutoff = performance.now() - 60000;
+    while (_bub.aimLog.length > 0 && _bub.aimLog[0].t < cutoff) _bub.aimLog.shift();
+    aimAccUpdate();
+  }
   // Show/hide aim trainer toggle based on fame unlock
   if (S.f.aimTrainer && !_bub.aimToggleEl) bubbleInitAimUI();
   if (_bub.aimToggleEl) _bub.aimToggleEl.style.display = S.f.aimTrainer ? '' : 'none';
 }
 
-function bubbleMul() { return _bub.activeMul; }
+function bubbleMul() { return _bub.activeMul * aimbotMul(); }
 
 function doClick(e) {
   acRecord(e);
@@ -3714,11 +3744,11 @@ function showStaffBubble(ssIdx, text) {
   el.appendChild(name);
   el.appendChild(document.createTextNode(' ' + text));
   document.body.appendChild(el);
-  // Position above the row, clamped to viewport
+  // Position to the right of the row, clamped to viewport
   const bw = Math.min(280, window.innerWidth - 20);
   el.style.width = bw + 'px';
-  el.style.left = Math.max(4, Math.min(rect.left, window.innerWidth - bw - 8)) + 'px';
-  el.style.top = Math.max(4, rect.top - el.offsetHeight - 8) + 'px';
+  el.style.left = Math.min(rect.right + 8, window.innerWidth - bw - 8) + 'px';
+  el.style.top = Math.max(4, rect.top + (rect.height / 2) - 16) + 'px';
   el.addEventListener('animationend', e => { if (e.animationName === 'sbOut') el.remove(); });
   log('\uD83D\uDCAC ' + SUPPORT[ssIdx].name + ': ' + text);
 }
