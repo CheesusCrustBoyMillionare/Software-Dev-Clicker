@@ -3369,7 +3369,7 @@ const _bub = {
   INTERVAL: 10,        // normal: spawn every 10s
   AIM_INTERVAL: 1.0,   // aim trainer: spawn every 1s at 1x
   DESPAWN: 5000,        // normal: 5s despawn
-  AIM_DESPAWN: 500,     // aim trainer: 500ms to click at 1x
+  AIM_DESPAWN: 1000,    // aim trainer: 1s to click at 1x
   activeMul: 1,
   mulEnd: 0,
   activeEl: null,
@@ -3474,7 +3474,7 @@ function aimbotMul() {
   const a = _aimAcc();
   if (a.total === 0) return 1;
   const diff = _bub.aimSpeed * (28 / _bub.aimSize);
-  return 1 + diff * (a.pct / 100) * 0.15;
+  return 1 + diff * (a.pct / 100) * 0.60;
 }
 function aimAccUpdate() {
   if (!_bub.aimAccEl) return;
