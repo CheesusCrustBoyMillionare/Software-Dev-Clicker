@@ -186,6 +186,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .eu-row:hover,.ru-row:hover,.fu-row:hover{border-color:#58a6ff}
 .eu-row.no,.ru-row.no,.fu-row.no{opacity:.45;cursor:default}
 .eu-row.no:hover,.ru-row.no:hover,.fu-row.no:hover{border-color:#21262d}
+.eu-row.best{border-color:#2ea043;background:rgba(46,160,67,.08)}
 .eu-row-name{font-weight:600;color:#e6edf3;min-width:60px}
 .eu-row-desc{color:#8b949e;flex:1;font-size:.6rem}
 .eu-row-cost{color:#58a6ff;font-weight:600;font-size:.7rem}
@@ -1620,7 +1621,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.3.3';
+const GAME_VERSION = '6.4';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1678,7 +1679,7 @@ const FACILITY_UPS = [
 const SUPPORT = [
   { name: 'Secretary',         desc: 'Reveals the best-value coder',        base: 1500,   gr: 10 },
   { name: 'Recruiter',         desc: 'Auto-hires best coder every 10s',     base: 15000,  gr: 10 },
-  { name: 'Facility Director', desc: 'Auto-buys cheapest equipment',        base: 45000,  gr: 10 },
+  { name: 'Facility Director', desc: 'Auto-buys best value equipment',      base: 45000,  gr: 10 },
   { name: 'Trainer',           desc: 'Levels up coders (+1%/30s) & staff',  base: 60000,  gr: 10 },
 ];
 
@@ -1810,6 +1811,34 @@ const CB_CODE_LINES = [
   // Tier 15: Async
   ['async function fetch() {','  const res = await','    net.request(url);','  const data = await','    res.json();','  return data;','}','Promise.all([a, b, c])','  .then(merge);'],
 ];
+
+// ========== CATEGORY-THEMED MONITOR CODE ==========
+const CAT_CODE = {
+  spreadsheet: ['let cell = sheet[r][c];','total += parseFloat(val);','if (formula.startsWith("=SUM")){','  range = getRange(A1, B10);','  return sum(range);','}','cell.format = "currency";','recalcDependents(cell);','chart.bindData(range);','sheet.autoFill(pattern);'],
+  database: ['SELECT name, score','  FROM players','  WHERE rank > 10','  ORDER BY score DESC;','INSERT INTO logs','  VALUES (now(), msg);','CREATE INDEX idx_user','  ON sessions(user_id);','BEGIN TRANSACTION;','COMMIT;'],
+  systems: ['pid_t pid = fork();','if (pid == 0) exec(cmd);','kmalloc(PAGE_SIZE);','sched_yield();','ioctl(fd, req, arg);','mmap(NULL, len, PROT_RW,','  MAP_PRIVATE, fd, 0);','signal(SIGTERM, handler);','mutex_lock(&lock);','printk(KERN_INFO "ok");'],
+  graphics: ['ctx.drawImage(src, x, y);','pixel[i] = lerp(a, b, t);','applyFilter(BLUR, 3);','layer.composite(MULTIPLY);','path.bezierCurveTo(','  cx1, cy1, cx2, cy2);','canvas.toBlob(save);','transform.rotate(45);','gradient.addStop(0,"#f00");','renderer.flush();'],
+  web: ['<div class="app">','fetch("/api/data")','  .then(r => r.json())','  .then(render);','document.querySelector','  (".btn").onclick=go;','localStorage.setItem(','  "token", jwt);','history.pushState(s,"",u);','ws.send(JSON.stringify(m));'],
+  game: ['player.update(dt);','if (collides(a, b)) {','  score += combo * 10;','  spawnParticles(pos);','}','enemy.pathfind(target);','render(scene, camera);','physics.step(1/60);','input.poll();','level.loadNext();'],
+  chat: ['socket.emit("msg", data);','inbox.filter(m => !m.read);','user.status = "online";','channel.broadcast(event);','const thread = new Thread(','  parent, reply);','encrypt(payload, pubKey);','queue.push(notification);','presence.track(userId);','cache.invalidate("feed");'],
+  ai: ['model.fit(X_train, y);','loss = crossEntropy(','  pred, label);','grad = backward(loss);','optimizer.step(lr=3e-4);','embed = encode(tokens);','attn = softmax(Q@K.T);','beam = search(logits, k);','checkpoint.save(epoch);','metrics.log({"acc": acc});'],
+  media: ['audio.createOscillator();','codec.decode(frame);','playlist.next();','eq.setFrequency(440);','buffer.fill(samples);','stream.pipe(output);','seek(timestamp);','waveform.draw(canvas);','bitrate = 320;','track.fadeOut(2.0);'],
+  mobile: ['override func viewDidLoad()','  super.viewDidLoad()','  setupConstraints()','view.animate(0.3) {','  self.alpha = 1.0','}','tableView.reloadData()','NotificationCenter.post(','  name: .didUpdate)','gestures.require(toFail:)'],
+  lang: ['fn parse(tokens) {','  let ast = expr();','  expect(Token::Semi);','  return ast;','}','emit(Op::Push, val);','resolve(scope, ident);','typeCheck(node);','codegen(ir, target);','repl.eval(input);'],
+};
+const CAT_MAP = {
+  'Spreadsheet':'spreadsheet','Math Software':'spreadsheet','Scientific Computing':'spreadsheet','Presentations':'spreadsheet',
+  'Database':'database',
+  'Operating System':'systems','IoT Platform':'systems','Containerization':'systems','Orchestration':'systems',
+  'Graphics Editor':'graphics','Image Editing':'graphics','Desktop Publishing':'graphics','Creative Suite':'graphics','CAD Software':'graphics',
+  'Web Browser':'web','Email Service':'web','Social Media':'web','Photo Sharing':'web','Short Video':'web',
+  'Simulation':'game','Strategy Game':'game','Life Simulator':'game','Sandbox Game':'game','Augmented Reality':'game',
+  'Instant Messaging':'chat','Collaboration Tool':'chat','Video Conferencing':'chat','File Sharing':'chat',
+  'Machine Learning':'ai','AI Coding Assistant':'ai','AI Chatbot':'ai','AI Video Generator':'ai','AI IDE':'ai','Future Tech':'ai',
+  'Multimedia Player':'media','Media Player':'media','Video Streaming':'media','Digital Music Store':'media',
+  'Mobile Development':'mobile',
+  'Programming Language':'lang',
+};
 
 // ========== CODER FUN FACTS ==========
 const CODER_FACTS = [
@@ -2059,7 +2088,7 @@ function ctReset() { _ctH = 0; _ctT = 0; _ctN = 0; }
 let streakMul = 1, lastClickTime = 0;
 
 // Cached DOM refs for tick-hot elements
-let _petEl, _rFill, _fFill, _petBarkEl, _petBarkTimer;
+let _petEl, _rFill, _fFill, _petBarkEl, _petBarkTimer, _facilityBest = null;
 const PET_BARKS = ['Woof!','Arf!','Bark!','Bork!','Yap!','Ruff!','Bow wow!','Woof woof!'];
 function petBark() {
   if (!_petBarkEl) _petBarkEl = document.getElementById('petBark');
@@ -2319,6 +2348,22 @@ function euCost(gi, ui) {
   if (tier >= EMP_UPS[ui].tiers.length) return Infinity;
   const t = EMP_UPS[ui].tiers[tier];
   return Math.floor(t.baseCost * EMP_UPS[ui].gr ** tier * GEN[gi].base / 10 * shipInflation());
+}
+function facilityBestPick() {
+  let best = null, bestScore = 0;
+  for (let gi = 0; gi < GEN.length; gi++) {
+    if (S.g[gi] < 1) continue;
+    for (let ui = 0; ui < EMP_UPS.length; ui++) {
+      const tier = S.eu[gi][ui];
+      if (tier >= EMP_UPS[ui].tiers.length) continue;
+      const c = euCost(gi, ui);
+      const curMul = tier > 0 ? EMP_UPS[ui].tiers[tier - 1].mult : 1;
+      const nextMul = EMP_UPS[ui].tiers[tier].mult;
+      const val = (nextMul / curMul - 1) / c;
+      if (val > bestScore) { bestScore = val; best = { gi, ui }; }
+    }
+  }
+  return best;
 }
 function euMul(gi) { recalcIfDirty(); return _C.euMul[gi]; }
 function buyEU(gi, ui) {
@@ -3751,7 +3796,8 @@ function doClick(e) {
   setTimeout(() => scr.classList.remove('pulse'), 150);
   float(e.clientX - 15, e.clientY - 20, '+' + fmt(pw));
   // Add a line of code to the screen
-  const _cbl = CB_CODE_LINES[Math.min(S.cb, CB_CODE_LINES.length - 1)] || CB_CODE_LINES[0];
+  const _catKey = CAT_MAP[getLandmark(currentYear()).cat];
+  const _cbl = (_catKey && CAT_CODE[_catKey]) || CB_CODE_LINES[Math.min(S.cb, CB_CODE_LINES.length - 1)] || CB_CODE_LINES[0];
   codeVisible.push(_cbl[codeIdx % _cbl.length]);
   codeIdx++;
   if (codeVisible.length > 10) codeVisible.shift();
@@ -4485,6 +4531,7 @@ function updateEUSub(gi) {
     r.querySelector('.eu-row-cost').textContent = maxed ? '' : fmt(c);
     r.querySelector('.eu-row-lvl').textContent = tier > 0 ? '\u2605'.repeat(tier) : '';
     r.classList.toggle('no', !afford && !maxed);
+    r.classList.toggle('best', !!(_facilityBest && _facilityBest.gi === gi && _facilityBest.ui === ui && !maxed));
     r.style.opacity = maxed ? '.6' : '';
     r.style.cursor = maxed ? 'default' : '';
   });
@@ -4542,11 +4589,14 @@ function updateOfficeSprites() {
     _ofc.spriteCache = [];
     _ofc.factCache = [];
     // Group desired by type into rows
-    let curType = -1, curRow = null, shuffledFacts = [];
+    let curType = -1, curRow = null, shuffledFacts = [], rowIdx = 0, rowCount = 0;
     for (let i = 0; i < desired.length; i++) {
       const d = desired[i];
       if (d.type !== curType) {
         curType = d.type;
+        rowIdx = 0;
+        rowCount = 0;
+        for (let j = i; j < desired.length && desired[j].type === curType; j++) rowCount++;
         curRow = document.createElement('div');
         curRow.className = 'coder-row';
         _ofc.el.appendChild(curRow);
@@ -4561,7 +4611,10 @@ function updateOfficeSprites() {
       const tip = document.createElement('div');
       tip.className = 'sprite-tip';
       tip.textContent = GEN[d.type].name + ': ' + facts[factIdx];
+      if (rowIdx < 2) { tip.style.left = '0'; tip.style.transform = 'none'; }
+      else if (rowIdx >= rowCount - 2) { tip.style.left = 'auto'; tip.style.right = '0'; tip.style.transform = 'none'; }
       div.appendChild(tip);
+      rowIdx++;
       curRow.appendChild(div);
       _ofc.spriteCache.push({ type: d.type, deskT: d.deskT, chairT: d.chairT, pcT: d.pcT, el: div });
       _ofc.factCache.push(factIdx);
@@ -4674,7 +4727,9 @@ function tick(now) {
         petEl.classList.remove('paw');
         requestAnimationFrame(() => { if (petEl) petEl.classList.add('paw'); });
         // Dog adds a code line to the screen
-        codeVisible.push(CODE_LINES[codeIdx % CODE_LINES.length]);
+        const _dk = CAT_MAP[getLandmark(currentYear()).cat];
+        const _dcl = (_dk && CAT_CODE[_dk]) || CB_CODE_LINES[Math.min(S.cb, CB_CODE_LINES.length - 1)] || CB_CODE_LINES[0];
+        codeVisible.push(_dcl[codeIdx % _dcl.length]);
         codeIdx++;
         if (codeVisible.length > 10) codeVisible.shift();
         scr.textContent = codeVisible.join('\n');
@@ -4729,7 +4784,7 @@ function tick(now) {
     buyerTimer += dt;
     if (buyerTimer >= hiringInterval) {
       buyerTimer = 0;
-      if (S.ss[SS.TRAINER] && S.trainerSSCount) { S.trainerSSCount[SS.RECRUITER] = (S.trainerSSCount[SS.RECRUITER]||0)+1; if (S.trainerSSCount[SS.RECRUITER]>=3){S.trainerSSCount[SS.RECRUITER]=0;S.trainerSSLvl[SS.RECRUITER]=(S.trainerSSLvl[SS.RECRUITER]||0)+1;} }
+      if (S.ss[SS.TRAINER] && S.trainerSSCount) { S.trainerSSCount[SS.RECRUITER] = (S.trainerSSCount[SS.RECRUITER]||0)+1; if (S.trainerSSCount[SS.RECRUITER]>=3){S.trainerSSCount[SS.RECRUITER]=0;if((S.trainerSSLvl[SS.RECRUITER]||0)<100)S.trainerSSLvl[SS.RECRUITER]=(S.trainerSSLvl[SS.RECRUITER]||0)+1;} }
       const hireCount = S.ru[0] >= 1 ? 2 : 1;
       let hired = 0;
       for (let h = 0; h < hireCount; h++) {
@@ -4762,12 +4817,15 @@ function tick(now) {
     }
   }
 
+  // Facility Director: calculate best pick (for highlight + buying)
+  _facilityBest = S.ss[SS.FACILITY] >= 1 ? facilityBestPick() : null;
+
   // Facility Director auto-buys equipment (with training upgrades)
   if (S.ss[SS.FACILITY] >= 1 && !S.sp[SS.FACILITY]) {
     facilityTimer += dt;
     if (facilityTimer >= facilityInterval) {
       facilityTimer = 0;
-      if (S.ss[SS.TRAINER] && S.trainerSSCount) { S.trainerSSCount[SS.FACILITY] = (S.trainerSSCount[SS.FACILITY]||0)+1; if (S.trainerSSCount[SS.FACILITY]>=3){S.trainerSSCount[SS.FACILITY]=0;S.trainerSSLvl[SS.FACILITY]=(S.trainerSSLvl[SS.FACILITY]||0)+1;} }
+      if (S.ss[SS.TRAINER] && S.trainerSSCount) { S.trainerSSCount[SS.FACILITY] = (S.trainerSSCount[SS.FACILITY]||0)+1; if (S.trainerSSCount[SS.FACILITY]>=3){S.trainerSSCount[SS.FACILITY]=0;if((S.trainerSSLvl[SS.FACILITY]||0)<100)S.trainerSSLvl[SS.FACILITY]=(S.trainerSSLvl[SS.FACILITY]||0)+1;} }
       const buyCount = S.fu[1] >= 1 ? 2 : 1;
       for (let b = 0; b < buyCount; b++) {
         let best = null, bestScore = 0;
@@ -4804,9 +4862,11 @@ function tick(now) {
       for (let i = 0; i < GEN.length; i++) if (S.g[i] > 0) owned.push(i);
       if (owned.length > 0) {
         const pick = owned[Math.floor(Math.random() * owned.length)];
-        S.trainerLvl[pick] = (S.trainerLvl[pick] || 0) + 1;
-        markDirty();
-        log('🏋️ ' + t('trainerLvlUp') + ': ' + ta('g'+pick, GEN[pick].name) + ' Lv' + S.trainerLvl[pick]);
+        if ((S.trainerLvl[pick] || 0) < 100) {
+          S.trainerLvl[pick] = (S.trainerLvl[pick] || 0) + 1;
+          markDirty();
+          log('🏋️ ' + t('trainerLvlUp') + ': ' + ta('g'+pick, GEN[pick].name) + ' Lv' + S.trainerLvl[pick]);
+        }
       }
     }
   }
