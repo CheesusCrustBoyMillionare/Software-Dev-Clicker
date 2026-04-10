@@ -1620,7 +1620,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.5';
+const GAME_VERSION = '6.5.1';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -4776,6 +4776,26 @@ function tick(now) {
     }
   }
 
+  // Meeting Room perk: auto-pause the worse LoC/cost auto-buyer (runs BEFORE recruiter/facility so bars stay in sync)
+  if (S.c[P.MEETING] && S.ss[SS.RECRUITER] >= 1 && S.ss[SS.FACILITY] >= 1) {
+    const rVal = bestIdx >= 0 ? GEN[bestIdx].rate * euMul(bestIdx) / gCost(bestIdx) : 0;
+    let fVal = 0;
+    for (let gi = 0; gi < GEN.length; gi++) {
+      if (S.g[gi] < 1) continue;
+      for (let ui = 0; ui < EMP_UPS.length; ui++) {
+        const tier = S.eu[gi][ui];
+        if (tier >= EMP_UPS[ui].tiers.length) continue;
+        const c = euCost(gi, ui);
+        const curMul = tier > 0 ? EMP_UPS[ui].tiers[tier - 1].mult : 1;
+        const nextMul = EMP_UPS[ui].tiers[tier].mult;
+        const val = (nextMul / curMul - 1) / c;
+        if (val > fVal) fVal = val;
+      }
+    }
+    if (rVal <= fVal) { S.sp[SS.RECRUITER] = 1; S.sp[SS.FACILITY] = 0; }
+    else { S.sp[SS.FACILITY] = 1; S.sp[SS.RECRUITER] = 0; }
+  }
+
   // Recruiter auto-hires best coder
   const hiringInterval = (S.ru[1] >= 1 ? RECRUITER_FAST : RECRUITER_SLOW) / (1 + 0.02 * ((S.trainerSSLvl && S.trainerSSLvl[SS.RECRUITER]) || 0));
   if (S.ss[SS.RECRUITER] >= 1 && bestIdx >= 0 && !S.sp[SS.RECRUITER]) {
@@ -4867,29 +4887,6 @@ function tick(now) {
         }
       }
     }
-  }
-
-  // Meeting Room perk: auto-pause the worse LoC/cost auto-buyer
-  if (S.c[P.MEETING] && S.ss[SS.RECRUITER] >= 1 && S.ss[SS.FACILITY] >= 1) {
-    // Recruiter value: best coder's rate / cost
-    const rVal = bestIdx >= 0 ? GEN[bestIdx].rate * euMul(bestIdx) / gCost(bestIdx) : 0;
-    // Facility value: best equipment's mult gain / cost
-    let fVal = 0;
-    for (let gi = 0; gi < GEN.length; gi++) {
-      if (S.g[gi] < 1) continue;
-      for (let ui = 0; ui < EMP_UPS.length; ui++) {
-        const tier = S.eu[gi][ui];
-        if (tier >= EMP_UPS[ui].tiers.length) continue;
-        const c = euCost(gi, ui);
-        const curMul = tier > 0 ? EMP_UPS[ui].tiers[tier - 1].mult : 1;
-        const nextMul = EMP_UPS[ui].tiers[tier].mult;
-        const val = (nextMul / curMul - 1) / c;
-        if (val > fVal) fVal = val;
-      }
-    }
-    // Pause the worse one, unpause the better one
-    if (rVal <= fVal) { S.sp[SS.RECRUITER] = 1; S.sp[SS.FACILITY] = 0; }
-    else { S.sp[SS.FACILITY] = 1; S.sp[SS.RECRUITER] = 0; }
   }
 
   // Staff dialogue bubbles
@@ -5000,6 +4997,9 @@ function tick(now) {
         const ssLv = (S.trainerSSLvl && S.trainerSSLvl[i]) || 0;
         ownEl.textContent = maxed ? '\u2713' + (ssLv > 0 ? ' Lv' + ssLv : '') : '';
       }
+      // Sync pause button visual with actual state (Meeting Room can flip these)
+      const _pb = el.querySelector('.pause-toggle');
+      if (_pb) { const p = !!S.sp[i]; _pb.classList.toggle('paused', p); _pb.textContent = p ? '\u25B6' : '\u23F8'; }
     } else if (a === 'cb') {
       const i = ref.idx;
       const unlocked = i < S.cb;
