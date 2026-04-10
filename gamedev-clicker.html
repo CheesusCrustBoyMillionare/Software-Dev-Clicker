@@ -117,9 +117,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 
 /* Pet dog auto-clicker */
 .pet-dog{position:absolute;bottom:-16px;right:-56px;font-size:2.8rem;opacity:0;transition:opacity .4s;pointer-events:none;z-index:3}
-.pet-dog.active{opacity:1}
+.pet-dog.active{opacity:1;pointer-events:auto;cursor:pointer}
 .pet-dog.paw{animation:pawTap .3s ease}
 @keyframes pawTap{0%{transform:scaleX(-1) translateY(0)}40%{transform:scaleX(-1) translateY(-6px)}100%{transform:scaleX(-1) translateY(0)}}
+.pet-bark{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#161b22;border:1px solid #30363d;border-radius:6px;padding:2px 6px;font-size:.55rem;color:#e6edf3;white-space:nowrap;pointer-events:none;z-index:20;opacity:0;transition:opacity .15s}
+.pet-bark.show{opacity:1}
 .click-info{color:#8b949e;font-size:1.6rem}
 .lang-bar{display:flex;justify-content:center;gap:8px;margin-top:12px}
 .lang-btn{background:none;border:2px solid transparent;border-radius:6px;font-size:1.4rem;cursor:pointer;padding:4px 8px;opacity:.6;transition:opacity .15s,border-color .15s}
@@ -612,7 +614,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
         </div>
         <div class="desk" id="deskEl"></div>
         <div class="office-floor" id="officeFloor"></div>
-        <div class="pet-dog" id="petDog">&#x1F415;</div>
+        <div class="pet-dog" id="petDog">&#x1F415;<div class="pet-bark" id="petBark"></div></div>
         <div class="streak-thermo" id="streakThermo" style="opacity:0">
         <div class="thermo-label" id="streakVal">1.0x</div>
         <div class="thermo-track">
@@ -1618,7 +1620,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.3.1';
+const GAME_VERSION = '6.3.2';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -2057,7 +2059,16 @@ function ctReset() { _ctH = 0; _ctT = 0; _ctN = 0; }
 let streakMul = 1, lastClickTime = 0;
 
 // Cached DOM refs for tick-hot elements
-let _petEl, _rFill, _fFill;
+let _petEl, _rFill, _fFill, _petBarkEl, _petBarkTimer;
+const PET_BARKS = ['Woof!','Arf!','Bark!','Bork!','Yap!','Ruff!','Bow wow!','Woof woof!'];
+function petBark() {
+  if (!_petBarkEl) _petBarkEl = document.getElementById('petBark');
+  if (!_petBarkEl) return;
+  _petBarkEl.textContent = PET_BARKS[Math.floor(Math.random() * PET_BARKS.length)];
+  _petBarkEl.classList.add('show');
+  clearTimeout(_petBarkTimer);
+  _petBarkTimer = setTimeout(() => _petBarkEl.classList.remove('show'), 800);
+}
 let _thermoEl, _thermoFill, _thermoVal, _thermoBulb;
 function updateThermo() {
   if (!_thermoEl) {
@@ -4651,7 +4662,7 @@ function tick(now) {
   S.tLoc += totalProd;
 
   // Pet dog animation
-  if (!_petEl) _petEl = document.getElementById('petDog');
+  if (!_petEl) { _petEl = document.getElementById('petDog'); if (_petEl) _petEl.addEventListener('click', petBark); }
   const petEl = _petEl;
   if (petEl) {
     const hasPet = petAutoClick() > 0;
