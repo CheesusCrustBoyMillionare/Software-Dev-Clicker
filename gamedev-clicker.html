@@ -94,6 +94,27 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .perk-nap{bottom:-20px;right:30px;font-size:1.2rem}
 .perk-retreat{top:2px;right:70px;font-size:1rem}
 
+/* Office Floor */
+.office-floor{width:320px;display:grid;grid-template-columns:repeat(auto-fill,28px);gap:2px;padding:4px 0;margin-top:2px;min-height:0}
+.coder-sprite{width:28px;height:24px;cursor:pointer;position:relative}
+.coder-sprite svg{animation:coderType 1.5s ease-in-out infinite}
+.coder-sprite:nth-child(odd) svg{animation-delay:-.75s}
+.coder-sprite:nth-child(3n) svg{animation-delay:-.5s}
+@keyframes coderType{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+
+/* Staff Corner Sprites */
+.staff-corner{position:absolute;z-index:4;cursor:pointer;opacity:0;transition:opacity .3s;pointer-events:none}
+.staff-corner.active{opacity:1;pointer-events:auto}
+.staff-corner.paused{opacity:.4;filter:grayscale(.6)}
+.staff-corner-0{top:-8px;left:-20px}
+.staff-corner-1{top:-8px;right:-20px}
+.staff-corner-2{bottom:-28px;left:-20px}
+.staff-corner-3{bottom:-28px;right:-20px}
+
+/* Sprite Tooltip */
+.sprite-tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:.5rem;color:#e6edf3;white-space:nowrap;pointer-events:none;z-index:20;opacity:0;transition:opacity .15s}
+.coder-sprite:hover .sprite-tip,.staff-corner:hover .sprite-tip{opacity:1}
+
 /* Pet dog auto-clicker */
 .pet-dog{position:absolute;bottom:-16px;right:-56px;font-size:2.8rem;opacity:0;transition:opacity .4s;pointer-events:none;z-index:3}
 .pet-dog.active{opacity:1}
@@ -477,6 +498,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
   .click-power{font-size:1.2rem}
   .fame-mult{font-size:1.1rem}
 
+  /* Office sprites: tablet */
+  .office-floor{grid-template-columns:repeat(auto-fill,22px);width:260px}
+  .coder-sprite{width:22px;height:20px}
+  .staff-corner{display:none}
+
   /* Panel overrides */
   .left-panel{width:100%;min-width:0;border-right:none;padding:10px}
   .right{width:100%;min-width:0;border-left:none}
@@ -534,6 +560,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 
 @media(max-width:480px){
   .desk-scene{transform:scale(1.1);margin-bottom:40px}
+  .office-floor{grid-template-columns:repeat(auto-fill,20px);width:220px}
+  .coder-sprite{width:20px;height:18px}
   .stat-val{font-size:1rem}
   #dCat{font-size:.75rem}
   .top-bar{padding:4px 8px;gap:1px 8px}
@@ -584,6 +612,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
           <div class="computer-extra"></div>
         </div>
         <div class="desk" id="deskEl"></div>
+        <div class="office-floor" id="officeFloor"></div>
+        <div class="staff-corner staff-corner-0" id="staffCorner0"></div>
+        <div class="staff-corner staff-corner-1" id="staffCorner1"></div>
+        <div class="staff-corner staff-corner-2" id="staffCorner2"></div>
+        <div class="staff-corner staff-corner-3" id="staffCorner3"></div>
         <div class="pet-dog" id="petDog">&#x1F415;</div>
         <div class="streak-thermo" id="streakThermo" style="opacity:0">
         <div class="thermo-label" id="streakVal">1.0x</div>
@@ -1590,7 +1623,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.20';
+const GAME_VERSION = '6.0';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1705,6 +1738,101 @@ const STAFF_DIALOGUE = [
   { ss:3, text:"I'm paused but I'm still mentally coaching everyone.", check:()=>S.sp[SS.TRAINER] },
   { ss:3, text:"Overclock level 3? These coders are basically on espresso IV drips.", check:()=>S.f.genSpeed>=3 },
   { ss:3, text:"Hustle culture? I prefer to call it 'aggressive mentoring'.", check:()=>true },
+];
+
+// ========== OFFICE SPRITES ==========
+const CODER_COLOURS = ['#7ee787','#58a6ff','#d2a8ff','#f0883e','#ff7b72','#ffd700','#79c0ff','#f778ba'];
+const DESK_COLOURS = [['#6b4226','#5a3520'],['#888','#777'],['#333','#222']];
+const CHAIR_COLOURS = ['#5a3520','#4a6fa5','#2ea043'];
+const PC_GLOWS = ['none','#58a6ff','#3fb950','#ffd700'];
+
+function coderSVG(type, deskT, chairT, pcT) {
+  const c = CODER_COLOURS[type] || '#8b949e';
+  const dk = DESK_COLOURS[Math.min(deskT, 2)] || DESK_COLOURS[0];
+  const ch = CHAIR_COLOURS[Math.min(chairT, 2)] || CHAIR_COLOURS[0];
+  const glow = PC_GLOWS[Math.min(pcT, 3)] || 'none';
+  return `<svg width="24" height="20" viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg">
+    <rect x="8" y="14" width="8" height="6" rx="1" fill="${ch}" opacity=".6"/>
+    <rect x="4" y="13" width="16" height="3" rx="1" fill="${dk[0]}"/>
+    <rect x="5" y="16" width="14" height="1" fill="${dk[1]}"/>
+    <rect x="14" y="8" width="5" height="5" rx="1" fill="#21262d" stroke="#444" stroke-width=".5"/>
+    ${glow !== 'none' ? `<rect x="15" y="9" width="3" height="3" rx=".5" fill="${glow}" opacity=".4"/>` : ''}
+    <circle cx="10" cy="4" r="3" fill="${c}"/>
+    <rect x="7" y="7" width="6" height="6" rx="1" fill="${c}" opacity=".85"/>
+    <rect class="typer" x="13" y="10" width="2" height="1.5" rx=".5" fill="${c}" opacity=".7"/>
+  </svg>`;
+}
+
+function staffSVG(ssIdx) {
+  const c = STAFF_COLOURS[ssIdx];
+  const icons = [
+    '<rect x="18" y="2" width="4" height="6" rx="1" fill="#58a6ff" opacity=".7"/><rect x="19" y="0" width="2" height="3" rx="1" fill="#58a6ff"/>',
+    '<rect x="17" y="6" width="7" height="5" rx="1" fill="#8b6914"/><rect x="19" y="4" width="3" height="3" rx=".5" fill="#a07a18"/>',
+    '<rect x="18" y="2" width="2" height="7" rx=".5" fill="#8b949e"/><circle cx="19" cy="1.5" r="1.5" fill="#8b949e"/>',
+    '<circle cx="20" cy="4" r="2.5" fill="none" stroke="#3fb950" stroke-width="1"/><rect x="19" y="7" width="2" height="3" rx=".5" fill="#3fb950"/>',
+  ];
+  return `<svg width="30" height="24" viewBox="0 0 30 24" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="10" cy="5" r="4" fill="${c}"/>
+    <rect x="6" y="9" width="8" height="8" rx="2" fill="${c}" opacity=".85"/>
+    <rect x="5" y="17" width="10" height="3" rx="1" fill="#21262d"/>
+    ${icons[ssIdx] || ''}
+  </svg>`;
+}
+
+// ========== CODEBASE-AWARE MONITOR CODE ==========
+const CB_CODE_LINES = [
+  // Tier 0 (default): generic game code
+  ['let score = 0;','player.update(dt);','ctx.clearRect(0,0,W,H);','if (hp <= 0) gameOver();','enemies.push(spawn());','render(scene);','assets.load("sprites");','this.vel.y += gravity;','collider.check(a, b);','sfx.play("jump");','save(localStorage);','fps = 1000 / delta;','cam.follow(player);','tile = map[y][x];','input.poll();'],
+  // Tier 1: Structured Programming
+  ['int main() {','  if (n > 0) {','    count++;','  }','  printf("%d\\n", n);','  return 0;','}','void sort(int a[]) {','  for (i=0; i<n; i++)','    swap(a[i], a[j]);'],
+  // Tier 2: SQL
+  ['SELECT name, score','FROM players','WHERE active = 1','ORDER BY score DESC','LIMIT 10;','INSERT INTO logs','VALUES (NOW(), msg);','CREATE INDEX idx_score','ON players(score);'],
+  // Tier 3: Shell
+  ['#!/bin/bash','for f in *.log; do','  grep -c ERROR "$f"','done','cat input | sort | uniq','find . -name "*.tmp"','  -exec rm {} \\;','echo "Deploy done"','exit 0'],
+  // Tier 4: Makefile
+  ['CC = gcc','CFLAGS = -Wall -O2','all: game','game: main.o gfx.o','	$(CC) -o $@ $^','%.o: %.c','	$(CC) $(CFLAGS) -c $<','clean:','	rm -f *.o game'],
+  // Tier 5: Event-Driven
+  ['btn.on("click", () => {','  emit("purchase");','});','socket.on("msg", d => {','  chat.append(d);','});','process.on("exit", save);','emitter.once("ready",','  () => init());'],
+  // Tier 6: OOP
+  ['class Player extends Entity {','  constructor(x, y) {','    super(x, y);','    this.hp = 100;','  }','  attack(target) {','    target.hp -= this.dmg;','  }','}'],
+  // Tier 7: Array/APL
+  ['scores +.× weights','⍴ matrix ← 3 4','avg ← (+/data)÷⍴data','sorted ← data[⍋data]','mask ← data>threshold','result ← mask/data','⌈/ scores','primes ← (~R∊R∘.×R)/R'],
+  // Tier 8: HyperCard
+  ['on mouseUp','  put "Hello" into fld 1','  go to card 2','end mouseUp','on openCard','  show btn "Start"','  play "click"','end openCard'],
+  // Tier 9: Functional
+  ['map (+1) [1,2,3]','filter even xs','foldr (+) 0 list','compose f g x = f(g(x))','let rec fib n =','  match n with','  | 0 | 1 -> n','  | _ -> fib(n-1)+fib(n-2)'],
+  // Tier 10: FSM
+  ['state IDLE:','  on INPUT -> RUNNING','state RUNNING:','  on DONE -> IDLE','  on ERROR -> FAILED','state FAILED:','  on RETRY -> RUNNING','  on QUIT -> IDLE','transition(event);'],
+  // Tier 11: Plugin
+  ['exports.activate = ctx => {','  ctx.register("lint",','    new LintPlugin());','};','hooks.tap("build", () => {','  bundle(entry);','});','plugin.version = "2.0";'],
+  // Tier 12: DLL
+  ['HMODULE h = LoadLibrary','  ("engine.dll");','typedef void(*InitFn)();','InitFn init = GetProcAddr','  (h, "init");','init();','FreeLibrary(h);'],
+  // Tier 13: Client-Server
+  ['fetch("/api/scores")','  .then(r => r.json())','  .then(data => {','    render(data);','  });','app.get("/api", (req,res)','  => res.json(db.all()));','ws.send(JSON.stringify','  ({type:"move",x,y}));'],
+  // Tier 14: VM/GC
+  ['class VM {','  execute(bytecode) {','    for (let op of bc) {','      switch(op) {','        case PUSH: push(v);','        case ADD: push(','          pop()+pop());','      }','    }','  }','}'],
+  // Tier 15: Async
+  ['async function fetch() {','  const res = await','    net.request(url);','  const data = await','    res.json();','  return data;','}','Promise.all([a, b, c])','  .then(merge);'],
+];
+
+// ========== CODER FUN FACTS ==========
+const CODER_FACTS = [
+  // Intern (0)
+  ['Alex. Favorite language: HTML.','Sam. Broke prod on day one.','Jordan. Still learning git pull.','Casey. Asks "is this agile?"','Riley. Types 10 WPM. With errors.','Morgan. Thinks CSS is coding.','Taylor. Googles "how to code".','Jamie. Commits node_modules.','Drew. Wrote a 400-line main().','Pat. Uses Notepad unironically.'],
+  // Junior Dev (1)
+  ['Blake. Knows one framework well.','Quinn. Copy-pastes from Stack Overflow.','Avery. Has strong React opinions.','Reese. Thinks they invented MVC.','Harper. Debugs with console.log.','Sage. Uses 47 npm packages.','Dakota. "It works on my machine."','Finley. PR reviews take 3 days.','Rowan. Writes TODO comments. Never returns.','Ellis. Has a "10x" coffee mug.'],
+  // Mid-Level Dev (2)
+  ['Charlie. Can Google anything.','Emery. Knows what Big O means.','Hayden. Refactors for fun.','Lennox. Has opinions about tabs.','Phoenix. Actually reads docs.','Skyler. Wrote a linter config.','Robin. Mentors interns. Reluctantly.','Marley. Automates everything.','Kendall. Owns 3 mechanical keyboards.','Eden. Has a dotfiles repo.'],
+  // Senior Dev (3)
+  ['Pat. Has mass-deleted prod. Twice.','Lee. Writes code in their sleep.','Ash. Has mass-deleted prod on purpose.','Max. Reviews PRs in 30 seconds.','Kit. Rewrote the ORM. Again.','Val. "I\'ve seen this bug before."','Ray. Has 200 git aliases.','Jude. Pair programs with themselves.','Wren. Their code has no comments needed.','Sol. Fixed a bug from 2014.'],
+  // Staff Engineer (4)
+  ['River. Writes docs nobody reads.','Storm. Designed 3 failed microservices.','Brook. Has an RFC for everything.','Sage. Speaks only in diagrams.','Stone. Owns the deployment pipeline.','Cloud. Named a service after their cat.','Lake. Reviewed 10,000 PRs.','Cliff. "Let me draw this on a whiteboard."','Reed. Wrote the style guide. Ignores it.','Onyx. Still debugs with print statements.'],
+  // Principal Engineer (5)
+  ['Atlas. Speaks in abstractions.','Nova. Hasn\'t written code in months.','Orion. Their PRs are 1-line fixes.','Cosmos. Invented a build system.','Zenith. Owns 4 internal tools.','Apex. Gives 2-hour code reviews.','Titan. "This needs more architecture."','Helix. Wrote the monorepo migration.','Summit. Has a Wikipedia page.','Quantum. Their meetings have meetings.'],
+  // Tech Lead (6)
+  ['Lux. 50% meetings, 50% Slack.','Neon. Writes more Jira than code.','Pixel. Has 14 direct reports.','Vector. "Let\'s take this offline."','Cipher. Sprint planning takes all day.','Matrix. Approves all the PRs.','Prism. Their calendar is a war zone.','Delta. "Per my last email..."','Echo. Runs standup. Always late.','Flux. Manages up, delegates down.'],
+  // CTO (7)
+  ['Jordan. Sends "thoughts?" at 3am.','Morgan. Last commit: 2019.','Raven. Has a podcast nobody listens to.','Phoenix. "AI will handle that."','Sterling. Tweets about culture.','Royal. Has 5 monitors. Uses one.','Legend. Founded 3 startups. All pivoted.','Noble. Types with two fingers. Fast.','Archer. "Move fast and break things."','Crown. Their LinkedIn is a novel.'],
 ];
 
 const CODE_BASE = [
@@ -3614,7 +3742,8 @@ function doClick(e) {
   setTimeout(() => scr.classList.remove('pulse'), 150);
   float(e.clientX - 15, e.clientY - 20, '+' + fmt(pw));
   // Add a line of code to the screen
-  codeVisible.push(CODE_LINES[codeIdx % CODE_LINES.length]);
+  const _cbl = CB_CODE_LINES[Math.min(S.cb, CB_CODE_LINES.length - 1)] || CB_CODE_LINES[0];
+  codeVisible.push(_cbl[codeIdx % _cbl.length]);
   codeIdx++;
   if (codeVisible.length > 10) codeVisible.shift();
   scr.textContent = codeVisible.join('\n');
@@ -4208,6 +4337,7 @@ function ship() {
   if (S.f.ventureCapital) { const vc = Math.floor(shipAt() * 0.02 * S.f.ventureCapital); S.loc += vc; S.tLoc += vc; }
   // Golden Parachute: carry over LoC
   if (keepLoc > 0) { S.loc += keepLoc; S.tLoc += keepLoc; }
+  clearOfficeSprites();
   isShipping = true;
   showYearTransition(year, name, lm.cat);
   toast(name + ' ' + t('toastShipped') + ' +' + gain + ' ' + t('fame'));
@@ -4349,6 +4479,101 @@ function updateEUSub(gi) {
     r.style.opacity = maxed ? '.6' : '';
     r.style.cursor = maxed ? 'default' : '';
   });
+}
+
+// ========== OFFICE SPRITES UPDATE ==========
+const _ofc = {
+  el: null,
+  staffEls: [],
+  spriteCache: [],   // [{type, deskT, chairT, pcT, el}]
+  lastCb: -1,
+  lastUpdate: 0,
+  factCache: [],     // random fact index per sprite
+  MAX_SPRITES: 50,
+};
+
+function _initOfc() {
+  _ofc.el = $('officeFloor');
+  _ofc.staffEls = [0,1,2,3].map(i => $('staffCorner' + i));
+}
+
+function updateOfficeSprites() {
+  if (!_ofc.el) _initOfc();
+  const now = performance.now();
+  if (now - _ofc.lastUpdate < 500) return;
+  _ofc.lastUpdate = now;
+
+  // --- Coder sprites ---
+  const maxSprites = window.matchMedia('(max-width:480px)').matches ? 20 : _ofc.MAX_SPRITES;
+  const desired = [];
+  let total = 0;
+  for (let i = 0; i < GEN.length && total < maxSprites; i++) {
+    const count = Math.min(S.g[i], _ofc.MAX_SPRITES - total);
+    for (let j = 0; j < count; j++) {
+      desired.push({ type: i, deskT: S.eu[i][0], chairT: S.eu[i][1], pcT: S.eu[i][2] });
+    }
+    total += count;
+  }
+
+  // Diff against cache — rebuild only if changed
+  let dirty = desired.length !== _ofc.spriteCache.length;
+  if (!dirty) {
+    for (let i = 0; i < desired.length; i++) {
+      const d = desired[i], c = _ofc.spriteCache[i];
+      if (d.type !== c.type || d.deskT !== c.deskT || d.chairT !== c.chairT || d.pcT !== c.pcT) { dirty = true; break; }
+    }
+  }
+
+  if (dirty) {
+    _ofc.el.innerHTML = '';
+    _ofc.spriteCache = [];
+    _ofc.factCache = [];
+    for (let i = 0; i < desired.length; i++) {
+      const d = desired[i];
+      const div = document.createElement('div');
+      div.className = 'coder-sprite';
+      div.innerHTML = coderSVG(d.type, d.deskT, d.chairT, d.pcT);
+      // Fun fact tooltip
+      const facts = CODER_FACTS[d.type];
+      const factIdx = Math.floor(Math.random() * facts.length);
+      const tip = document.createElement('div');
+      tip.className = 'sprite-tip';
+      tip.textContent = GEN[d.type].name + ': ' + facts[factIdx];
+      div.appendChild(tip);
+      _ofc.el.appendChild(div);
+      _ofc.spriteCache.push({ type: d.type, deskT: d.deskT, chairT: d.chairT, pcT: d.pcT, el: div });
+      _ofc.factCache.push(factIdx);
+    }
+  }
+
+  // --- Staff corner sprites ---
+  for (let i = 0; i < 4; i++) {
+    const el = _ofc.staffEls[i];
+    if (!el) continue;
+    const owned = S.ss[i] >= 1;
+    el.classList.toggle('active', owned);
+    el.classList.toggle('paused', !!(owned && S.sp[i]));
+    if (owned && !el.hasChildNodes()) {
+      el.innerHTML = staffSVG(i);
+      const tip = document.createElement('div');
+      tip.className = 'sprite-tip';
+      tip.textContent = SUPPORT[i].name;
+      el.appendChild(tip);
+    } else if (!owned && el.hasChildNodes()) {
+      el.innerHTML = '';
+    }
+  }
+}
+
+function clearOfficeSprites() {
+  if (_ofc.el) _ofc.el.innerHTML = '';
+  _ofc.spriteCache = [];
+  _ofc.factCache = [];
+  _ofc.lastCb = -1;
+  for (let i = 0; i < 4; i++) {
+    if (_ofc.staffEls[i]) _ofc.staffEls[i].innerHTML = '';
+    if (_ofc.staffEls[i]) _ofc.staffEls[i].classList.remove('active','paused');
+  }
 }
 
 // ========== GAME LOOP ==========
@@ -4738,6 +4963,9 @@ function tick(now) {
     _tClockOffset += _drift;         // absorb the jump so trustedNow stays correct
     toast('\u26A0\uFE0F Clock change detected — nice try!', '#da3633');
   }
+
+  // Update office sprites
+  updateOfficeSprites();
 
   // Autosave every 30s
   saveAcc += dt;
