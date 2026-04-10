@@ -334,7 +334,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .bubble{position:absolute;width:28px;height:28px;border-radius:50%;cursor:pointer;z-index:50;pointer-events:auto;animation:bubbleIn .3s ease,bubbleFloat 3s ease-in-out infinite;box-shadow:inset -3px -3px 6px rgba(0,0,0,.2),inset 3px 3px 6px rgba(255,255,255,.3);transition:transform .1s}
 .bubble:hover{transform:scale(1.2)}
 .bubble.blue{background:radial-gradient(circle at 35% 35%,#6eb5ff,#1a6eff)}
-.bubble.red{background:radial-gradient(circle at 35% 35%,#ff6e6e,#d62828)}
 .bubble.green{background:radial-gradient(circle at 35% 35%,#7eef7e,#1eaa1e)}
 .bubble.bug{background:none;box-shadow:none;display:flex;align-items:center;justify-content:center;line-height:1;text-shadow:0 1px 3px rgba(0,0,0,.4)}
 .aim-toggle{position:absolute;top:6px;right:6px;z-index:60;padding:3px 8px;background:#21262d;color:#7ee787;border:1px solid #30363d;border-radius:4px;font-size:.6rem;font-weight:700;cursor:pointer;opacity:.7;transition:all .15s}
@@ -1621,7 +1620,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.4';
+const GAME_VERSION = '6.5';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -2232,6 +2231,9 @@ function loadSlot(raw) {
     while (d.trainerSSLvl.length > SUPPORT.length) d.trainerSSLvl.pop();
     while (d.trainerSSCount.length < SUPPORT.length) d.trainerSSCount.push(0);
     while (d.trainerSSCount.length > SUPPORT.length) d.trainerSSCount.pop();
+    // v6.4 migration: clamp trainer levels to 100
+    d.trainerLvl = d.trainerLvl.map(v => Math.min(v, 100));
+    d.trainerSSLvl = d.trainerSSLvl.map(v => Math.min(v, 100));
     // Apply state first, then calculate offline progress using cached multipliers
     S = d;
     markDirty();
@@ -3680,9 +3682,9 @@ function bubbleSpawn() {
   if (!container) return;
   const rect = container.getBoundingClientRect();
   const aim = _bub.aimActive;
-  const isGood = aim ? true : Math.random() < 0.5; // aim mode: always good; normal: 50/50 blue/red
+  const isGood = true;
   const el = document.createElement('div');
-  el.className = 'bubble ' + (aim ? 'bug' : (isGood ? 'blue' : 'red'));
+  el.className = 'bubble ' + (aim ? 'bug' : 'blue');
   const sz = aim ? _bub.aimSize : 28;
   if (aim) { el.style.width = sz + 'px'; el.style.height = sz + 'px'; el.style.fontSize = Math.max(12, sz * 0.75) + 'px'; el.textContent = BUGS[Math.floor(Math.random() * BUGS.length)]; }
   const margin = 30;
@@ -3719,7 +3721,7 @@ function bubblePop(el, isGood) {
   pop.style.top = el.style.top;
   pop.style.background = _bub.aimActive
     ? 'radial-gradient(circle,#ffe066,#d4a017)'
-    : (isGood ? 'radial-gradient(circle,#6eb5ff,#1a6eff)' : 'radial-gradient(circle,#ff6e6e,#d62828)');
+    : 'radial-gradient(circle,#6eb5ff,#1a6eff)';
   container.appendChild(pop);
   pop.addEventListener('animationend', () => pop.remove());
   // Apply effect
@@ -3737,10 +3739,6 @@ function bubblePop(el, isGood) {
       _bub.mulEnd = performance.now() + 10000;
       toast('\uD83D\uDD35 Code Rush! 2\u00d7 production for 10s');
     }
-  } else {
-    _bub.activeMul = 0.5;
-    _bub.mulEnd = performance.now() + 10000;
-    toast('\uD83D\uDD34 Bug Report! 0.5\u00d7 production for 10s', '#da3633');
   }
   playSfx('click');
 }
