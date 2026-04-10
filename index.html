@@ -1620,7 +1620,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.5.1';
+const GAME_VERSION = '6.5.2';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -4788,7 +4788,8 @@ function tick(now) {
         const c = euCost(gi, ui);
         const curMul = tier > 0 ? EMP_UPS[ui].tiers[tier - 1].mult : 1;
         const nextMul = EMP_UPS[ui].tiers[tier].mult;
-        const val = (nextMul / curMul - 1) / c;
+        // LoC/s gained per gold — same units as rVal
+        const val = S.g[gi] * GEN[gi].rate * euMul(gi) * (nextMul / curMul - 1) / c;
         if (val > fVal) fVal = val;
       }
     }
