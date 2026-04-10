@@ -95,21 +95,22 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .perk-retreat{top:2px;right:70px;font-size:1rem}
 
 /* Office Floor */
-.office-floor{width:320px;display:grid;grid-template-columns:repeat(auto-fill,28px);gap:2px;padding:4px 0;margin-top:2px;min-height:0}
+.office-floor{width:320px;display:flex;flex-direction:column;gap:1px;padding:4px 0;margin-top:2px;min-height:0}
 .coder-sprite{width:28px;height:24px;cursor:pointer;position:relative}
 .coder-sprite svg{animation:coderType 1.5s ease-in-out infinite}
 .coder-sprite:nth-child(odd) svg{animation-delay:-.75s}
 .coder-sprite:nth-child(3n) svg{animation-delay:-.5s}
 @keyframes coderType{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
 
-/* Staff Corner Sprites */
-.staff-corner{position:absolute;z-index:4;cursor:pointer;opacity:0;transition:opacity .3s;pointer-events:none}
+/* Staff Corner Sprites — grouped top-left */
+.staff-group{position:absolute;top:-12px;left:-24px;display:flex;gap:2px;z-index:4}
+.staff-corner{cursor:pointer;opacity:0;transition:opacity .3s;pointer-events:none}
 .staff-corner.active{opacity:1;pointer-events:auto}
 .staff-corner.paused{opacity:.4;filter:grayscale(.6)}
-.staff-corner-0{top:-8px;left:-20px}
-.staff-corner-1{top:-8px;right:-20px}
-.staff-corner-2{bottom:-28px;left:-20px}
-.staff-corner-3{bottom:-28px;right:-20px}
+
+/* Coder type rows */
+.coder-row{display:flex;align-items:center;gap:2px;min-height:0}
+.coder-row-label{font-size:.4rem;color:#8b949e;width:8px;text-align:center;flex-shrink:0;writing-mode:vertical-lr;transform:rotate(180deg);letter-spacing:.02em;opacity:.6}
 
 /* Sprite Tooltip */
 .sprite-tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:.5rem;color:#e6edf3;white-space:nowrap;pointer-events:none;z-index:20;opacity:0;transition:opacity .15s}
@@ -499,9 +500,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
   .fame-mult{font-size:1.1rem}
 
   /* Office sprites: tablet */
-  .office-floor{grid-template-columns:repeat(auto-fill,22px);width:260px}
+  .office-floor{width:260px}
   .coder-sprite{width:22px;height:20px}
-  .staff-corner{display:none}
+  .staff-group{display:none}
 
   /* Panel overrides */
   .left-panel{width:100%;min-width:0;border-right:none;padding:10px}
@@ -560,7 +561,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 
 @media(max-width:480px){
   .desk-scene{transform:scale(1.1);margin-bottom:40px}
-  .office-floor{grid-template-columns:repeat(auto-fill,20px);width:220px}
+  .office-floor{width:220px}
   .coder-sprite{width:20px;height:18px}
   .stat-val{font-size:1rem}
   #dCat{font-size:.75rem}
@@ -613,10 +614,12 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
         </div>
         <div class="desk" id="deskEl"></div>
         <div class="office-floor" id="officeFloor"></div>
-        <div class="staff-corner staff-corner-0" id="staffCorner0"></div>
-        <div class="staff-corner staff-corner-1" id="staffCorner1"></div>
-        <div class="staff-corner staff-corner-2" id="staffCorner2"></div>
-        <div class="staff-corner staff-corner-3" id="staffCorner3"></div>
+        <div class="staff-group">
+          <div class="staff-corner" id="staffCorner0"></div>
+          <div class="staff-corner" id="staffCorner1"></div>
+          <div class="staff-corner" id="staffCorner2"></div>
+          <div class="staff-corner" id="staffCorner3"></div>
+        </div>
         <div class="pet-dog" id="petDog">&#x1F415;</div>
         <div class="streak-thermo" id="streakThermo" style="opacity:0">
         <div class="thermo-label" id="streakVal">1.0x</div>
@@ -1623,7 +1626,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.0';
+const GAME_VERSION = '6.1';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -4503,12 +4506,12 @@ function updateOfficeSprites() {
   if (now - _ofc.lastUpdate < 500) return;
   _ofc.lastUpdate = now;
 
-  // --- Coder sprites ---
+  // --- Coder sprites (one row per type) ---
   const maxSprites = window.matchMedia('(max-width:480px)').matches ? 20 : _ofc.MAX_SPRITES;
   const desired = [];
   let total = 0;
   for (let i = 0; i < GEN.length && total < maxSprites; i++) {
-    const count = Math.min(S.g[i], _ofc.MAX_SPRITES - total);
+    const count = Math.min(S.g[i], maxSprites - total);
     for (let j = 0; j < count; j++) {
       desired.push({ type: i, deskT: S.eu[i][0], chairT: S.eu[i][1], pcT: S.eu[i][2] });
     }
@@ -4528,19 +4531,26 @@ function updateOfficeSprites() {
     _ofc.el.innerHTML = '';
     _ofc.spriteCache = [];
     _ofc.factCache = [];
+    // Group desired by type into rows
+    let curType = -1, curRow = null;
     for (let i = 0; i < desired.length; i++) {
       const d = desired[i];
+      if (d.type !== curType) {
+        curType = d.type;
+        curRow = document.createElement('div');
+        curRow.className = 'coder-row';
+        _ofc.el.appendChild(curRow);
+      }
       const div = document.createElement('div');
       div.className = 'coder-sprite';
       div.innerHTML = coderSVG(d.type, d.deskT, d.chairT, d.pcT);
-      // Fun fact tooltip
       const facts = CODER_FACTS[d.type];
       const factIdx = Math.floor(Math.random() * facts.length);
       const tip = document.createElement('div');
       tip.className = 'sprite-tip';
       tip.textContent = GEN[d.type].name + ': ' + facts[factIdx];
       div.appendChild(tip);
-      _ofc.el.appendChild(div);
+      curRow.appendChild(div);
       _ofc.spriteCache.push({ type: d.type, deskT: d.deskT, chairT: d.chairT, pcT: d.pcT, el: div });
       _ofc.factCache.push(factIdx);
     }
