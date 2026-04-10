@@ -1620,7 +1620,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.5.2';
+const GAME_VERSION = '6.6';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -2139,6 +2139,7 @@ const defaults = () => ({
        streakUnlock:0, streakPower:0, streakMastery:0,
        streakSecondWind:0, streakCombo:0, streakTurbo:0, streakZone:0, streakTranscend:0 },
   shipped: 0,
+  meetingPaused: 0,
   sp: SUPPORT.map(() => 0),
   trainerLvl: GEN.map(() => 0),
   trainerSSLvl: SUPPORT.map(() => 0),
@@ -2316,7 +2317,7 @@ function recalcIfDirty() {
   for (let i = 0; i < GEN.length; i++) lpsVal += GEN[i].rate * S.g[i] * _C.euMul[i];
   _C.lps = lpsVal * _C.genSpeedMul * _C.genSynergyMul * _C.prodMul * evMul;
   _C.clickPow = (1 + lunchBonus()) * gameRoomMul() * (1 + S.f.clickDouble) * _C.prodMul * evClk * (1 + cbBonus('click'));
-  _C.shipAt = Math.floor(1e6 * 10 ** S.shipped * (0.9 ** S.f.franchise));
+  _C.shipAt = Math.floor(1e6 * (S.shipped <= 3 ? 10 ** S.shipped : 1e3 * 5 ** (S.shipped - 3)) * (0.9 ** S.f.franchise));
 }
 
 function shipInflation() { return 1.03 ** S.shipped; }
@@ -3232,28 +3233,15 @@ function buildUI() {
     info2.append(n2, dd2);
     const cost2 = document.createElement('div'); cost2.className = 'up-cost';
     const own2 = document.createElement('div'); own2.className = 'up-own';
-    const tog2 = document.createElement('button'); tog2.className = 'eu-toggle ru-toggle'; tog2.textContent = '+'; tog2.dataset.ru = '1';
     const rBar = document.createElement('div'); rBar.className = 'recruiter-bar';
     const rFill = document.createElement('div'); rFill.className = 'recruiter-fill'; rFill.id = 'recruiterFill';
     rBar.appendChild(rFill);
     const pause2 = document.createElement('button'); pause2.className = 'pause-toggle' + (S.sp[1] ? ' paused' : ''); pause2.textContent = S.sp[1] ? '\u25B6' : '\u23F8'; pause2.dataset.sp = '1';
     el2.style.position = 'relative'; el2.style.overflow = 'hidden';
     const spr1 = document.createElement('div'); spr1.className = 'staff-sprite-inline'; spr1.id = 'staffSprite1';
-    el2.append(spr1, info2, cost2, own2, pause2, tog2, rBar);
+    el2.append(spr1, info2, cost2, own2, pause2, rBar);
     target.appendChild(el2);
     upRefs.push({ el: el2, costEl: cost2, ownEl: own2, action: 'ss', idx: 1 });
-    // Training submenu
-    const sub2 = document.createElement('div'); sub2.className = 'eu-sub'; sub2.id = 'ru-sub';
-    RECRUITER_UPS.forEach((ru, ui) => {
-      const r = document.createElement('div'); r.className = 'ru-row'; r.dataset.ui = ui;
-      const rn = document.createElement('span'); rn.className = 'eu-row-name'; rn.textContent = ta('ru_'+ui+'_name', ru.name);
-      const rd = document.createElement('span'); rd.className = 'eu-row-desc'; rd.textContent = ta('ru_'+ui+'_desc', ru.desc);
-      const rc = document.createElement('span'); rc.className = 'eu-row-cost';
-      const rl = document.createElement('span'); rl.className = 'eu-row-lvl';
-      r.append(rn, rd, rc, rl);
-      sub2.appendChild(r);
-    });
-    target.appendChild(sub2);
   }
   // Facility Director — row with toggle + training submenu + progress bar
   {
@@ -3269,27 +3257,14 @@ function buildUI() {
     info3.append(n3, dd3);
     const cost3 = document.createElement('div'); cost3.className = 'up-cost';
     const own3 = document.createElement('div'); own3.className = 'up-own';
-    const tog3 = document.createElement('button'); tog3.className = 'eu-toggle fu-toggle'; tog3.textContent = '+'; tog3.dataset.fu = '1';
     const fBar = document.createElement('div'); fBar.className = 'recruiter-bar';
     const fFill = document.createElement('div'); fFill.className = 'recruiter-fill'; fFill.id = 'facilityFill';
     fBar.appendChild(fFill);
     const pause3 = document.createElement('button'); pause3.className = 'pause-toggle' + (S.sp[2] ? ' paused' : ''); pause3.textContent = S.sp[2] ? '\u25B6' : '\u23F8'; pause3.dataset.sp = '2';
     const spr2 = document.createElement('div'); spr2.className = 'staff-sprite-inline'; spr2.id = 'staffSprite2';
-    el3.append(spr2, info3, cost3, own3, pause3, tog3, fBar);
+    el3.append(spr2, info3, cost3, own3, pause3, fBar);
     target.appendChild(el3);
     upRefs.push({ el: el3, costEl: cost3, ownEl: own3, action: 'ss', idx: 2 });
-    // Training submenu
-    const sub3 = document.createElement('div'); sub3.className = 'eu-sub'; sub3.id = 'fu-sub';
-    FACILITY_UPS.forEach((fu, ui) => {
-      const r = document.createElement('div'); r.className = 'fu-row'; r.dataset.ui = ui;
-      const rn = document.createElement('span'); rn.className = 'eu-row-name'; rn.textContent = ta('fu_'+ui+'_name', fu.name);
-      const rd = document.createElement('span'); rd.className = 'eu-row-desc'; rd.textContent = ta('fu_'+ui+'_desc', fu.desc);
-      const rc = document.createElement('span'); rc.className = 'eu-row-cost';
-      const rl = document.createElement('span'); rl.className = 'eu-row-lvl';
-      r.append(rn, rd, rc, rl);
-      sub3.appendChild(r);
-    });
-    target.appendChild(sub3);
   }
   // Trainer — simple row with pause toggle
   {
@@ -3313,6 +3288,9 @@ function buildUI() {
 
   sec(t('officePerks'));
   CLK.forEach((c, i) => row('c', i, ta('clk_'+i+'_name', c.name), ta('clk_'+i+'_desc', c.desc)));
+  // Add pause toggle to Meeting Room row
+  { const mEl = upRefs.find(r => r.action === 'c' && r.idx === P.MEETING);
+    if (mEl) { const mp = document.createElement('button'); mp.className = 'pause-toggle' + (S.meetingPaused ? ' paused' : ''); mp.textContent = S.meetingPaused ? '\u25B6' : '\u23F8'; mp.id = 'meetingPause'; mEl.el.appendChild(mp); } }
 
   // Code Base Upgrades (permanent, unlocked by shipping new categories)
   sec(t('codeBase'));
@@ -4409,50 +4387,26 @@ $('G').addEventListener('click', e => {
     document.querySelectorAll('.qty-btn').forEach(b => b.classList.toggle('active', b === qBtn));
     return;
   }
-  // Pause toggle for support staff
+  // Pause toggle for support staff or Meeting Room
   const pauseBtn = e.target.closest('.pause-toggle');
   if (pauseBtn) {
     e.stopPropagation();
-    const idx = +pauseBtn.dataset.sp;
-    S.sp[idx] = S.sp[idx] ? 0 : 1;
-    pauseBtn.textContent = S.sp[idx] ? '\u25B6' : '\u23F8';
-    pauseBtn.classList.toggle('paused', !!S.sp[idx]);
+    if (pauseBtn.id === 'meetingPause') {
+      S.meetingPaused = S.meetingPaused ? 0 : 1;
+      pauseBtn.textContent = S.meetingPaused ? '\u25B6' : '\u23F8';
+      pauseBtn.classList.toggle('paused', !!S.meetingPaused);
+    } else {
+      const idx = +pauseBtn.dataset.sp;
+      S.sp[idx] = S.sp[idx] ? 0 : 1;
+      pauseBtn.textContent = S.sp[idx] ? '\u25B6' : '\u23F8';
+      pauseBtn.classList.toggle('paused', !!S.sp[idx]);
+    }
     return;
   }
   // Coder equipment toggle
   const tog = e.target.closest('.eu-toggle');
   if (tog) {
     e.stopPropagation();
-    // Recruiter training toggle
-    if (tog.classList.contains('ru-toggle')) {
-      const sub = document.getElementById('ru-sub');
-      const opening = !sub.classList.contains('show');
-      document.querySelectorAll('.eu-sub.show').forEach(s => {
-        s.classList.remove('show');
-        const ot = s.previousElementSibling.querySelector('.eu-toggle');
-        if (ot) { ot.classList.remove('open'); ot.textContent = '+'; }
-      });
-      sub.classList.toggle('show', opening);
-      tog.classList.toggle('open', opening);
-      tog.textContent = opening ? '−' : '+';
-      if (opening) updateRUSub();
-      return;
-    }
-    // Facility Director training toggle
-    if (tog.classList.contains('fu-toggle')) {
-      const sub = document.getElementById('fu-sub');
-      const opening = !sub.classList.contains('show');
-      document.querySelectorAll('.eu-sub.show').forEach(s => {
-        s.classList.remove('show');
-        const ot = s.previousElementSibling.querySelector('.eu-toggle');
-        if (ot) { ot.classList.remove('open'); ot.textContent = '+'; }
-      });
-      sub.classList.toggle('show', opening);
-      tog.classList.toggle('open', opening);
-      tog.textContent = opening ? '−' : '+';
-      if (opening) updateFUSub();
-      return;
-    }
     const gi = +tog.dataset.gi;
     const sub = document.getElementById('eu-sub-' + gi);
     const opening = !sub.classList.contains('show');
@@ -4468,20 +4422,6 @@ $('G').addEventListener('click', e => {
     tog.classList.toggle('open', opening);
     tog.textContent = opening ? '−' : '+';
     if (opening) updateEUSub(gi);
-    return;
-  }
-  // Recruiter training buy
-  const ruRow = e.target.closest('.ru-row');
-  if (ruRow) {
-    buyRU(+ruRow.dataset.ui);
-    updateRUSub();
-    return;
-  }
-  // Facility Director training buy
-  const fuRow = e.target.closest('.fu-row');
-  if (fuRow) {
-    buyFU(+fuRow.dataset.ui);
-    updateFUSub();
     return;
   }
   // Coder equipment buy
@@ -4778,33 +4718,36 @@ function tick(now) {
 
   // Meeting Room perk: auto-pause the worse LoC/cost auto-buyer (runs BEFORE recruiter/facility so bars stay in sync)
   if (S.c[P.MEETING] && S.ss[SS.RECRUITER] >= 1 && S.ss[SS.FACILITY] >= 1) {
-    const rVal = bestIdx >= 0 ? GEN[bestIdx].rate * euMul(bestIdx) / gCost(bestIdx) : 0;
-    let fVal = 0;
-    for (let gi = 0; gi < GEN.length; gi++) {
-      if (S.g[gi] < 1) continue;
-      for (let ui = 0; ui < EMP_UPS.length; ui++) {
-        const tier = S.eu[gi][ui];
-        if (tier >= EMP_UPS[ui].tiers.length) continue;
-        const c = euCost(gi, ui);
-        const curMul = tier > 0 ? EMP_UPS[ui].tiers[tier - 1].mult : 1;
-        const nextMul = EMP_UPS[ui].tiers[tier].mult;
-        // LoC/s gained per gold — same units as rVal
-        const val = S.g[gi] * GEN[gi].rate * euMul(gi) * (nextMul / curMul - 1) / c;
-        if (val > fVal) fVal = val;
+    if (S.meetingPaused) {
+      S.sp[SS.RECRUITER] = 1; S.sp[SS.FACILITY] = 1;
+    } else {
+      const rVal = bestIdx >= 0 ? GEN[bestIdx].rate * euMul(bestIdx) / gCost(bestIdx) : 0;
+      let fVal = 0;
+      for (let gi = 0; gi < GEN.length; gi++) {
+        if (S.g[gi] < 1) continue;
+        for (let ui = 0; ui < EMP_UPS.length; ui++) {
+          const tier = S.eu[gi][ui];
+          if (tier >= EMP_UPS[ui].tiers.length) continue;
+          const c = euCost(gi, ui);
+          const curMul = tier > 0 ? EMP_UPS[ui].tiers[tier - 1].mult : 1;
+          const nextMul = EMP_UPS[ui].tiers[tier].mult;
+          const val = S.g[gi] * GEN[gi].rate * euMul(gi) * (nextMul / curMul - 1) / c;
+          if (val > fVal) fVal = val;
+        }
       }
+      if (rVal <= fVal) { S.sp[SS.RECRUITER] = 1; S.sp[SS.FACILITY] = 0; }
+      else { S.sp[SS.FACILITY] = 1; S.sp[SS.RECRUITER] = 0; }
     }
-    if (rVal <= fVal) { S.sp[SS.RECRUITER] = 1; S.sp[SS.FACILITY] = 0; }
-    else { S.sp[SS.FACILITY] = 1; S.sp[SS.RECRUITER] = 0; }
   }
 
   // Recruiter auto-hires best coder
-  const hiringInterval = (S.ru[1] >= 1 ? RECRUITER_FAST : RECRUITER_SLOW) / (1 + 0.02 * ((S.trainerSSLvl && S.trainerSSLvl[SS.RECRUITER]) || 0));
+  const hiringInterval = RECRUITER_SLOW / (1 + 0.02 * ((S.trainerSSLvl && S.trainerSSLvl[SS.RECRUITER]) || 0));
   if (S.ss[SS.RECRUITER] >= 1 && bestIdx >= 0 && !S.sp[SS.RECRUITER]) {
     buyerTimer += dt;
     if (buyerTimer >= hiringInterval) {
       buyerTimer = 0;
       if (S.ss[SS.TRAINER] && S.trainerSSCount) { S.trainerSSCount[SS.RECRUITER] = (S.trainerSSCount[SS.RECRUITER]||0)+1; if (S.trainerSSCount[SS.RECRUITER]>=3){S.trainerSSCount[SS.RECRUITER]=0;if((S.trainerSSLvl[SS.RECRUITER]||0)<100)S.trainerSSLvl[SS.RECRUITER]=(S.trainerSSLvl[SS.RECRUITER]||0)+1;} }
-      const hireCount = S.ru[0] >= 1 ? 2 : 1;
+      const hireCount = 1;
       let hired = 0;
       for (let h = 0; h < hireCount; h++) {
         const c = gCost(bestIdx);
@@ -4825,7 +4768,7 @@ function tick(now) {
   }
 
   // Update facility director progress bar
-  const facilityInterval = (S.fu[0] >= 1 ? FACILITY_FAST : FACILITY_SLOW) / (1 + 0.02 * ((S.trainerSSLvl && S.trainerSSLvl[SS.FACILITY]) || 0));
+  const facilityInterval = FACILITY_SLOW / (1 + 0.02 * ((S.trainerSSLvl && S.trainerSSLvl[SS.FACILITY]) || 0));
   if (!_fFill) _fFill = document.getElementById('facilityFill');
   const fFill = _fFill;
   if (fFill) {
@@ -4845,7 +4788,7 @@ function tick(now) {
     if (facilityTimer >= facilityInterval) {
       facilityTimer = 0;
       if (S.ss[SS.TRAINER] && S.trainerSSCount) { S.trainerSSCount[SS.FACILITY] = (S.trainerSSCount[SS.FACILITY]||0)+1; if (S.trainerSSCount[SS.FACILITY]>=3){S.trainerSSCount[SS.FACILITY]=0;if((S.trainerSSLvl[SS.FACILITY]||0)<100)S.trainerSSLvl[SS.FACILITY]=(S.trainerSSLvl[SS.FACILITY]||0)+1;} }
-      const buyCount = S.fu[1] >= 1 ? 2 : 1;
+      const buyCount = 1;
       for (let b = 0; b < buyCount; b++) {
         let best = null, bestScore = 0;
         for (let gi = 0; gi < GEN.length; gi++) {
@@ -4942,16 +4885,16 @@ function tick(now) {
 
     if (a === 'g') {
       const i = ref.idx;
-      const gUnlocked = 3 + Math.floor(S.shipped / 2);
-      const isNext = i === gUnlocked && i < GEN.length;
-      locked = i > gUnlocked;
+      const isOpen = i < 1 || S.g[i - 1] >= 1;
+      const isNext = !isOpen && i > 0 && S.g[i - 1] < 1 && (i < 1 || S.g[i - 2] >= 1);
+      locked = !isOpen && !isNext;
       if (isNext) {
         afford = false;
         costEl.textContent = '';
         ownEl.textContent = '\u{1F512}';
         if (ref.rateEl) ref.rateEl.textContent = '';
         el.classList.remove('best');
-      } else if (i < gUnlocked) {
+      } else if (isOpen) {
         const n = effectiveQty(gMax, i);
         const strictBulk = buyQty !== Infinity && buyQty > 1;
         cost = strictBulk ? gBulkCost(i, buyQty) : (n > 0 ? gBulkCost(i, n) : gCost(i));
@@ -5021,10 +4964,6 @@ function tick(now) {
       if (a === 'g') {
         const gi = ref.idx;
         _hasAff = S.g[gi] >= 1 && EMP_UPS.some((eu, ui) => S.eu[gi][ui] < eu.tiers.length && S.loc >= euCost(gi, ui));
-      } else if (a === 'ss' && ref.idx === SS.RECRUITER) {
-        _hasAff = S.ss[SS.RECRUITER] >= 1 && RECRUITER_UPS.some((_, ui) => S.ru[ui] < 1 && S.loc >= ruCost(ui));
-      } else if (a === 'ss' && ref.idx === SS.FACILITY) {
-        _hasAff = S.ss[SS.FACILITY] >= 1 && FACILITY_UPS.some((_, ui) => S.fu[ui] < 1 && S.loc >= fuCost(ui));
       }
       _tog.classList.toggle('has-affordable', _hasAff);
     } else if (_tog) {
@@ -5037,8 +4976,6 @@ function tick(now) {
 
   // Update open coder/recruiter/facility submenus
   for (let gi = 0; gi < GEN.length; gi++) updateEUSub(gi);
-  updateRUSub();
-  updateFUSub();
 
   // Clock drift detection — compare real elapsed (performance.now) to system clock
   const _drift = Date.now() - trustedNow();
