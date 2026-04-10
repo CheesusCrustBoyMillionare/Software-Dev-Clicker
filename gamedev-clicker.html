@@ -1620,7 +1620,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.6';
+const GAME_VERSION = '6.7';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -2140,6 +2140,7 @@ const defaults = () => ({
        streakSecondWind:0, streakCombo:0, streakTurbo:0, streakZone:0, streakTranscend:0 },
   shipped: 0,
   meetingPaused: 0,
+  fameResetUsed: 0,
   sp: SUPPORT.map(() => 0),
   trainerLvl: GEN.map(() => 0),
   trainerSSLvl: SUPPORT.map(() => 0),
@@ -4309,6 +4310,32 @@ function openSkillTree() {
     });
   });
 
+  // Respec button below hub
+  const fameSpent = FAME_TREE.reduce((t, b) => t + b.upgrades.reduce((s, u) => s + (S.f[u.id] || 0) * u.cost, 0), 0);
+  if (fameSpent > 0) {
+    const respec = document.createElement('button');
+    respec.className = 'st-respec';
+    respec.style.cssText = 'position:absolute;left:' + (HUB.x - 20) + 'px;top:' + (HUB.y + 60) + 'px;background:#21262d;border:1px solid #da3633;color:#f85149;border-radius:6px;padding:4px 12px;font-size:.7rem;cursor:pointer;white-space:nowrap;z-index:3;transition:background .15s';
+    if (S.fameResetUsed) {
+      respec.textContent = 'Respec used';
+      respec.style.opacity = '0.4';
+      respec.style.cursor = 'default';
+    } else {
+      respec.textContent = 'Respec (' + fameSpent + ' Fame)';
+      respec.addEventListener('mouseenter', () => { respec.style.background = '#da3633'; respec.style.color = '#fff'; });
+      respec.addEventListener('mouseleave', () => { respec.style.background = '#21262d'; respec.style.color = '#f85149'; });
+      respec.addEventListener('click', () => {
+        FAME_TREE.forEach(b => b.upgrades.forEach(u => { S.fame += (S.f[u.id] || 0) * u.cost; S.f[u.id] = 0; }));
+        S.fameResetUsed = 1;
+        markDirty();
+        toast('Skill tree reset! ' + fameSpent + ' Fame refunded');
+        log('Skill tree respec: +' + fameSpent + ' Fame');
+        openSkillTree();
+      });
+    }
+    graph.appendChild(respec);
+  }
+
   ov.appendChild(graph);
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
   document.body.appendChild(ov);
@@ -4350,6 +4377,7 @@ function ship() {
   }
   S.fame += gain; S.tFame += gain;
   S.shipped++;
+  S.fameResetUsed = 0;
   // Golden Parachute: keep 5%×Lv of total LoC
   const keepLoc = S.f.goldenParachute ? S.tLoc * 0.15 * S.f.goldenParachute : 0;
   S.loc = 0;
