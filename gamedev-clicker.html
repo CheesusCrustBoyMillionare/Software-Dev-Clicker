@@ -102,19 +102,18 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .coder-sprite:nth-child(3n) svg{animation-delay:-.5s}
 @keyframes coderType{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
 
-/* Staff Corner Sprites — grouped top-left */
-.staff-group{position:absolute;top:10px;left:-56px;display:flex;flex-direction:column;gap:2px;z-index:4}
-.staff-corner{cursor:pointer;opacity:0;transition:opacity .3s;pointer-events:none}
-.staff-corner.active{opacity:1;pointer-events:auto}
-.staff-corner.paused{opacity:.4;filter:grayscale(.6)}
+/* Staff Inline Sprites — next to buy buttons */
+.staff-sprite-inline{display:inline-flex;align-items:center;width:24px;height:20px;flex-shrink:0;cursor:pointer;opacity:0;transition:opacity .3s;pointer-events:none;position:relative}
+.staff-sprite-inline.active{opacity:1;pointer-events:auto}
+.staff-sprite-inline.paused{opacity:.4;filter:grayscale(.6)}
 
 /* Coder type rows */
-.coder-row{display:flex;flex-wrap:wrap;align-items:center;gap:2px;min-height:0}
+.coder-row{display:flex;flex-wrap:nowrap;align-items:center;gap:2px;min-height:0;overflow:hidden;max-width:320px}
 .coder-row-label{font-size:.4rem;color:#8b949e;width:8px;text-align:center;flex-shrink:0;writing-mode:vertical-lr;transform:rotate(180deg);letter-spacing:.02em;opacity:.6}
 
 /* Sprite Tooltip */
 .sprite-tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:.5rem;color:#e6edf3;white-space:nowrap;pointer-events:none;z-index:20;opacity:0;transition:opacity .15s}
-.coder-sprite:hover .sprite-tip,.staff-corner:hover .sprite-tip{opacity:1}
+.coder-sprite:hover .sprite-tip,.staff-sprite-inline:hover .sprite-tip{opacity:1}
 
 /* Pet dog auto-clicker */
 .pet-dog{position:absolute;bottom:-16px;right:-56px;font-size:2.8rem;opacity:0;transition:opacity .4s;pointer-events:none;z-index:3}
@@ -502,7 +501,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
   /* Office sprites: tablet */
   .office-floor{width:260px}
   .coder-sprite{width:22px;height:20px}
-  .staff-group{display:none}
 
   /* Panel overrides */
   .left-panel{width:100%;min-width:0;border-right:none;padding:10px}
@@ -614,12 +612,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
         </div>
         <div class="desk" id="deskEl"></div>
         <div class="office-floor" id="officeFloor"></div>
-        <div class="staff-group">
-          <div class="staff-corner" id="staffCorner0"></div>
-          <div class="staff-corner" id="staffCorner1"></div>
-          <div class="staff-corner" id="staffCorner2"></div>
-          <div class="staff-corner" id="staffCorner3"></div>
-        </div>
         <div class="pet-dog" id="petDog">&#x1F415;</div>
         <div class="streak-thermo" id="streakThermo" style="opacity:0">
         <div class="thermo-label" id="streakVal">1.0x</div>
@@ -1626,7 +1618,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.2';
+const GAME_VERSION = '6.3';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1660,7 +1652,6 @@ const EMP_UPS = [
 const RECRUITER_UPS = [
   { id: 'screener', name: 'LinkedIn Premium', desc: 'Hire 2 per cycle',    baseCost: 40000,  gr: 3 },
   { id: 'linkedin',  name: 'Resume Screener', desc: 'Hire every 5s',      baseCost: 125000, gr: 4 },
-  { id: 'headhunter',name: 'Headhunter',       desc: 'Hire top 3 types',   baseCost: 500000, gr: 5 },
 ];
 
 const CLK = [
@@ -1674,12 +1665,12 @@ const CLK = [
   { name: 'Unlimited PTO',      desc: '-20% coder hire costs',           base: 1000000,  gr: 10 },
   { name: 'Nap Pods',           desc: 'Burst: 16s production every 50s', base: 2000000,  gr: 10 },
   { name: 'Company Retreat',    desc: '\u00d72.5 all production',        base: 6000000,  gr: 10 },
+  { name: 'Meeting Room',      desc: 'Pauses worst LoC/cost auto-buyer', base: 150000,   gr: 10 },
 ];
 
 const FACILITY_UPS = [
   { id:'blueprint',  name:'Blueprints',  desc:'Buy every 15s',         baseCost:30000,  gr:3 },
   { id:'bulk_order',  name:'Bulk Orders', desc:'Buy 2 per cycle',       baseCost:90000,  gr:4 },
-  { id:'contractor',  name:'Contractor',  desc:'Prioritize best value', baseCost:250000, gr:5 },
 ];
 
 const SUPPORT = [
@@ -1821,21 +1812,21 @@ const CB_CODE_LINES = [
 // ========== CODER FUN FACTS ==========
 const CODER_FACTS = [
   // Intern (0)
-  ['Alex. Favorite language: HTML.','Sam. Broke prod on day one.','Jordan. Still learning git pull.','Casey. Asks "is this agile?"','Riley. Types 10 WPM. With errors.','Morgan. Thinks CSS is coding.','Taylor. Googles "how to code".','Jamie. Commits node_modules.','Drew. Wrote a 400-line main().','Pat. Uses Notepad unironically.'],
+  ['Alex. Favorite language: HTML.','Sam. Broke prod on day one.','Jordan. Still learning git pull.','Casey. Asks "is this agile?"','Riley. Types 10 WPM. With errors.','Morgan. Thinks CSS is coding.','Taylor. Googles "how to code".','Jamie. Commits node_modules.','Drew. Wrote a 400-line main().','Pat. Uses Notepad unironically.','Logan. Asks what an API is.','Tatum. Forgot their password. Again.','Peyton. Uses Word for coding.','Harley. Thinks HTML is programming.','Nico. Pushes directly to main.','Kerry. "What\'s a terminal?"','Devon. Has a Hello World portfolio.','Corey. Copy-pastes the whole repo.','Bobbie. Spent 3 hours on a typo.','Frankie. Uses Comic Sans in their IDE.','Dallas. "What does rebase do?"','Jessie. Discovered inspect element today.','Remy. Their code has no variables.','Carmen. Thinks agile means fast.','Aubrey. Made a to-do app. It doesn\'t save.','Shiloh. Uses 17 nested if-statements.','Milan. Has 400 Chrome tabs open.','Lane. Hardcodes every value.','Kai. "Is Python a snake?"','Noel. Their first PR was 2,000 lines.'],
   // Junior Dev (1)
-  ['Blake. Knows one framework well.','Quinn. Copy-pastes from Stack Overflow.','Avery. Has strong React opinions.','Reese. Thinks they invented MVC.','Harper. Debugs with console.log.','Sage. Uses 47 npm packages.','Dakota. "It works on my machine."','Finley. PR reviews take 3 days.','Rowan. Writes TODO comments. Never returns.','Ellis. Has a "10x" coffee mug.'],
+  ['Blake. Knows one framework well.','Quinn. Copy-pastes from Stack Overflow.','Avery. Has strong React opinions.','Reese. Thinks they invented MVC.','Harper. Debugs with console.log.','Sage. Uses 47 npm packages.','Dakota. "It works on my machine."','Finley. PR reviews take 3 days.','Rowan. Writes TODO comments. Never returns.','Ellis. Has a "10x" coffee mug.','Tanner. Discovered TypeScript yesterday.','Arden. Has 12 side projects. Zero finished.','Presley. Their git graph is abstract art.','Oakley. Overengineers a TODO list.','Colby. Uses try-catch everywhere.','Rory. Writes tests after the bug.','Linden. "I refactored." Broke everything.','Justice. 43 browser tabs minimum.','Leighton. Thinks REST means napping.','Monroe. Adds dependencies for one function.','Briar. Comments out code. Never deletes.','Indigo. Has 6 VSCode themes installed.','Campbell. Their .env is in the repo.','Hollis. Writes switch cases. All 40 of them.','Everett. Uses var in 2026.','Landry. "It\'s not a bug, it\'s a feature."','Bellamy. Has 3 conflicting eslint configs.','Ainsley. Deploys on Fridays.','Perry. Their merge conflicts have conflicts.','Chandler. Learned coding from TikTok.'],
   // Mid-Level Dev (2)
-  ['Charlie. Can Google anything.','Emery. Knows what Big O means.','Hayden. Refactors for fun.','Lennox. Has opinions about tabs.','Phoenix. Actually reads docs.','Skyler. Wrote a linter config.','Robin. Mentors interns. Reluctantly.','Marley. Automates everything.','Kendall. Owns 3 mechanical keyboards.','Eden. Has a dotfiles repo.'],
+  ['Charlie. Can Google anything.','Emery. Knows what Big O means.','Hayden. Refactors for fun.','Lennox. Has opinions about tabs.','Phoenix. Actually reads docs.','Skyler. Wrote a linter config.','Robin. Mentors interns. Reluctantly.','Marley. Automates everything.','Kendall. Owns 3 mechanical keyboards.','Eden. Has a dotfiles repo.','Spencer. Side project makes $3/month.','Ari. Writes regex nobody can read.','Raven. Built their own CSS framework.','Carey. "I\'ll document it later."','Sawyer. Knows 5 languages. Masters none.','Greer. Their PR descriptions are novels.','Shea. Has automated their own job. Mostly.','Harlow. Monitors are 90% terminal windows.','Marlowe. Wrote a vim plugin nobody uses.','Sutton. Their desk has 3 monitors and a plant.','Ashton. "It passed in staging."','Sterling. Pair programs with a rubber duck.','Blair. Configured CI/CD in their sleep.','Harbor. Love-hate relationship with Docker.','Leighton. Names branches after movies.','Tanner. Writes Makefiles for everything.','Quinn. "This could be a microservice."','Justice. Has a testing pyramid tattoo.','Oakley. Strong opinions about semicolons.','Campbell. Owns the team Grafana dashboard.'],
   // Senior Dev (3)
-  ['Pat. Has mass-deleted prod. Twice.','Lee. Writes code in their sleep.','Ash. Has mass-deleted prod on purpose.','Max. Reviews PRs in 30 seconds.','Kit. Rewrote the ORM. Again.','Val. "I\'ve seen this bug before."','Ray. Has 200 git aliases.','Jude. Pair programs with themselves.','Wren. Their code has no comments needed.','Sol. Fixed a bug from 2014.'],
+  ['Pat. Has mass-deleted prod. Twice.','Lee. Writes code in their sleep.','Ash. Has mass-deleted prod on purpose.','Max. Reviews PRs in 30 seconds.','Kit. Rewrote the ORM. Again.','Val. "I\'ve seen this bug before."','Ray. Has 200 git aliases.','Jude. Pair programs with themselves.','Wren. Their code has no comments needed.','Sol. Fixed a bug from 2014.','Gray. Wrote the framework everyone hates.','Sloan. Reverts commits at 2am.','River. Their terminal is 90% aliases.','Dale. "We solved this in 2018."','Blair. Has mass-deleted a microservice.','Tatum. Wrote the migration that scared ops.','Casey. Answers questions with questions.','Jordan. "Don\'t touch that file."','Reign. Their debugging involves staring.','Shay. "Read the error message."','Addison. Can fix anything. Won\'t explain how.','Hollis. Owns the on-call pager nobody wants.','Remi. Wrote a tool to avoid meetings.','Noel. Their commit messages are haikus.','Harley. Knows which codebase secrets to keep.','August. "That\'s a known issue."','Quinn. Code reviews are therapy sessions.','Morgan. Has 6 mechanical keyboards ranked.','Blake. Been "about to refactor" for months.','Sage. Wrote the postmortem template.'],
   // Staff Engineer (4)
-  ['River. Writes docs nobody reads.','Storm. Designed 3 failed microservices.','Brook. Has an RFC for everything.','Sage. Speaks only in diagrams.','Stone. Owns the deployment pipeline.','Cloud. Named a service after their cat.','Lake. Reviewed 10,000 PRs.','Cliff. "Let me draw this on a whiteboard."','Reed. Wrote the style guide. Ignores it.','Onyx. Still debugs with print statements.'],
+  ['River. Writes docs nobody reads.','Storm. Designed 3 failed microservices.','Brook. Has an RFC for everything.','Sage. Speaks only in diagrams.','Stone. Owns the deployment pipeline.','Cloud. Named a service after their cat.','Lake. Reviewed 10,000 PRs.','Cliff. "Let me draw this on a whiteboard."','Reed. Wrote the style guide. Ignores it.','Onyx. Still debugs with print statements.','Blythe. Drew the architecture diagram. It\'s wrong now.','Winter. Owns 6 deprecated services.','Shiloh. "Let me check the RFC."','Harbor. Migrated the database at 3am.','Trace. Knows where all the tech debt lives.','Merit. Built the internal CLI everyone uses.','Indigo. Has a Confluence page for everything.','Haven. Design docs get more reviews than code.','Blair. Wrote the runbook. Nobody follows it.','Roan. "We should think about scale."','Dale. Maintains 4 libraries nobody thanked them for.','Marlowe. PRs are essays with code attached.','Everest. Built the monitoring that pages everyone.','Oakley. "I have concerns."','Lark. Runs the architecture review meeting.','Timber. Wrote the migration tool by hand.','Echo. Has an opinion about every database.','Ridley. Their Slack threads are legendary.','Avery. "We need to talk about observability."','Ash. Their ADRs are longer than the code.'],
   // Principal Engineer (5)
-  ['Atlas. Speaks in abstractions.','Nova. Hasn\'t written code in months.','Orion. Their PRs are 1-line fixes.','Cosmos. Invented a build system.','Zenith. Owns 4 internal tools.','Apex. Gives 2-hour code reviews.','Titan. "This needs more architecture."','Helix. Wrote the monorepo migration.','Summit. Has a Wikipedia page.','Quantum. Their meetings have meetings.'],
+  ['Atlas. Speaks in abstractions.','Nova. Hasn\'t written code in months.','Orion. Their PRs are 1-line fixes.','Cosmos. Invented a build system.','Zenith. Owns 4 internal tools.','Apex. Gives 2-hour code reviews.','Titan. "This needs more architecture."','Helix. Wrote the monorepo migration.','Summit. Has a Wikipedia page.','Quantum. Their meetings have meetings.','Blaze. Draws system diagrams on napkins.','Solstice. Their title confuses HR.','Dune. Hasn\'t opened an IDE in weeks.','Sterling. "The real problem is organizational."','Harbor. Keynoted a conference. Once.','Frost. Owns 3 patents. Forgot about 2.','Peak. Calendar is 80% "thinking time."','Ridge. "We should rewrite it." Gets approved.','Vale. Slack status is always "focusing."','Lark. Reviews architecture, not code.','Cypress. Speaks at all-hands. Quarterly.','Briar. Has been at the company since v1.','Arbor. Their opinion is the tiebreaker.','Flint. Wrote the migration path. All 47 steps.','Wynn. "This reminds me of the 2019 incident."','Alder. Has a graveyard of killed projects.','Reef. Their one-pager is never one page.','Sage. Writes proposals that become products.','Storm. "Let me share some historical context."','Onyx. Has a personal wiki with 500 pages.'],
   // Tech Lead (6)
-  ['Lux. 50% meetings, 50% Slack.','Neon. Writes more Jira than code.','Pixel. Has 14 direct reports.','Vector. "Let\'s take this offline."','Cipher. Sprint planning takes all day.','Matrix. Approves all the PRs.','Prism. Their calendar is a war zone.','Delta. "Per my last email..."','Echo. Runs standup. Always late.','Flux. Manages up, delegates down.'],
+  ['Lux. 50% meetings, 50% Slack.','Neon. Writes more Jira than code.','Pixel. Has 14 direct reports.','Vector. "Let\'s take this offline."','Cipher. Sprint planning takes all day.','Matrix. Approves all the PRs.','Prism. Their calendar is a war zone.','Delta. "Per my last email..."','Echo. Runs standup. Always late.','Flux. Manages up, delegates down.','Zenith. Has 3 standups before 10am.','Halo. Their Jira board is a work of art.','Binary. Approves PTO. Denies scope creep.','Slate. "Let\'s parking-lot that."','Blaze. Sprint retros are their therapy.','Nova. Writes quarterly OKRs in their sleep.','Cosmo. Has a team motto nobody remembers.','Atlas. "I\'ll loop in stakeholders."','Onyx. Their 1:1s run long. Always.','Harbor. Shields the team from management.','Rune. "We need to align on priorities."','Drift. Manages 3 Slack channels actively.','Cove. Their status reports are poetry.','Ash. "Let\'s timebox this discussion."','Sterling. Has a spreadsheet for everything.','Peak. Does code review by committee.','Vale. "Good catch in retro."','Ridley. Their roadmap has a roadmap.','Wren. Sends Monday motivation messages.','Sol. "Let\'s circle back on that."'],
   // CTO (7)
-  ['Jordan. Sends "thoughts?" at 3am.','Morgan. Last commit: 2019.','Raven. Has a podcast nobody listens to.','Phoenix. "AI will handle that."','Sterling. Tweets about culture.','Royal. Has 5 monitors. Uses one.','Legend. Founded 3 startups. All pivoted.','Noble. Types with two fingers. Fast.','Archer. "Move fast and break things."','Crown. Their LinkedIn is a novel.'],
+  ['Jordan. Sends "thoughts?" at 3am.','Morgan. Last commit: 2019.','Raven. Has a podcast nobody listens to.','Phoenix. "AI will handle that."','Sterling. Tweets about culture.','Royal. Has 5 monitors. Uses one.','Legend. Founded 3 startups. All pivoted.','Noble. Types with two fingers. Fast.','Archer. "Move fast and break things."','Crown. Their LinkedIn is a novel.','Atlas. Speaks at 4 conferences a year.','Blaze. Their vision deck is 200 slides.','Zenith. "We\'re an AI company now."','Onyx. Reads Hacker News religiously.','Storm. Last PR review: 2017.','Harbor. Knows every investor by first name.','Frost. Their Slack is 90% emoji reactions.','Peak. "Let\'s disrupt this space."','Sage. Founded in a garage. Actually a WeWork.','Dune. Has 3 advisors. Ignores all of them.','Vale. "We need to 10x our velocity."','Cosmo. Their all-hands are TED talks.','Ridley. Pivoted the company twice this year.','Flint. "Culture eats strategy for breakfast."','Arbor. Has a blog with 12 subscribers.','Lark. Their title changes yearly.','Wynn. "We\'re not a startup anymore."','Cypress. Reads every Glassdoor review.','Slate. "Let\'s be data-driven about this."','Drift. Their calendar has no free slots. Ever.'],
 ];
 
 const CODE_BASE = [
@@ -2240,7 +2231,7 @@ function fmt(n) {
 }
 
 // Perk index constants — use these instead of magic numbers
-const P = { LUNCH:0, ENERGY:1, DESK:2, DAYCARE:3, PET:4, GYM:5, GAMEROOM:6, PTO:7, NAP:8, RETREAT:9 };
+const P = { LUNCH:0, ENERGY:1, DESK:2, DAYCARE:3, PET:4, GYM:5, GAMEROOM:6, PTO:7, NAP:8, RETREAT:9, MEETING:10 };
 
 // ========== NAMED CONSTANTS ==========
 const STREAK_WINDOW = 3000, STREAK_DIV = 3, STREAK_GROW = 0.5, STREAK_DECAY = 2, STREAK_DECAY_DELAY = 2000;
@@ -3169,6 +3160,7 @@ function buildUI() {
   sec(t('supportStaff'));
   // Secretary — simple row
   row('ss', 0, ta('sup_0_name', SUPPORT[0].name), ta('sup_0_desc', SUPPORT[0].desc));
+  { const spr0 = document.createElement('div'); spr0.className = 'staff-sprite-inline'; spr0.id = 'staffSprite0'; target.lastElementChild.prepend(spr0); }
   // Recruiter — row with toggle + training submenu
   {
     const s = SUPPORT[1];
@@ -3188,7 +3180,8 @@ function buildUI() {
     rBar.appendChild(rFill);
     const pause2 = document.createElement('button'); pause2.className = 'pause-toggle' + (S.sp[1] ? ' paused' : ''); pause2.textContent = S.sp[1] ? '\u25B6' : '\u23F8'; pause2.dataset.sp = '1';
     el2.style.position = 'relative'; el2.style.overflow = 'hidden';
-    el2.append(info2, cost2, own2, pause2, tog2, rBar);
+    const spr1 = document.createElement('div'); spr1.className = 'staff-sprite-inline'; spr1.id = 'staffSprite1';
+    el2.append(spr1, info2, cost2, own2, pause2, tog2, rBar);
     target.appendChild(el2);
     upRefs.push({ el: el2, costEl: cost2, ownEl: own2, action: 'ss', idx: 1 });
     // Training submenu
@@ -3223,7 +3216,8 @@ function buildUI() {
     const fFill = document.createElement('div'); fFill.className = 'recruiter-fill'; fFill.id = 'facilityFill';
     fBar.appendChild(fFill);
     const pause3 = document.createElement('button'); pause3.className = 'pause-toggle' + (S.sp[2] ? ' paused' : ''); pause3.textContent = S.sp[2] ? '\u25B6' : '\u23F8'; pause3.dataset.sp = '2';
-    el3.append(info3, cost3, own3, pause3, tog3, fBar);
+    const spr2 = document.createElement('div'); spr2.className = 'staff-sprite-inline'; spr2.id = 'staffSprite2';
+    el3.append(spr2, info3, cost3, own3, pause3, tog3, fBar);
     target.appendChild(el3);
     upRefs.push({ el: el3, costEl: cost3, ownEl: own3, action: 'ss', idx: 2 });
     // Training submenu
@@ -3253,7 +3247,8 @@ function buildUI() {
     const cost4 = document.createElement('div'); cost4.className = 'up-cost';
     const own4 = document.createElement('div'); own4.className = 'up-own';
     const pause4 = document.createElement('button'); pause4.className = 'pause-toggle' + (S.sp[3] ? ' paused' : ''); pause4.textContent = S.sp[3] ? '\u25B6' : '\u23F8'; pause4.dataset.sp = '3';
-    el4.append(info4, cost4, own4, pause4);
+    const spr3 = document.createElement('div'); spr3.className = 'staff-sprite-inline'; spr3.id = 'staffSprite3';
+    el4.append(spr3, info4, cost4, own4, pause4);
     target.appendChild(el4);
     upRefs.push({ el: el4, costEl: cost4, ownEl: own4, action: 'ss', idx: 3 });
   }
@@ -4497,7 +4492,7 @@ const _ofc = {
 
 function _initOfc() {
   _ofc.el = $('officeFloor');
-  _ofc.staffEls = [0,1,2,3].map(i => $('staffCorner' + i));
+  _ofc.staffEls = [0,1,2,3].map(i => $('staffSprite' + i));
 }
 
 function updateOfficeSprites() {
@@ -4511,7 +4506,7 @@ function updateOfficeSprites() {
   const desired = [];
   let total = 0;
   for (let i = 0; i < GEN.length && total < maxSprites; i++) {
-    const count = Math.min(S.g[i], maxSprites - total);
+    const count = Math.min(S.g[i], 30, maxSprites - total);
     for (let j = 0; j < count; j++) {
       desired.push({ type: i, deskT: S.eu[i][0], chairT: S.eu[i][1], pcT: S.eu[i][2] });
     }
@@ -4532,7 +4527,7 @@ function updateOfficeSprites() {
     _ofc.spriteCache = [];
     _ofc.factCache = [];
     // Group desired by type into rows
-    let curType = -1, curRow = null;
+    let curType = -1, curRow = null, shuffledFacts = [];
     for (let i = 0; i < desired.length; i++) {
       const d = desired[i];
       if (d.type !== curType) {
@@ -4540,12 +4535,14 @@ function updateOfficeSprites() {
         curRow = document.createElement('div');
         curRow.className = 'coder-row';
         _ofc.el.appendChild(curRow);
+        shuffledFacts = Array.from({length: CODER_FACTS[curType].length}, (_, k) => k);
+        for (let j = shuffledFacts.length - 1; j > 0; j--) { const k = Math.floor(Math.random() * (j + 1)); [shuffledFacts[j], shuffledFacts[k]] = [shuffledFacts[k], shuffledFacts[j]]; }
       }
       const div = document.createElement('div');
       div.className = 'coder-sprite';
       div.innerHTML = coderSVG(d.type, d.deskT, d.chairT, d.pcT);
       const facts = CODER_FACTS[d.type];
-      const factIdx = Math.floor(Math.random() * facts.length);
+      const factIdx = shuffledFacts.length > 0 ? shuffledFacts.pop() : Math.floor(Math.random() * facts.length);
       const tip = document.createElement('div');
       tip.className = 'sprite-tip';
       tip.textContent = GEN[d.type].name + ': ' + facts[factIdx];
@@ -4719,30 +4716,12 @@ function tick(now) {
       buyerTimer = 0;
       if (S.ss[SS.TRAINER] && S.trainerSSCount) { S.trainerSSCount[SS.RECRUITER] = (S.trainerSSCount[SS.RECRUITER]||0)+1; if (S.trainerSSCount[SS.RECRUITER]>=3){S.trainerSSCount[SS.RECRUITER]=0;S.trainerSSLvl[SS.RECRUITER]=(S.trainerSSLvl[SS.RECRUITER]||0)+1;} }
       const hireCount = S.ru[0] >= 1 ? 2 : 1;
-      // Headhunter: hire top 3 best-value types
-      if (S.ru[2] >= 1) {
-        const ranked = [];
-        for (let i = 0; i < GEN.length; i++) {
-          ranked.push({ i, eff: GEN[i].rate * euMul(i) / gCost(i) });
-        }
-        ranked.sort((a, b) => b.eff - a.eff);
-        const top = ranked.slice(0, 3);
-        for (const tgt of top) {
-          let hired = 0;
-          for (let h = 0; h < hireCount; h++) {
-            const c = gCost(tgt.i);
-            if (S.loc >= c) { S.loc -= c; S.g[tgt.i]++; hired++; markDirty(); }
-          }
-          if (hired) log('\uD83E\uDD16 ' + t('recruiterHired') + (hired > 1 ? ' ' + hired + '\u00d7 ' : ': ') + ta('gen_'+tgt.i+'_name', GEN[tgt.i].name));
-        }
-      } else {
-        let hired = 0;
-        for (let h = 0; h < hireCount; h++) {
-          const c = gCost(bestIdx);
-          if (S.loc >= c) { S.loc -= c; S.g[bestIdx]++; hired++; markDirty(); }
-        }
-        if (hired) log('\uD83E\uDD16 ' + t('recruiterHired') + (hired > 1 ? ' ' + hired + '\u00d7 ' : ': ') + ta('gen_'+bestIdx+'_name', GEN[bestIdx].name));
+      let hired = 0;
+      for (let h = 0; h < hireCount; h++) {
+        const c = gCost(bestIdx);
+        if (S.loc >= c) { S.loc -= c; S.g[bestIdx]++; hired++; markDirty(); }
       }
+      if (hired) log('\uD83E\uDD16 ' + t('recruiterHired') + (hired > 1 ? ' ' + hired + '\u00d7 ' : ': ') + ta('gen_'+bestIdx+'_name', GEN[bestIdx].name));
     }
   }
   // Update recruiter progress bar
@@ -4776,23 +4755,18 @@ function tick(now) {
       if (S.ss[SS.TRAINER] && S.trainerSSCount) { S.trainerSSCount[SS.FACILITY] = (S.trainerSSCount[SS.FACILITY]||0)+1; if (S.trainerSSCount[SS.FACILITY]>=3){S.trainerSSCount[SS.FACILITY]=0;S.trainerSSLvl[SS.FACILITY]=(S.trainerSSLvl[SS.FACILITY]||0)+1;} }
       const buyCount = S.fu[1] >= 1 ? 2 : 1;
       for (let b = 0; b < buyCount; b++) {
-        let best = null, bestScore = S.fu[2] >= 1 ? 0 : Infinity;
+        let best = null, bestScore = 0;
         for (let gi = 0; gi < GEN.length; gi++) {
           if (S.g[gi] < 1) continue;
           for (let ui = 0; ui < EMP_UPS.length; ui++) {
             const tier = S.eu[gi][ui];
             if (tier >= EMP_UPS[ui].tiers.length) continue;
             const c = euCost(gi, ui);
-            if (S.fu[2] >= 1) {
-              // Contractor: best value (mult gain per cost)
-              const curMul = tier > 0 ? EMP_UPS[ui].tiers[tier - 1].mult : 1;
-              const nextMul = EMP_UPS[ui].tiers[tier].mult;
-              const val = (nextMul / curMul - 1) / c;
-              if (val > bestScore) { bestScore = val; best = { gi, ui, c }; }
-            } else {
-              // Default: cheapest
-              if (c < bestScore) { bestScore = c; best = { gi, ui, c }; }
-            }
+            // Best value: mult gain per cost
+            const curMul = tier > 0 ? EMP_UPS[ui].tiers[tier - 1].mult : 1;
+            const nextMul = EMP_UPS[ui].tiers[tier].mult;
+            const val = (nextMul / curMul - 1) / c;
+            if (val > bestScore) { bestScore = val; best = { gi, ui, c }; }
           }
         }
         if (best && S.loc >= best.c) {
@@ -4820,6 +4794,29 @@ function tick(now) {
         log('🏋️ ' + t('trainerLvlUp') + ': ' + ta('g'+pick, GEN[pick].name) + ' Lv' + S.trainerLvl[pick]);
       }
     }
+  }
+
+  // Meeting Room perk: auto-pause the worse LoC/cost auto-buyer
+  if (S.c[P.MEETING] && S.ss[SS.RECRUITER] >= 1 && S.ss[SS.FACILITY] >= 1) {
+    // Recruiter value: best coder's rate / cost
+    const rVal = bestIdx >= 0 ? GEN[bestIdx].rate * euMul(bestIdx) / gCost(bestIdx) : 0;
+    // Facility value: best equipment's mult gain / cost
+    let fVal = 0;
+    for (let gi = 0; gi < GEN.length; gi++) {
+      if (S.g[gi] < 1) continue;
+      for (let ui = 0; ui < EMP_UPS.length; ui++) {
+        const tier = S.eu[gi][ui];
+        if (tier >= EMP_UPS[ui].tiers.length) continue;
+        const c = euCost(gi, ui);
+        const curMul = tier > 0 ? EMP_UPS[ui].tiers[tier - 1].mult : 1;
+        const nextMul = EMP_UPS[ui].tiers[tier].mult;
+        const val = (nextMul / curMul - 1) / c;
+        if (val > fVal) fVal = val;
+      }
+    }
+    // Pause the worse one, unpause the better one
+    if (rVal <= fVal) { S.sp[SS.RECRUITER] = 1; S.sp[SS.FACILITY] = 0; }
+    else { S.sp[SS.FACILITY] = 1; S.sp[SS.RECRUITER] = 0; }
   }
 
   // Staff dialogue bubbles
