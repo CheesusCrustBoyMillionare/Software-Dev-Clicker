@@ -108,7 +108,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .staff-sprite-inline.paused{opacity:.4;filter:grayscale(.6)}
 
 /* Coder type rows */
-.coder-row{display:flex;flex-wrap:nowrap;align-items:center;gap:2px;min-height:0;overflow:hidden;max-width:320px}
+.coder-row{display:flex;flex-wrap:nowrap;align-items:center;gap:2px;min-height:0;overflow-x:clip;max-width:320px}
 .coder-row-label{font-size:.4rem;color:#8b949e;width:8px;text-align:center;flex-shrink:0;writing-mode:vertical-lr;transform:rotate(180deg);letter-spacing:.02em;opacity:.6}
 
 /* Sprite Tooltip */
@@ -4501,12 +4501,16 @@ function updateOfficeSprites() {
   if (now - _ofc.lastUpdate < 500) return;
   _ofc.lastUpdate = now;
 
-  // --- Coder sprites (one row per type) ---
+  // --- Coder sprites (one row per type, fair allocation) ---
   const maxSprites = window.matchMedia('(max-width:480px)').matches ? 20 : _ofc.MAX_SPRITES;
+  let ownedTypes = 0;
+  for (let i = 0; i < GEN.length; i++) if (S.g[i] > 0) ownedTypes++;
+  const perType = ownedTypes > 0 ? Math.floor(maxSprites / ownedTypes) : maxSprites;
   const desired = [];
   let total = 0;
-  for (let i = 0; i < GEN.length && total < maxSprites; i++) {
-    const count = Math.min(S.g[i], 30, maxSprites - total);
+  for (let i = 0; i < GEN.length; i++) {
+    if (S.g[i] < 1) continue;
+    const count = Math.min(S.g[i], 30, perType);
     for (let j = 0; j < count; j++) {
       desired.push({ type: i, deskT: S.eu[i][0], chairT: S.eu[i][1], pcT: S.eu[i][2] });
     }
