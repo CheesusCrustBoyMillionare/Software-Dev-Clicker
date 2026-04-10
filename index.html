@@ -1590,7 +1590,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.19';
+const GAME_VERSION = '5.20';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -3987,6 +3987,15 @@ function openSettings() {
   fb.addEventListener('mouseenter', () => fb.style.background = '#30363d');
   fb.addEventListener('mouseleave', () => fb.style.background = '#21262d');
   panel.appendChild(fb);
+  const pn = document.createElement('a');
+  pn.href = 'https://github.com/CheesusCrustBoyMillionare/Software-Dev-Clicker/blob/main/PATCH_NOTES.md';
+  pn.target = '_blank';
+  pn.rel = 'noopener';
+  pn.style.cssText = 'display:block;text-align:center;margin-top:6px;padding:8px 16px;background:#21262d;color:#58a6ff;border:1px solid #30363d;border-radius:6px;font-size:.75rem;font-weight:600;text-decoration:none;cursor:pointer;transition:background .15s';
+  pn.textContent = '\uD83D\uDCCB Patch Notes';
+  pn.addEventListener('mouseenter', () => pn.style.background = '#30363d');
+  pn.addEventListener('mouseleave', () => pn.style.background = '#21262d');
+  panel.appendChild(pn);
   const ver = document.createElement('div');
   ver.style.cssText = 'text-align:center;color:#484f58;font-size:.65rem;margin-top:8px';
   ver.textContent = 'v' + GAME_VERSION;
