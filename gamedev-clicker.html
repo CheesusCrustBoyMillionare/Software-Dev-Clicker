@@ -27,7 +27,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .right-coders{flex:1;min-width:0;overflow-y:auto;padding:10px}
 
 /* Desk Scene */
-.desk-scene{position:relative;display:flex;flex-direction:column;align-items:center;transform:scale(2);transform-origin:top center;margin-bottom:200px}
+.desk-scene{position:relative;display:flex;flex-direction:column;align-items:center;transform:scale(2);transform-origin:top center;margin-bottom:340px}
 .monitor{cursor:pointer;position:relative;z-index:2}
 .monitor:active .screen{transform:scale(.96)}
 .computer-housing{position:relative;display:inline-block}
@@ -103,13 +103,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 @keyframes coderType{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
 
 /* Staff Corner Sprites — grouped top-left */
-.staff-group{position:absolute;top:-12px;left:-24px;display:flex;gap:2px;z-index:4}
+.staff-group{position:absolute;top:10px;left:-56px;display:flex;flex-direction:column;gap:2px;z-index:4}
 .staff-corner{cursor:pointer;opacity:0;transition:opacity .3s;pointer-events:none}
 .staff-corner.active{opacity:1;pointer-events:auto}
 .staff-corner.paused{opacity:.4;filter:grayscale(.6)}
 
 /* Coder type rows */
-.coder-row{display:flex;align-items:center;gap:2px;min-height:0}
+.coder-row{display:flex;flex-wrap:wrap;align-items:center;gap:2px;min-height:0}
 .coder-row-label{font-size:.4rem;color:#8b949e;width:8px;text-align:center;flex-shrink:0;writing-mode:vertical-lr;transform:rotate(180deg);letter-spacing:.02em;opacity:.6}
 
 /* Sprite Tooltip */
@@ -1626,7 +1626,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.1';
+const GAME_VERSION = '6.2';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
