@@ -335,6 +335,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 @keyframes tIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 @keyframes tOut{to{opacity:0;transform:translateY(-8px)}}
 
+/* Staff Speech Bubbles */
+.staff-bubble{position:fixed;z-index:99;padding:8px 12px;background:#161b22;border:1px solid #30363d;border-radius:8px;font-size:.75rem;color:#e6edf3;pointer-events:none;max-width:280px;white-space:normal;line-height:1.35;animation:sbIn .3s ease,sbOut .4s ease 5s forwards}
+.staff-bubble .sb-name{font-weight:700;margin-right:4px}
+.staff-bubble::after{content:'';position:absolute;bottom:-6px;left:20px;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #30363d}
+@keyframes sbIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes sbOut{to{opacity:0;transform:translateY(-6px)}}
+
 /* Ship Overlay */
 .ship-ov{position:fixed;inset:0;z-index:150;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(13,17,23,.9);animation:shipIn 13.3s ease forwards}
 @keyframes shipIn{0%{opacity:0}4%{opacity:1}100%{opacity:1}}
@@ -1582,7 +1589,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '5.16';
+const GAME_VERSION = '5.17';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1643,6 +1650,60 @@ const SUPPORT = [
   { name: 'Recruiter',         desc: 'Auto-hires best coder every 10s',     base: 15000,  gr: 10 },
   { name: 'Facility Director', desc: 'Auto-buys cheapest equipment',        base: 45000,  gr: 10 },
   { name: 'Trainer',           desc: 'Levels up coders (+1%/30s) & staff',  base: 60000,  gr: 10 },
+];
+
+// ========== STAFF DIALOGUE (Hades-inspired) ==========
+function _tc() { return S.g.reduce((a,b)=>a+b,0); }
+function _allEuMaxed() { return S.eu.every(row => row.every((v,i) => v >= EMP_UPS[i].tiers.length)); }
+const STAFF_COLOURS = ['#8b949e','#58a6ff','#f0883e','#3fb950'];
+const STAFF_DIALOGUE = [
+  // Secretary (0) — sarcastic, observant
+  { ss:0, text:"I filed your taxes under 'wishful thinking'.", check:()=>true },
+  { ss:0, text:"I've seen your code. I've also seen spaghetti.", check:()=>true },
+  { ss:0, text:"Your inbox has 4,000 unread emails. Should I just delete them all?", check:()=>true },
+  { ss:0, text:"Another intern? You know they just break things, right?", check:()=>S.g[0]>3 },
+  { ss:0, text:"50 coders and still clicking manually. Respect.", check:()=>_tc()>=50&&!S.f.autoClick },
+  { ss:0, text:"At this point I think YOU work for THEM.", check:()=>S.shipped>=10 },
+  { ss:0, text:"Remember when this was a one-person operation? Me neither.", check:()=>S.shipped>=5 },
+  { ss:0, text:"A hundred million lines of code. Most of it is comments.", check:()=>S.tLoc>=1e8 },
+  { ss:0, text:"A publisher? Great, now I have TWO bosses.", check:()=>S.f.publisher },
+  { ss:0, text:"The recruiter keeps asking me to 'optimize my workflow'. I answer phones.", check:()=>S.ss[SS.RECRUITER]>=1 },
+
+  // Recruiter (1) — overconfident LinkedIn energy
+  { ss:1, text:"Just hired a 10\u00d7 engineer. They said so on their resume.", check:()=>true },
+  { ss:1, text:"My network is my net worth.", check:()=>true },
+  { ss:1, text:"Let's circle back on that headcount.", check:()=>true },
+  { ss:1, text:"I don't recruit. I talent-acquire.", check:()=>true },
+  { ss:1, text:"I should start my own recruitment agency.", check:()=>_tc()>=100 },
+  { ss:1, text:"We're not hiring, we're scaling human capital.", check:()=>S.shipped>=5 },
+  { ss:1, text:"We have more interns than desks. That's a feature, not a bug.", check:()=>S.g[0]>=10 },
+  { ss:1, text:"Acqui-hiring? That's just recruiting with extra steps.", check:()=>S.f.genAcquihire },
+  { ss:1, text:"The trainer says my hires need 'improvement'. Rude.", check:()=>S.ss[SS.TRAINER]>=1 },
+  { ss:1, text:"I'm on pause? Fine. I'll update my LinkedIn.", check:()=>S.sp[SS.RECRUITER] },
+
+  // Facility Director (2) — grumpy, practical
+  { ss:2, text:"Standing desks were a mistake. Everyone's just tired AND standing.", check:()=>true },
+  { ss:2, text:"The ergonomic chairs cost more than the interns.", check:()=>true },
+  { ss:2, text:"Who keeps microwaving fish in the break room?", check:()=>true },
+  { ss:2, text:"Nothing left to buy. Am I... done?", check:()=>_allEuMaxed() },
+  { ss:2, text:"Every time we ship, I have to reorganize the whole office.", check:()=>S.shipped>=3 },
+  { ss:2, text:"The trainer leveled me up. I still feel the same.", check:()=>S.ss[SS.TRAINER]>=1 },
+  { ss:2, text:"We need a bigger office. I've been saying this for 3 ships.", check:()=>_tc()>=30 },
+  { ss:2, text:"On break. Don't touch my spreadsheets.", check:()=>S.sp[SS.FACILITY] },
+  { ss:2, text:"Pair programming means I need twice the desks. Thanks for that.", check:()=>S.f.genPair },
+  { ss:2, text:"I ordered 50 monitors. Don't ask questions.", check:()=>_tc()>=50 },
+
+  // Trainer (3) — motivational poster energy
+  { ss:3, text:"Today's training: synergy. Tomorrow: more synergy.", check:()=>true },
+  { ss:3, text:"Your intern just completed their first PR. It broke staging.", check:()=>true },
+  { ss:3, text:"Believe in yourself. Or don't. I still get paid.", check:()=>true },
+  { ss:3, text:"I've trained them so well they're training me now.", check:()=>S.trainerLvl.some(l=>l>=10) },
+  { ss:3, text:"Five ships! That's what I call a growth mindset.", check:()=>S.shipped>=5 },
+  { ss:3, text:"20 coders. That's 20 opportunities for synergy.", check:()=>_tc()>=20 },
+  { ss:3, text:"Click streaks! Now THAT'S what peak performance looks like.", check:()=>S.f.streakUnlock },
+  { ss:3, text:"I'm paused but I'm still mentally coaching everyone.", check:()=>S.sp[SS.TRAINER] },
+  { ss:3, text:"Overclock level 3? These coders are basically on espresso IV drips.", check:()=>S.f.genSpeed>=3 },
+  { ss:3, text:"Hustle culture? I prefer to call it 'aggressive mentoring'.", check:()=>true },
 ];
 
 const CODE_BASE = [
@@ -1861,6 +1922,8 @@ const NYT_HEADLINES = {
 };
 
 let activeEvent = null, eventCooldown = 0, isShipping = false, achCheckAcc = 0, petPawTimer = 0, buyerTimer = 0, facilityTimer = 0, trainerTimer = 0, nytShown = 0, _nytPicked = null, pendingOfflineMsg = null;
+// Staff dialogue state
+let _dlgTimer = 0, _dlgNext = 60 + Math.random() * 30, _dlgRecent = [];
 // Ring buffer for click times
 const CT_SIZE = 200;
 const _ct = new Float64Array(CT_SIZE);
@@ -3635,6 +3698,55 @@ function buyFU(ui) {
 }
 function updateFUSub() { _updateTrainingSub('fu-sub', 'fu-row', S.fu, fuCost, SS.FACILITY); }
 
+// ========== STAFF DIALOGUE ==========
+function showStaffBubble(ssIdx, text) {
+  const old = document.querySelector('.staff-bubble');
+  if (old) old.remove();
+  const row = document.querySelector('[data-a="ss"][data-i="'+ssIdx+'"]');
+  if (!row) return;
+  const rect = row.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'staff-bubble';
+  const name = document.createElement('span');
+  name.className = 'sb-name';
+  name.style.color = STAFF_COLOURS[ssIdx];
+  name.textContent = SUPPORT[ssIdx].name + ':';
+  el.appendChild(name);
+  el.appendChild(document.createTextNode(' ' + text));
+  document.body.appendChild(el);
+  // Position above the row, clamped to viewport
+  const bw = Math.min(280, window.innerWidth - 20);
+  el.style.width = bw + 'px';
+  el.style.left = Math.max(4, Math.min(rect.left, window.innerWidth - bw - 8)) + 'px';
+  el.style.top = Math.max(4, rect.top - el.offsetHeight - 8) + 'px';
+  el.addEventListener('animationend', e => { if (e.animationName === 'sbOut') el.remove(); });
+  log('\uD83D\uDCAC ' + SUPPORT[ssIdx].name + ': ' + text);
+}
+
+function dialogueTick(dt) {
+  // Need at least one owned staff member
+  const owned = [];
+  for (let i = 0; i < SUPPORT.length; i++) if (S.ss[i] >= 1) owned.push(i);
+  if (owned.length === 0) return;
+  _dlgTimer += dt;
+  if (_dlgTimer < _dlgNext) return;
+  _dlgTimer = 0;
+  _dlgNext = 60 + Math.random() * 30;
+  // Pick a random owned staff member
+  const pick = owned[Math.floor(Math.random() * owned.length)];
+  // Filter available lines for this staff
+  const pool = [];
+  for (let i = 0; i < STAFF_DIALOGUE.length; i++) {
+    const d = STAFF_DIALOGUE[i];
+    if (d.ss === pick && !_dlgRecent.includes(i) && d.check()) pool.push(i);
+  }
+  if (pool.length === 0) return;
+  const lineIdx = pool[Math.floor(Math.random() * pool.length)];
+  _dlgRecent.push(lineIdx);
+  if (_dlgRecent.length > 5) _dlgRecent.shift();
+  showStaffBubble(pick, STAFF_DIALOGUE[lineIdx].text);
+}
+
 // ========== FUN POPUP ==========
 function showFunPopup() {
   if (S.funShown) return;
@@ -4435,6 +4547,9 @@ function tick(now) {
       }
     }
   }
+
+  // Staff dialogue bubbles
+  dialogueTick(dt);
 
   // "Having fun" popup — halfway through second year
   if (!S.funShown && S.shipped === 1 && pct >= 0.5) showFunPopup();
