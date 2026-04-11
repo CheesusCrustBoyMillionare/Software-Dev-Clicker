@@ -357,10 +357,19 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 
 /* v7.2: Roster modal */
 .roster-panel{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;width:560px;max-width:calc(100vw - 24px);max-height:80vh;overflow-y:auto;position:relative}
-/* Always-open roster column reuses .roster-* sub-rules; .right-roster wrapper provides padding/scroll */
+/* Always-open roster column: narrow, so synergy + roster rows use a 2-line grid */
 .right-roster .stats-title{font-size:1rem;margin-bottom:6px}
-.right-roster .roster-row .r-meta{max-width:none;flex-shrink:1}
-.right-roster .roster-row .r-lps{width:auto;min-width:60px}
+.right-roster .roster-syn-row{display:grid;grid-template-columns:1fr auto;gap:1px 6px;padding:4px 0;border-bottom:1px dashed #21262d;align-items:baseline}
+.right-roster .roster-syn-row:last-child{border-bottom:none}
+.right-roster .roster-syn-row .rn{width:auto;grid-column:1;grid-row:1;font-size:.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.right-roster .roster-syn-row .rc{width:auto;grid-column:2;grid-row:1;text-align:right;font-size:.6rem}
+.right-roster .roster-syn-row .rb{width:auto;grid-column:1;grid-row:2;text-align:left;font-size:.65rem}
+.right-roster .roster-syn-row .rp{grid-column:2;grid-row:2;text-align:right;font-size:.6rem;white-space:nowrap}
+.right-roster .roster-row{display:grid;grid-template-columns:1fr auto;gap:2px 6px;padding:6px 8px;align-items:center}
+.right-roster .roster-row .r-name{grid-column:1;grid-row:1;white-space:normal;text-overflow:clip;overflow:visible;word-break:break-word;min-width:0;font-size:.7rem}
+.right-roster .roster-row .fire-btn{grid-column:2;grid-row:1;align-self:start;justify-self:end}
+.right-roster .roster-row .r-meta{grid-column:1;grid-row:2;white-space:normal;max-width:none;overflow:visible;text-overflow:clip;font-size:.58rem;min-width:0}
+.right-roster .roster-row .r-lps{grid-column:2;grid-row:2;width:auto;min-width:54px;text-align:right;align-self:end;font-size:.62rem}
 .roster-syn{display:grid;grid-template-columns:1fr;gap:4px;margin:4px 0 14px;padding:8px;background:#0d1117;border:1px solid #21262d;border-radius:6px}
 .roster-syn-row{display:flex;align-items:center;gap:8px;font-size:.7rem}
 .roster-syn-row .rn{width:80px;font-weight:700}
