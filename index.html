@@ -17,6 +17,23 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 #dCat{font-size:1rem;color:#8b949e}
 .stat-lbl{font-size:.7rem;color:#8b949e;text-transform:uppercase;letter-spacing:.05em}
 .fame .stat-val{color:#f0883e}
+/* v7.3: Engineer type tabs — persistent resource bar + active type toggle */
+.type-tabs{display:flex;gap:6px;padding:6px 12px;background:#0d1117;border-bottom:1px solid #30363d;justify-content:center;flex-wrap:wrap}
+.eng-tab{min-width:120px;padding:6px 10px;background:#161b22;border:1px solid #30363d;border-radius:6px;cursor:pointer;text-align:center;transition:background .15s,border-color .15s,transform .1s}
+.eng-tab:hover:not(.locked){background:#1c2128;transform:translateY(-1px)}
+.eng-tab.active{background:#1c2128;border-width:2px;padding:5px 9px}
+.eng-tab.locked{opacity:.4;cursor:not-allowed;background:#0d1117}
+.eng-tab .et-name{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.eng-tab .et-res{font-size:.85rem;font-weight:600;color:#c9d1d9;font-variant-numeric:tabular-nums;margin-top:2px}
+.eng-tab .et-lps{font-size:.65rem;color:#7ee787;font-variant-numeric:tabular-nums;margin-top:1px}
+.eng-tab .et-locked{font-size:.65rem;color:#8b949e;margin-top:2px}
+@media (max-width: 800px) {
+  .type-tabs{padding:4px 6px;gap:3px}
+  .eng-tab{min-width:90px;padding:4px 6px}
+  .eng-tab .et-name{font-size:.65rem}
+  .eng-tab .et-res{font-size:.75rem}
+  .eng-tab .et-lps{font-size:.55rem}
+}
 
 /* Main Layout */
 .main{display:flex;flex:1;overflow:hidden}
@@ -28,7 +45,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .right-coders{flex:1;min-width:0;overflow-y:auto;padding:10px}
 
 /* Desk Scene */
-.desk-scene{position:relative;display:flex;flex-direction:column;align-items:center;transform:scale(2);transform-origin:top center;margin-bottom:340px}
+.desk-scene{position:relative;display:flex;flex-direction:column;align-items:center;transform:scale(var(--desk-scale,1));transform-origin:top center}
 .monitor{cursor:pointer;position:relative;z-index:2}
 .monitor:active .screen{transform:scale(.96)}
 .computer-housing{position:relative;display:inline-block}
@@ -172,6 +189,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .right-coders .up{flex-wrap:wrap}
 .right-coders .up-info{flex-basis:100%;min-width:0}
 .right-coders .up-cost{margin-left:auto}
+.right-coders .up-cost:empty{display:none}
+.right-coders .pack-header,.right-coders .office-header{flex-direction:column;align-items:stretch;gap:4px;padding:8px 10px}
+.right-coders .pack-header .pack-info,.right-coders .office-header .pack-info{min-width:0}
+.right-coders .pack-header .pack-cost,.right-coders .office-header .pack-cost{text-align:right;font-size:.75rem}
 .up.best{border-color:#2ea043;box-shadow:0 0 8px #2ea04355}
 .up.maxed{opacity:.6;cursor:default;border-color:#2ea04366}
 .up.maxed:hover{border-color:#2ea04366}
@@ -390,11 +411,24 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .roster-row .fire-btn.confirm{background:#f85149;color:#fff;border-color:#f85149}
 
 /* Bottom Bar */
-.prog-bar-top{padding:4px 20px;background:#161b22;border-bottom:1px solid #30363d}
 .bot{padding:8px 20px;background:#161b22;border-top:1px solid #30363d}
-.prog-wrap{position:relative;height:28px;background:#0d1117;border-radius:6px;overflow:hidden}
+.prog-wrap{position:relative;height:14px;background:#0d1117;border-radius:4px;overflow:hidden;border:1px solid #21262d}
 .prog-fill{height:100%;background:linear-gradient(90deg,#238636,#2ea043);transform-origin:left;transition:transform .25s}
-.prog-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:600}
+.prog-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:600;color:#c9d1d9}
+
+/* v7.3: Right-side ship progress panel — sits to the left of the coder roster */
+.right-ship{width:118px;flex-shrink:0;padding:10px 6px;border-right:1px solid #21262d;display:flex;flex-direction:column;gap:8px;background:#0d1117;overflow-y:auto}
+.right-ship .ship-title{font-size:.7rem;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;font-weight:700;text-align:center;padding-bottom:4px;border-bottom:1px solid #21262d}
+.ship-resources{display:flex;flex-direction:column;gap:5px}
+.ship-res-row{display:flex;flex-direction:column;gap:3px;padding:6px 7px;background:#161b22;border:1px solid #21262d;border-radius:4px;transition:border-color .2s}
+.ship-res-row.done{border-color:#2ea043}
+.ship-res-row .srn{font-size:.65rem;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.ship-res-row .srv{font-size:.58rem;color:#8b949e;font-family:'Courier New',monospace;text-align:right}
+.ship-res-row .srbar{height:4px;background:#0d1117;border-radius:2px;overflow:hidden;border:1px solid #21262d}
+.ship-res-row .srbar-fill{height:100%;background:linear-gradient(90deg,#238636,#2ea043);transform-origin:left;transition:transform .2s}
+.ship-res-row.done .srbar-fill{background:#7ee787}
+.ship-res-row .srpct{font-size:.55rem;color:#8b949e}
+.ship-res-row.done .srpct{color:#7ee787}
 .ship{display:none;width:100%;padding:9px;margin-top:8px;background:linear-gradient(135deg,#f0883e,#d29922);color:#0d1117;border:none;border-radius:6px;font-size:.95rem;font-weight:700;cursor:pointer;transition:transform .1s}
 .ship:hover{transform:scale(1.02)}
 .ship.show{display:block}
@@ -574,10 +608,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
   .stat-val{font-size:1.1rem}
   .stat-lbl{font-size:.6rem}
   #dCat{font-size:.85rem}
-  .prog-bar-top{padding:3px 10px}
+  .right-ship{width:100%;border-right:none;border-bottom:1px solid #21262d}
 
-  /* Desk scene: scale down */
-  .desk-scene{transform:scale(1.3);margin-bottom:60px}
   .left{justify-content:flex-start;padding-top:12px}
   .click-info{font-size:1.1rem}
   .click-power{font-size:1.2rem}
@@ -643,7 +675,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 }
 
 @media(max-width:480px){
-  .desk-scene{transform:scale(1.1);margin-bottom:40px}
   .office-floor{width:220px}
   .coder-sprite{width:20px;height:18px}
   .stat-val{font-size:1rem}
@@ -670,19 +701,14 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
   </div>
 </div>
 <div class="game hidden" id="G">
-  <div class="prog-bar-top">
-    <div class="prog-wrap">
-      <div class="prog-fill" id="pFill" style="transform:scaleX(0)"></div>
-      <div class="prog-txt" id="pTxt"></div>
-    </div>
-  </div>
   <div class="top-bar">
     <div class="stat"><div class="stat-val" id="dYear">1979</div><div class="stat-lbl">Year</div></div>
     <div class="stat"><div class="stat-lbl">Currently Developing</div><div class="stat-val" id="dCat">-</div></div>
-    <div class="stat"><div class="stat-val" id="dLoc">0</div><div class="stat-lbl">Lines of Code</div></div>
-    <div class="stat"><div class="stat-val" id="dLps">0/s</div><div class="stat-lbl">LoC / sec</div></div>
+    <div class="stat"><div class="stat-val" id="dLoc">0</div><div class="stat-lbl" id="dLocLbl">Lines of Code</div></div>
+    <div class="stat"><div class="stat-val" id="dLps">0/s</div><div class="stat-lbl" id="dLpsLbl">LoC / sec</div></div>
     <div class="stat fame"><div class="stat-val" id="dFame">0</div><div class="stat-lbl">Fame</div></div>
   </div>
+  <div class="type-tabs" id="typeTabs"></div>
   <div class="main">
     <div class="left-log" id="logCol"></div>
     <div class="left-panel" id="ups2"></div>
@@ -717,6 +743,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
       <div class="fame-mult" id="dFm"></div>
     </div>
     <div class="right">
+      <div class="right-ship" id="rightShip">
+        <div class="ship-title">Next Release</div>
+        <div class="ship-resources" id="shipResources"></div>
+        <div class="prog-wrap"><div class="prog-fill" id="pFill" style="transform:scaleX(0)"></div><div class="prog-txt" id="pTxt"></div></div>
+      </div>
       <div class="right-roster" id="rosterCol"></div>
       <div class="right-coders" id="ups"></div>
     </div>
@@ -724,7 +755,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
   <div class="bot">
     <button class="ship" id="shipBtn">Ship VisiCrash! (+1 Fame)</button>
     <div class="ship-confirm" id="shipConfirm">
-      <p id="shipWarnText">This will reset all coders, equipment &amp; perks!</p>
+      <p id="shipWarnText">This will reset all engineers, equipment &amp; perks!</p>
       <div class="ship-confirm-btns">
         <button class="ship-yes" id="shipYes">Ship It!</button>
         <button class="ship-no" id="shipNo">Keep Working</button>
@@ -741,9 +772,9 @@ const T={en:{
   empty:'Empty',newGame:'New Game',eraseSave:'Erase this save?',yes:'Yes',no:'No',inProgress:'In progress',
   year:'Year',developing:'Currently Developing',linesOfCode:'Lines of Code',locSec:'LoC / sec',fame:'Fame',
   clickInfo:'Click the monitor to write code',locPerClick:'LoC per click',
-  desk:'Desk',coders:'Coders',supportStaff:'Support Staff',officePerks:'Office Perks',codeBase:'Code Base',
+  desk:'Desk',coders:'Engineers',supportStaff:'Support Staff',officePerks:'Office Perks',codeBase:'Code Base',
   max:'Max',skillTree:'Skill Tree',achievements:'Achievements',stats:'Stats',btnContinue:'Continue',
-  roster:'Roster',rosterTitle:'Coder Roster',rosterSynergy:'Tier Set Bonuses',
+  roster:'Roster',rosterTitle:'Engineer Roster',rosterSynergy:'Tier Set Bonuses',
   filterAll:'All',sortRarity:'Rarity',sortTier:'Tier',sortExp:'Exp',sortLps:'LPS',
   fire:'Fire',fireConfirm:'Fire?',
   locToShip:'LoC to ship',shipVerb:'Ship',
@@ -759,7 +790,7 @@ const T={en:{
   types:'types',tiers:'tiers',costIncrease:'cost increase',allProd:'all production',
   locked:'Locked',unknown:'???',maxLvl:'MAX',comingSoon:'Coming soon',
   clicksPerSec:'clicks/s',softwareShipped:'software shipped',statsUnlocked:'unlocked',
-  shipWarn:'This will reset all coders, equipment & perks!',shipConfirm:'Ship It!',shipCancel:'Keep Working',
+  shipWarn:'This will reset all engineers, equipment & perks!',shipConfirm:'Ship It!',shipCancel:'Keep Working',
   activityLog:'Activity Log',logSkill:'Skill',logUpgraded:'Upgraded',logTraining:'Training',
   settings:'Settings',musicVol:'Music',sfxVol:'Sound FX',
 },es:{
@@ -767,7 +798,7 @@ const T={en:{
   empty:'Vacío',newGame:'Nueva Partida',eraseSave:'¿Borrar esta partida?',yes:'Sí',no:'No',inProgress:'En progreso',
   year:'Año',developing:'Desarrollando',linesOfCode:'Líneas de Código',locSec:'LdC / seg',fame:'Fama',
   clickInfo:'Haz clic en el monitor para escribir código',locPerClick:'LdC por clic',
-  desk:'Escritorio',coders:'Programadores',supportStaff:'Personal de Apoyo',officePerks:'Beneficios de Oficina',codeBase:'Base de Código',
+  desk:'Escritorio',coders:'Ingenieros',supportStaff:'Personal de Apoyo',officePerks:'Beneficios de Oficina',codeBase:'Base de Código',
   max:'Máx',skillTree:'Árbol de Habilidades',achievements:'Logros',stats:'Estadísticas',btnContinue:'Continuar',
   locToShip:'LdC para enviar',shipVerb:'Enviar',
   napIn:'Siesta en',choose:'(¡elige!)',
@@ -782,7 +813,7 @@ const T={en:{
   types:'tipos',tiers:'niveles',costIncrease:'aumento de coste',allProd:'toda la producción',
   locked:'Bloqueado',unknown:'???',maxLvl:'MÁX',comingSoon:'Próximamente',
   clicksPerSec:'clics/s',softwareShipped:'software enviados',statsUnlocked:'desbloqueados',
-  shipWarn:'¡Esto reiniciará todos los programadores, equipamiento y beneficios!',shipConfirm:'¡Enviar!',shipCancel:'Seguir Trabajando',
+  shipWarn:'¡Esto reiniciará todos los ingenieros, equipamiento y beneficios!',shipConfirm:'¡Enviar!',shipCancel:'Seguir Trabajando',
   activityLog:'Registro de Actividad',logSkill:'Habilidad',logUpgraded:'Mejorado',logTraining:'Entrenamiento',
   // GEN
   gen_0_name:'Becario',gen_0_desc:'Entusiasta pero propenso a errores',
@@ -936,7 +967,7 @@ const T={en:{
   ft_2_1_name:'Equipo de Marketing',ft_2_1_desc:'+50% Fama por env\u00edo',
   ft_2_2_name:'Acuerdo Editorial',ft_2_2_desc:'Auto-env\u00edo al umbral',
   ft_2_3_name:'Capital de Riesgo',ft_2_3_desc:'Empieza con 1000\u00d7Nv LoC',
-  ft_2_4_name:'Paraca\u00eddas Dorado',ft_2_4_desc:'Conserva 5%\u00d7Nv LoC al enviar',
+  ft_2_4_name:'Paraca\u00eddas Dorado',ft_2_4_desc:'+15%\u00d7Nv LoC actual al enviar',
   ft_2_5_name:'Marketing Viral',ft_2_5_desc:'+25% Fama por env\u00edo',
   ft_2_6_name:'Franquicia',ft_2_6_desc:'Umbral de env\u00edo -10%',
   ft_2_7_name:'Salida a Bolsa',ft_2_7_desc:'+1 Fama por 5 env\u00edos',
@@ -955,7 +986,7 @@ const T={en:{
   empty:'Vazio',newGame:'Novo Jogo',eraseSave:'Apagar este save?',yes:'Sim',no:'Não',inProgress:'Em andamento',
   year:'Ano',developing:'Desenvolvendo',linesOfCode:'Linhas de Código',locSec:'LoC / seg',fame:'Fama',
   clickInfo:'Clique no monitor para escrever código',locPerClick:'LoC por clique',
-  desk:'Mesa',coders:'Programadores',supportStaff:'Equipe de Apoio',officePerks:'Benefícios do Escritório',codeBase:'Base de Código',
+  desk:'Mesa',coders:'Engenheiros',supportStaff:'Equipe de Apoio',officePerks:'Benefícios do Escritório',codeBase:'Base de Código',
   max:'Máx',skillTree:'Árvore de Habilidades',achievements:'Conquistas',stats:'Estatísticas',btnContinue:'Continuar',
   locToShip:'LoC para lançar',shipVerb:'Lançar',
   napIn:'Soneca em',choose:'(escolha!)',
@@ -970,7 +1001,7 @@ const T={en:{
   types:'tipos',tiers:'níveis',costIncrease:'aumento de custo',allProd:'toda a produção',
   locked:'Bloqueado',unknown:'???',maxLvl:'MÁX',comingSoon:'Em breve',
   clicksPerSec:'cliques/s',softwareShipped:'software lançados',statsUnlocked:'desbloqueados',
-  shipWarn:'Isso vai resetar todos os programadores, equipamentos e benefícios!',shipConfirm:'Lançar!',shipCancel:'Continuar Trabalhando',
+  shipWarn:'Isso vai resetar todos os engenheiros, equipamentos e benefícios!',shipConfirm:'Lançar!',shipCancel:'Continuar Trabalhando',
   activityLog:'Registro de Atividades',logSkill:'Habilidade',logUpgraded:'Melhorado',logTraining:'Treinamento',
   // GEN
   gen_0_name:'Estagiário',gen_0_desc:'Animado mas cheio de bugs',
@@ -1124,7 +1155,7 @@ const T={en:{
   ft_2_1_name:'Equipe de Marketing',ft_2_1_desc:'+50% Fama por lan\u00e7amento',
   ft_2_2_name:'Acordo com Editora',ft_2_2_desc:'Auto-lan\u00e7amento no limite',
   ft_2_3_name:'Capital de Risco',ft_2_3_desc:'Come\u00e7a com 1000\u00d7Nv LoC',
-  ft_2_4_name:'P\u00e1ra-quedas Dourado',ft_2_4_desc:'Mant\u00e9m 5%\u00d7Nv LoC ao lan\u00e7ar',
+  ft_2_4_name:'P\u00e1ra-quedas Dourado',ft_2_4_desc:'+15%\u00d7Nv LoC atual ao lan\u00e7ar',
   ft_2_5_name:'Marketing Viral',ft_2_5_desc:'+25% Fama por lan\u00e7amento',
   ft_2_6_name:'Franquia',ft_2_6_desc:'Limite de lan\u00e7amento -10%',
   ft_2_7_name:'IPO',ft_2_7_desc:'+1 Fama por 5 lan\u00e7amentos',
@@ -1143,7 +1174,7 @@ const T={en:{
   empty:'Vide',newGame:'Nouvelle Partie',eraseSave:'Effacer cette sauvegarde ?',yes:'Oui',no:'Non',inProgress:'En cours',
   year:'Année',developing:'En développement',linesOfCode:'Lignes de Code',locSec:'LdC / sec',fame:'Gloire',
   clickInfo:'Cliquez sur le moniteur pour écrire du code',locPerClick:'LdC par clic',
-  desk:'Bureau',coders:'Codeurs',supportStaff:'Personnel de soutien',officePerks:'Avantages Bureau',codeBase:'Base de Code',
+  desk:'Bureau',coders:'Ingénieurs',supportStaff:'Personnel de soutien',officePerks:'Avantages Bureau',codeBase:'Base de Code',
   max:'Max',skillTree:'Arbre de compétences',achievements:'Succès',stats:'Statistiques',btnContinue:'Continuer',
   locToShip:'LdC pour livrer',shipVerb:'Livrer',
   napIn:'Sieste dans',choose:'(choisissez !)',
@@ -1158,7 +1189,7 @@ const T={en:{
   types:'types',tiers:'niveaux',costIncrease:'augmentation du coût',allProd:'toute la production',
   locked:'Verrouillé',unknown:'???',maxLvl:'MAX',comingSoon:'Bientôt disponible',
   clicksPerSec:'clics/s',softwareShipped:'logiciels livrés',statsUnlocked:'débloqués',
-  shipWarn:'Cela réinitialisera tous les codeurs, équipements et avantages !',shipConfirm:'Livrer !',shipCancel:'Continuer',
+  shipWarn:'Cela réinitialisera tous les ingénieurs, équipements et avantages !',shipConfirm:'Livrer !',shipCancel:'Continuer',
   activityLog:'Journal d\'activité',logSkill:'Compétence',logUpgraded:'Amélioré',logTraining:'Formation',
   // GEN
   gen_0_name:'Stagiaire',gen_0_desc:'Motivé mais catastrophique',
@@ -1312,7 +1343,7 @@ const T={en:{
   ft_2_1_name:'\u00c9quipe Marketing',ft_2_1_desc:'+50% Gloire par livraison',
   ft_2_2_name:'Contrat d\'\u00c9diteur',ft_2_2_desc:'Auto-livraison au seuil',
   ft_2_3_name:'Capital-Risque',ft_2_3_desc:'D\u00e9marre avec 1000\u00d7Nv LdC',
-  ft_2_4_name:'Parachute Dor\u00e9',ft_2_4_desc:'Garde 5%\u00d7Nv LdC \u00e0 la livraison',
+  ft_2_4_name:'Parachute Dor\u00e9',ft_2_4_desc:'+15%\u00d7Nv LdC actuelles \u00e0 la livraison',
   ft_2_5_name:'Marketing Viral',ft_2_5_desc:'+25% Gloire par livraison',
   ft_2_6_name:'Franchise',ft_2_6_desc:'Seuil de livraison -10%',
   ft_2_7_name:'Entr\u00e9e en Bourse',ft_2_7_desc:'+1 Gloire par 5 livraisons',
@@ -1331,7 +1362,7 @@ const T={en:{
   empty:'Leer',newGame:'Neues Spiel',eraseSave:'Diesen Spielstand löschen?',yes:'Ja',no:'Nein',inProgress:'In Arbeit',
   year:'Jahr',developing:'In Entwicklung',linesOfCode:'Codezeilen',locSec:'LoC / Sek',fame:'Ruhm',
   clickInfo:'Klicke auf den Monitor um Code zu schreiben',locPerClick:'LoC pro Klick',
-  desk:'Schreibtisch',coders:'Programmierer',supportStaff:'Support-Personal',officePerks:'Büro-Vorteile',codeBase:'Code-Basis',
+  desk:'Schreibtisch',coders:'Ingenieure',supportStaff:'Support-Personal',officePerks:'Büro-Vorteile',codeBase:'Code-Basis',
   max:'Max',skillTree:'Skill-Baum',achievements:'Erfolge',stats:'Statistiken',btnContinue:'Weiter',
   locToShip:'LoC zum Ausliefern',shipVerb:'Ausliefern',
   napIn:'Nickerchen in',choose:'(wähle!)',
@@ -1346,7 +1377,7 @@ const T={en:{
   types:'Typen',tiers:'Stufen',costIncrease:'Kostenerhöhung',allProd:'gesamte Produktion',
   locked:'Gesperrt',unknown:'???',maxLvl:'MAX',comingSoon:'Demnächst',
   clicksPerSec:'Klicks/s',softwareShipped:'Software ausgeliefert',statsUnlocked:'freigeschaltet',
-  shipWarn:'Dies setzt alle Programmierer, Ausrüstung und Vorteile zurück!',shipConfirm:'Ausliefern!',shipCancel:'Weiterarbeiten',
+  shipWarn:'Dies setzt alle Ingenieure, Ausrüstung und Vorteile zurück!',shipConfirm:'Ausliefern!',shipCancel:'Weiterarbeiten',
   activityLog:'Aktivitätsprotokoll',logSkill:'Skill',logUpgraded:'Verbessert',logTraining:'Training',
   // GEN
   gen_0_name:'Praktikant',gen_0_desc:'Motiviert aber fehlerhaft',
@@ -1500,7 +1531,7 @@ const T={en:{
   ft_2_1_name:'Marketing-Team',ft_2_1_desc:'+50% Ruhm pro Auslieferung',
   ft_2_2_name:'Verlags-Deal',ft_2_2_desc:'Auto-Auslieferung bei Schwellenwert',
   ft_2_3_name:'Risikokapital',ft_2_3_desc:'Starte mit 1000\u00d7Lv LoC',
-  ft_2_4_name:'Goldener Fallschirm',ft_2_4_desc:'Behalte 5%\u00d7Lv LoC bei Auslieferung',
+  ft_2_4_name:'Goldener Fallschirm',ft_2_4_desc:'+15%\u00d7Lv aktuelle LoC pro Lieferung',
   ft_2_5_name:'Virales Marketing',ft_2_5_desc:'+25% Ruhm pro Auslieferung',
   ft_2_6_name:'Franchise',ft_2_6_desc:'Auslieferungsschwelle -10%',
   ft_2_7_name:'B\u00f6rsengang',ft_2_7_desc:'+1 Ruhm pro 5 Auslieferungen',
@@ -1688,7 +1719,7 @@ const T={en:{
   ft_2_1_name:'Marketing Team',ft_2_1_desc:'+50% Clout per drop',
   ft_2_2_name:'Publisher Deal',ft_2_2_desc:'Auto-drop at threshold',
   ft_2_3_name:'Seed Money',ft_2_3_desc:'Start with 1000\u00d7Lv LoC',
-  ft_2_4_name:'Golden Parachute',ft_2_4_desc:'Keep 5%\u00d7Lv LoC on drop',
+  ft_2_4_name:'Golden Parachute',ft_2_4_desc:'+15%\u00d7Lv current LoC on ship',
   ft_2_5_name:'Going Viral',ft_2_5_desc:'+25% Clout per drop',
   ft_2_6_name:'Franchise',ft_2_6_desc:'Drop threshold -10%',
   ft_2_7_name:'IPO',ft_2_7_desc:'+1 Clout per 5 drops',
@@ -1707,7 +1738,22 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '7.2';
+const GAME_VERSION = '7.3';
+
+// v7.3: Engineer types — coder is the original; others unlock by year.
+// Each type has its own resource, list of individuals, and ship threshold.
+// All upgrades (equipment, perks, support staff, trainers) are SHARED across types.
+// v7.3: packBase scales 4x per subsequent type so unlocking a new type ramps in price.
+// Coder stays at 100, frontend 400, backend 1600, network 6400, security 25600.
+const ENG_TYPES = [
+  { key:'coder',    name:'Coder',    res:'LoC',     resKey:'loc', unlockYear:1979, color:'#7ee787', packBase:   100 },
+  { key:'frontend', name:'Frontend', res:'Pixels',  resKey:'pix', unlockYear:1980, color:'#79c0ff', packBase:   400 },
+  { key:'backend',  name:'Database', res:'Queries', resKey:'qry', unlockYear:1981, color:'#d2a8ff', packBase:  1600 },
+  { key:'network',  name:'Network',  res:'Packets', resKey:'pkt', unlockYear:1982, color:'#ffa657', packBase:  6400 },
+  { key:'security', name:'Security', res:'Patches', resKey:'pat', unlockYear:1983, color:'#ff7b72', packBase: 25600 },
+];
+const ENG_TYPE_MAP = Object.fromEntries(ENG_TYPES.map(e => [e.key, e]));
+function isEngType(k) { return !!ENG_TYPE_MAP[k]; }
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1744,14 +1790,14 @@ const RECRUITER_UPS = [
 ];
 
 const CLK = [
-  { name: 'Catered Lunches',    desc: '+1 LoC/click per coder',          base: 600,      gr: 4  },
+  { name: 'Catered Lunches',    desc: '+1 LoC/click per engineer',       base: 600,      gr: 4  },
   { name: 'Free Energy Drinks', desc: '+30% all production',             base: 1500,     gr: 3  },
-  { name: 'Standing Desks',     desc: '-10% coder hire costs',           base: 10000,    gr: 5  },
+  { name: 'Standing Desks',     desc: '-10% engineer hire costs',        base: 10000,    gr: 5  },
   { name: 'On-Site Daycare',    desc: '\u00d71.6 all production',        base: 60000,    gr: 6  },
   { name: 'Pet-Friendly Office',desc: '+2 auto-click/s',                 base: 100000,   gr: 10 },
   { name: 'Gym Membership',     desc: '+40% all production',             base: 300000,   gr: 10 },
   { name: 'Game Room',          desc: '+70% click power',                base: 400000,   gr: 8  },
-  { name: 'Unlimited PTO',      desc: '-20% coder hire costs',           base: 1000000,  gr: 10 },
+  { name: 'Unlimited PTO',      desc: '-20% engineer hire costs',        base: 1000000,  gr: 10 },
   { name: 'Nap Pods',           desc: 'Burst: 16s production every 50s', base: 2000000,  gr: 10 },
   { name: 'Company Retreat',    desc: '\u00d72.5 all production',        base: 6000000,  gr: 10 },
   { name: 'Meeting Room',      desc: 'Pauses worst LoC/cost auto-buyer', base: 150000,   gr: 10, req: 3 },
@@ -1763,10 +1809,10 @@ const FACILITY_UPS = [
 ];
 
 const SUPPORT = [
-  { name: 'Secretary',         desc: 'Reveals the best-value coder',        base: 1500,   gr: 10 },
-  { name: 'Recruiter',         desc: 'Auto-hires best coder every 10s',     base: 15000,  gr: 10 },
+  { name: 'Secretary',         desc: 'Reveals the best-value engineer',     base: 1500,   gr: 10 },
+  { name: 'Recruiter',         desc: 'Auto-hires best engineer every 10s',  base: 15000,  gr: 10 },
   { name: 'Facility Director', desc: 'Auto-buys best value equipment',      base: 45000,  gr: 10 },
-  { name: 'Trainer',           desc: 'Levels up coders (+1%/30s) & staff',  base: 60000,  gr: 10 },
+  { name: 'Trainer',           desc: 'Levels up engineers (+1%/30s) & staff', base: 60000, gr: 10 },
 ];
 
 // ========== STAFF DIALOGUE (Hades-inspired) ==========
@@ -1779,7 +1825,7 @@ const STAFF_DIALOGUE = [
   { ss:0, text:"I've seen your code. I've also seen spaghetti.", check:()=>true },
   { ss:0, text:"Your inbox has 4,000 unread emails. Should I just delete them all?", check:()=>true },
   { ss:0, text:"Another intern? You know they just break things, right?", check:()=>S.g[0]>3 },
-  { ss:0, text:"50 coders and still clicking manually. Respect.", check:()=>_tc()>=50&&!S.f.autoClick },
+  { ss:0, text:"50 engineers and still clicking manually. Respect.", check:()=>_tc()>=50&&!S.f.autoClick },
   { ss:0, text:"At this point I think YOU work for THEM.", check:()=>S.shipped>=10 },
   { ss:0, text:"Remember when this was a one-person operation? Me neither.", check:()=>S.shipped>=5 },
   { ss:0, text:"A hundred million lines of code. Most of it is comments.", check:()=>S.tLoc>=1e8 },
@@ -1816,10 +1862,10 @@ const STAFF_DIALOGUE = [
   { ss:3, text:"Believe in yourself. Or don't. I still get paid.", check:()=>true },
   { ss:3, text:"I've trained them so well they're training me now.", check:()=>S.trainerLvl.some(l=>l>=10) },
   { ss:3, text:"Five ships! That's what I call a growth mindset.", check:()=>S.shipped>=5 },
-  { ss:3, text:"20 coders. That's 20 opportunities for synergy.", check:()=>_tc()>=20 },
+  { ss:3, text:"20 engineers. That's 20 opportunities for synergy.", check:()=>_tc()>=20 },
   { ss:3, text:"Click streaks! Now THAT'S what peak performance looks like.", check:()=>S.f.streakUnlock },
   { ss:3, text:"I'm paused but I'm still mentally coaching everyone.", check:()=>S.sp[SS.TRAINER] },
-  { ss:3, text:"Overclock level 3? These coders are basically on espresso IV drips.", check:()=>S.f.genSpeed>=3 },
+  { ss:3, text:"Overclock level 3? These engineers are basically on espresso IV drips.", check:()=>S.f.genSpeed>=3 },
   { ss:3, text:"Hustle culture? I prefer to call it 'aggressive mentoring'.", check:()=>true },
 ];
 
@@ -1957,33 +2003,33 @@ const CODER_FACTS = [
 ];
 
 const CODE_BASE = [
-  { name: 'Structured Programming',  desc: '+10% all production',   effect: 'prod',  val: 0.10 },
-  { name: 'SQL & Relational Model',  desc: '+15% coder speed',      effect: 'speed', val: 0.15 },
-  { name: 'Shell Scripting',         desc: '+20% click power',      effect: 'click', val: 0.20 },
-  { name: 'Makefile Build System',   desc: '-10% coder hire costs', effect: 'cheap', val: 0.10 },
-  { name: 'Event-Driven Programming',desc: '+10% all production',   effect: 'prod',  val: 0.10 },
-  { name: 'Object-Oriented Design',  desc: '+15% coder speed',      effect: 'speed', val: 0.15 },
-  { name: 'Array Programming',       desc: '+20% click power',      effect: 'click', val: 0.20 },
-  { name: 'HyperCard Stacks',        desc: '-10% coder hire costs', effect: 'cheap', val: 0.10 },
-  { name: 'Functional Programming',  desc: '+10% all production',   effect: 'prod',  val: 0.10 },
-  { name: 'Finite State Machines',   desc: '+15% coder speed',      effect: 'speed', val: 0.15 },
-  { name: 'Plugin Architecture',     desc: '+20% click power',      effect: 'click', val: 0.20 },
-  { name: 'Dynamic Linking (DLLs)',  desc: '-10% coder hire costs', effect: 'cheap', val: 0.10 },
-  { name: 'Client-Server Model',     desc: '+15% all production',   effect: 'prod',  val: 0.15 },
-  { name: 'VM Bytecode & GC',        desc: '+20% coder speed',      effect: 'speed', val: 0.20 },
-  { name: 'Async Network Sockets',   desc: '+25% click power',      effect: 'click', val: 0.25 },
+  { name: 'Structured Programming',  desc: '+10% all production',      effect: 'prod',  val: 0.10 },
+  { name: 'SQL & Relational Model',  desc: '+15% engineer speed',      effect: 'speed', val: 0.15 },
+  { name: 'Shell Scripting',         desc: '+20% click power',         effect: 'click', val: 0.20 },
+  { name: 'Makefile Build System',   desc: '-10% engineer hire costs', effect: 'cheap', val: 0.10 },
+  { name: 'Event-Driven Programming',desc: '+10% all production',      effect: 'prod',  val: 0.10 },
+  { name: 'Object-Oriented Design',  desc: '+15% engineer speed',      effect: 'speed', val: 0.15 },
+  { name: 'Array Programming',       desc: '+20% click power',         effect: 'click', val: 0.20 },
+  { name: 'HyperCard Stacks',        desc: '-10% engineer hire costs', effect: 'cheap', val: 0.10 },
+  { name: 'Functional Programming',  desc: '+10% all production',      effect: 'prod',  val: 0.10 },
+  { name: 'Finite State Machines',   desc: '+15% engineer speed',      effect: 'speed', val: 0.15 },
+  { name: 'Plugin Architecture',     desc: '+20% click power',         effect: 'click', val: 0.20 },
+  { name: 'Dynamic Linking (DLLs)',  desc: '-10% engineer hire costs', effect: 'cheap', val: 0.10 },
+  { name: 'Client-Server Model',     desc: '+15% all production',      effect: 'prod',  val: 0.15 },
+  { name: 'VM Bytecode & GC',        desc: '+20% engineer speed',      effect: 'speed', val: 0.20 },
+  { name: 'Async Network Sockets',   desc: '+25% click power',         effect: 'click', val: 0.25 },
 ];
 
 const FAME_TREE = [
-  { id:'gen', name:'Coders', color:'#7ee787', upgrades:[
-    { id:'genSpeed',      name:'Overclock',         desc:'+25% coder speed',            cost:1,  max:5,  req:-1 },
-    { id:'genCheap',      name:'Bulk Discount',     desc:'-10% coder costs',            cost:3,  max:3,  req:0 },
-    { id:'genSynergy',    name:'Team Synergy',      desc:'+3% per coder type owned',    cost:5,  max:1,  req:1 },
-    { id:'genThreads',    name:'Parallel Threads',  desc:'+15% coder speed',            cost:2,  max:3,  req:0 },
-    { id:'genReview',     name:'Code Review',       desc:'+5% speed per coder type',    cost:4,  max:1,  req:0 },
-    { id:'genAcquihire',  name:'Acqui-hire',        desc:'-15% coder hire costs',       cost:3,  max:2,  req:1 },
-    { id:'genOpenSource', name:'Open Source',        desc:'+5% production per ship',     cost:7,  max:3,  req:2 },
-    { id:'genPair',       name:'Pair Programming',  desc:'\u00d71.5 coder production',  cost:8,  max:1,  req:2 },
+  { id:'gen', name:'Engineers', color:'#7ee787', upgrades:[
+    { id:'genSpeed',      name:'Overclock',         desc:'+25% engineer speed',            cost:1,  max:5,  req:-1 },
+    { id:'genCheap',      name:'Bulk Discount',     desc:'-10% engineer costs',            cost:3,  max:3,  req:0 },
+    { id:'genSynergy',    name:'Team Synergy',      desc:'+3% per engineer type owned',    cost:5,  max:1,  req:1 },
+    { id:'genThreads',    name:'Parallel Threads',  desc:'+15% engineer speed',            cost:2,  max:3,  req:0 },
+    { id:'genReview',     name:'Code Review',       desc:'+5% speed per engineer type',    cost:4,  max:1,  req:0 },
+    { id:'genAcquihire',  name:'Acqui-hire',        desc:'-15% engineer hire costs',       cost:3,  max:2,  req:1 },
+    { id:'genOpenSource', name:'Open Source',       desc:'+5% production per ship',        cost:7,  max:3,  req:2 },
+    { id:'genPair',       name:'Pair Programming',  desc:'\u00d71.5 engineer production',  cost:8,  max:1,  req:2 },
   ]},
   { id:'click', name:'Click Power', color:'#58a6ff', upgrades:[
     { id:'aimTrainer',     name:'Aim Trainer',      desc:'Toggle: fast-bubble challenge mode', cost:1, max:1, req:-1 },
@@ -2001,7 +2047,7 @@ const FAME_TREE = [
     { id:'marketing',      name:'Marketing Team',   desc:'+50% Fame per ship',          cost:1,  max:99, req:0 },
     { id:'publisher',      name:'Publisher Deal',   desc:'Auto-ship at threshold',      cost:3,  max:1,  req:1 },
     { id:'ventureCapital', name:'Venture Capital',  desc:'Start with 2%\u00d7Lv of ship target', cost:3,  max:5,  req:0 },
-    { id:'goldenParachute',name:'Golden Parachute', desc:'Keep 15%\u00d7Lv LoC on ship', cost:5,  max:3,  req:0 },
+    { id:'goldenParachute',name:'Golden Parachute', desc:'+15%\u00d7Lv current LoC on ship', cost:5,  max:3,  req:0 },
     { id:'viralMarketing', name:'Viral Marketing',  desc:'+25% Fame per ship',          cost:2,  max:5,  req:1 },
     { id:'franchise',      name:'Franchise',        desc:'Ship threshold -10%',         cost:5,  max:3,  req:2 },
     { id:'ipo',            name:'IPO',              desc:'+1 Fame per 3 ships',         cost:6,  max:1,  req:2 },
@@ -2030,12 +2076,12 @@ const ACHIEVEMENTS = [
   { id:'loc_1b',     name:'Code Gorilla',      desc:'Write 1,000,000,000 LoC',      fame:2, check:()=>S.tLoc>=1e9 },
   { id:'loc_1t',     name:'Code Titan',        desc:'Write 1,000,000,000,000 LoC',  fame:3, check:()=>S.tLoc>=1e12 },
   // Hiring
-  { id:'hire_first', name:'First Hire',        desc:'Hire your first coder',        fame:1, check:()=>S.g.some(n=>n>0) },
-  { id:'hire_10',    name:'Growing Team',      desc:'Have 10+ total coders',        fame:1, check:()=>S.g.reduce((a,b)=>a+b,0)>=10 },
-  { id:'hire_50',    name:'Scaling Up',        desc:'Have 50+ total coders',        fame:1, check:()=>S.g.reduce((a,b)=>a+b,0)>=50 },
-  { id:'hire_all',   name:'Full Stack',        desc:'Own every coder type',         fame:2, check:()=>S.g.every(n=>n>0) },
-  { id:'hire_100',   name:'Mega Corp',         desc:'Have 100+ total coders',       fame:2, check:()=>S.g.reduce((a,b)=>a+b,0)>=100 },
-  { id:'hire_500',   name:'Tech Giant',        desc:'Have 500+ total coders',       fame:2, check:()=>S.g.reduce((a,b)=>a+b,0)>=500 },
+  { id:'hire_first', name:'First Hire',        desc:'Hire your first engineer',     fame:1, check:()=>S.g.some(n=>n>0) },
+  { id:'hire_10',    name:'Growing Team',      desc:'Have 10+ total engineers',     fame:1, check:()=>S.g.reduce((a,b)=>a+b,0)>=10 },
+  { id:'hire_50',    name:'Scaling Up',        desc:'Have 50+ total engineers',     fame:1, check:()=>S.g.reduce((a,b)=>a+b,0)>=50 },
+  { id:'hire_all',   name:'Full Stack',        desc:'Own every engineer tier',      fame:2, check:()=>S.g.every(n=>n>0) },
+  { id:'hire_100',   name:'Mega Corp',         desc:'Have 100+ total engineers',    fame:2, check:()=>S.g.reduce((a,b)=>a+b,0)>=100 },
+  { id:'hire_500',   name:'Tech Giant',        desc:'Have 500+ total engineers',    fame:2, check:()=>S.g.reduce((a,b)=>a+b,0)>=500 },
   // Shipping
   { id:'ship_1',     name:'Gone Gold',         desc:'Ship your first software',     fame:1, check:()=>S.shipped>=1 },
   { id:'ship_3',     name:'Hat Trick',         desc:'Ship 3 software titles',       fame:1, check:()=>S.shipped>=3 },
@@ -2068,7 +2114,7 @@ const ACHIEVEMENTS = [
   { id:'cat_10',     name:'Jack of All Trades',desc:'Ship 10 unique categories',    fame:2, check:()=>S.catsSeen.length>=10 },
   // Equipment
   { id:'equip_first',name:'New Desk Smell',    desc:'Buy your first equipment',     fame:1, check:()=>S.eu.some(row=>row.some(v=>v>0)) },
-  { id:'equip_full', name:'Fully Furnished',   desc:'Max-tier equip one coder',     fame:1, check:()=>S.eu.some(row=>row.every((v,i)=>v>=EMP_UPS[i].tiers.length)) },
+  { id:'equip_full', name:'Fully Furnished',   desc:'Max-tier equip one engineer',  fame:1, check:()=>S.eu.some(row=>row.every((v,i)=>v>=EMP_UPS[i].tiers.length)) },
   // Production rate
   { id:'lps_100',    name:'Assembly Line',     desc:'Reach 100 LoC/s',              fame:1, check:()=>lps()>=100 },
   { id:'lps_10k',    name:'Code Factory',      desc:'Reach 10,000 LoC/s',           fame:1, check:()=>lps()>=10000 },
@@ -2238,8 +2284,21 @@ const defaults = () => ({
   shipped: 0,
   meetingPaused: 0,
   fameResetUsed: 0,
+  fireCount: 0,
   coders: [],
+  // v7.3: parallel state for the 4 new engineer types. Coder remains in S.coders/S.loc/S.tLoc.
+  // Each non-coder type has its own resource, lifetime resource, individual list, and shippedSince counter.
+  engineers: {
+    frontend: { res:0, tRes:0, list:[], shippedSince:0 },
+    backend:  { res:0, tRes:0, list:[], shippedSince:0 },
+    network:  { res:0, tRes:0, list:[], shippedSince:0 },
+    security: { res:0, tRes:0, list:[], shippedSince:0 },
+  },
+  activeType: 'coder',
+  unlockedTypes: ['coder'],
   office: 0,
+  // v7.3: per-type office levels — each engineer type has its own office capacity
+  offices: { coder: 0, frontend: 0, backend: 0, network: 0, security: 0 },
   sp: SUPPORT.map(() => 0),
   trainerLvl: GEN.map(() => 0),
   trainerSSLvl: SUPPORT.map(() => 0),
@@ -2249,6 +2308,163 @@ const defaults = () => ({
   musicVol: 0.5, sfxVol: 0.7,
   funShown: 0
 });
+
+// v7.3: Engineer type helpers — single source of truth for resource & list access.
+// Coder is the special case: it uses S.loc/S.tLoc/S.coders directly (zero migration).
+// Other types live in S.engineers[type].
+function engRes(type) {
+  if (type === 'coder') return S.loc;
+  return (S.engineers && S.engineers[type] && S.engineers[type].res) || 0;
+}
+function engTRes(type) {
+  if (type === 'coder') return S.tLoc;
+  return (S.engineers && S.engineers[type] && S.engineers[type].tRes) || 0;
+}
+function engAddRes(type, v) {
+  if (v <= 0) return;
+  if (type === 'coder') { S.loc += v; S.tLoc += v; return; }
+  if (!S.engineers || !S.engineers[type]) return;
+  S.engineers[type].res += v;
+  S.engineers[type].tRes += v;
+}
+function engSubRes(type, v) {
+  if (v <= 0) return true;
+  if (type === 'coder') {
+    if (S.loc < v) return false;
+    S.loc -= v; return true;
+  }
+  if (!S.engineers || !S.engineers[type]) return false;
+  if (S.engineers[type].res < v) return false;
+  S.engineers[type].res -= v; return true;
+}
+function engList(type) {
+  if (type === 'coder') return S.coders || (S.coders = []);
+  if (!S.engineers || !S.engineers[type]) return [];
+  return S.engineers[type].list || (S.engineers[type].list = []);
+}
+function engShipped(type) {
+  if (type === 'coder') return S.shipped || 0;
+  return (S.engineers && S.engineers[type] && S.engineers[type].shippedSince) || 0;
+}
+function engShipAt(type) {
+  const s = engShipped(type);
+  return Math.floor(1e6 * (s <= 3 ? 10 ** s : 1e3 * 5 ** (s - 3)) * (0.9 ** S.f.franchise));
+}
+function isUnlocked(type) {
+  return Array.isArray(S.unlockedTypes) && S.unlockedTypes.includes(type);
+}
+function activeType() { return S.activeType || 'coder'; }
+function activeTypeMeta() { return ENG_TYPE_MAP[activeType()] || ENG_TYPE_MAP.coder; }
+function totalEngineerCount() {
+  let n = (S.coders && S.coders.length) || 0;
+  if (S.engineers) for (const k in S.engineers) n += (S.engineers[k].list || []).length;
+  return n;
+}
+
+// v7.3: Type tabs UI — renders one button per engineer type with resource counts.
+// Locked types show their unlock year. Clicking an unlocked tab switches activeType.
+function renderTypeTabs() {
+  if (!_typeTabsEl) _typeTabsEl = document.getElementById('typeTabs');
+  if (!_typeTabsEl) return;
+  recalcIfDirty();
+  _typeTabsEl.innerHTML = '';
+  const aType = activeType();
+  for (const meta of ENG_TYPES) {
+    const unlocked = isUnlocked(meta.key);
+    const isActive = aType === meta.key;
+    const tab = document.createElement('div');
+    tab.className = 'eng-tab' + (isActive ? ' active' : '') + (unlocked ? '' : ' locked');
+    tab.dataset.type = meta.key;
+    if (isActive) tab.style.borderColor = meta.color;
+    if (unlocked) {
+      const lpsVal = (_C.typeLps && _C.typeLps[meta.key]) || 0;
+      tab.innerHTML =
+        '<div class="et-name" style="color:' + meta.color + '">' + meta.name + '</div>' +
+        '<div class="et-res">' + fmt(engRes(meta.key)) + ' ' + meta.res + '</div>' +
+        '<div class="et-lps">' + fmt(lpsVal) + '/s</div>';
+      tab.addEventListener('click', () => {
+        if (S.activeType === meta.key) return;
+        S.activeType = meta.key;
+        markDirty();
+        renderTypeTabs();
+        renderRosterCol();
+        // v7.3: invalidate sprite cache + bypass throttle so the office immediately
+        // shows the new active type's engineers (not the previous tab's stale ones).
+        if (typeof _ofc !== 'undefined') {
+          _ofc.spriteCache = [];
+          _ofc.lastUpdate = 0;
+        }
+        updateOfficeSprites();
+        renderShipPanel();
+      });
+    } else {
+      tab.innerHTML =
+        '<div class="et-name">' + meta.name + '</div>' +
+        '<div class="et-locked">\u{1F512} Year ' + meta.unlockYear + '</div>';
+    }
+    _typeTabsEl.appendChild(tab);
+  }
+}
+// Cheap soft refresh — update resource numbers without rebuilding DOM (called every tick).
+function refreshTypeTabValues() {
+  if (!_typeTabsEl) _typeTabsEl = document.getElementById('typeTabs');
+  if (!_typeTabsEl) return;
+  recalcIfDirty();
+  for (const meta of ENG_TYPES) {
+    if (!isUnlocked(meta.key)) continue;
+    const tab = _typeTabsEl.querySelector('[data-type="' + meta.key + '"]');
+    if (!tab || tab.classList.contains('locked')) continue;
+    const resEl = tab.querySelector('.et-res');
+    const lpsEl = tab.querySelector('.et-lps');
+    if (resEl) resEl.textContent = fmt(engRes(meta.key)) + ' ' + meta.res;
+    if (lpsEl) lpsEl.textContent = fmt((_C.typeLps && _C.typeLps[meta.key]) || 0) + '/s';
+  }
+}
+// renderResourceBar() is an alias for renderTypeTabs() — separated only to make
+// future divergence easy if we want a non-clickable secondary bar.
+function renderResourceBar() { renderTypeTabs(); }
+
+// v7.3: Ship panel — builds one row per unlocked engineer type showing
+// "X / Y resource" + bar. Called when unlock state changes (init, ship, fresh load).
+let _shipPanelEl = null;
+function renderShipPanel() {
+  if (!_shipPanelEl) _shipPanelEl = document.getElementById('shipResources');
+  if (!_shipPanelEl) return;
+  _shipPanelEl.innerHTML = '';
+  for (const meta of ENG_TYPES) {
+    if (!isUnlocked(meta.key)) continue;
+    const row = document.createElement('div');
+    row.className = 'ship-res-row';
+    row.dataset.type = meta.key;
+    row.innerHTML =
+      '<div class="srn"><span style="color:' + meta.color + '">' + meta.res + '</span><span class="srpct">0%</span></div>' +
+      '<div class="srv">0 / 0</div>' +
+      '<div class="srbar"><div class="srbar-fill" style="transform:scaleX(0)"></div></div>';
+    _shipPanelEl.appendChild(row);
+  }
+  refreshShipPanel();
+}
+// Cheap soft refresh — update values per tick without DOM rebuild.
+function refreshShipPanel() {
+  if (!_shipPanelEl) _shipPanelEl = document.getElementById('shipResources');
+  if (!_shipPanelEl) return;
+  for (const meta of ENG_TYPES) {
+    if (!isUnlocked(meta.key)) continue;
+    const row = _shipPanelEl.querySelector('[data-type="' + meta.key + '"]');
+    if (!row) continue;
+    const cur = engTRes(meta.key);
+    const tgt = engShipAt(meta.key);
+    const pct = tgt > 0 ? Math.min(cur / tgt, 1) : 0;
+    const done = cur >= tgt;
+    row.classList.toggle('done', done);
+    const valEl = row.querySelector('.srv');
+    const pctEl = row.querySelector('.srpct');
+    const fillEl = row.querySelector('.srbar-fill');
+    if (valEl) valEl.textContent = fmt(cur) + ' / ' + fmt(tgt);
+    if (pctEl) pctEl.textContent = Math.floor(pct * 100) + '%';
+    if (fillEl) fillEl.style.transform = 'scaleX(' + pct + ')';
+  }
+}
 
 let S = defaults();
 
@@ -2369,6 +2585,44 @@ function loadSlot(raw) {
       }
       d._v71prodFormula = 1;
     }
+    // v7.3 migration: engineer types — initialize empty engineer subtypes and
+    // unlock state. Existing saves continue to use S.coders/S.loc unchanged;
+    // year-based unlocks resume on the next ship().
+    if (!d.engineers) {
+      d.engineers = {
+        frontend: { res:0, tRes:0, list:[], shippedSince:0 },
+        backend:  { res:0, tRes:0, list:[], shippedSince:0 },
+        network:  { res:0, tRes:0, list:[], shippedSince:0 },
+        security: { res:0, tRes:0, list:[], shippedSince:0 },
+      };
+    } else {
+      // Heal partial saves
+      for (const k of ['frontend','backend','network','security']) {
+        if (!d.engineers[k]) d.engineers[k] = { res:0, tRes:0, list:[], shippedSince:0 };
+        if (typeof d.engineers[k].res !== 'number') d.engineers[k].res = 0;
+        if (typeof d.engineers[k].tRes !== 'number') d.engineers[k].tRes = 0;
+        if (!Array.isArray(d.engineers[k].list)) d.engineers[k].list = [];
+        if (typeof d.engineers[k].shippedSince !== 'number') d.engineers[k].shippedSince = 0;
+      }
+    }
+    if (!Array.isArray(d.unlockedTypes)) d.unlockedTypes = ['coder'];
+    // Reconcile already-shipped progress: any type whose unlockYear is <= currentYear
+    // becomes unlocked (so reloading mid-game doesn't lose unlocks).
+    {
+      const yr = 1979 + (d.shipped || 0);
+      for (const e of ENG_TYPES) {
+        if (yr >= e.unlockYear && !d.unlockedTypes.includes(e.key)) d.unlockedTypes.push(e.key);
+      }
+    }
+    if (typeof d.activeType !== 'string' || !ENG_TYPE_MAP[d.activeType]) d.activeType = 'coder';
+    // v7.3: per-type office migration — copy old single S.office to coder, default 0 for others
+    if (!d.offices || typeof d.offices !== 'object') {
+      d.offices = { coder: d.office | 0, frontend: 0, backend: 0, network: 0, security: 0 };
+    } else {
+      for (const k of ['coder','frontend','backend','network','security']) {
+        if (typeof d.offices[k] !== 'number') d.offices[k] = 0;
+      }
+    }
     // Apply state first, then calculate offline progress using cached multipliers
     S = d;
     markDirty();
@@ -2376,13 +2630,20 @@ function loadSlot(raw) {
     if (d._lastSave) {
       const elapsed = Math.min((trustedNow() - d._lastSave) / 1000, OFFLINE_CAP);
       if (elapsed > 10) {
-        const passiveRate = lps();
-        const earned = Math.floor(passiveRate * elapsed);
-        if (earned > 0) {
-          S.loc += earned;
-          S.tLoc += earned;
-          S._offlineEarned = earned;  // stash so network clock check can claw back
-          pendingOfflineMsg = t('welcomeBack') + ' ' + fmt(earned) + ' ' + t('whileAway') + ' (' + Math.floor(elapsed / 60) + 'm)';
+        // v7.3: offline progress accrues per unlocked type
+        let earnedActive = 0;
+        for (const meta of ENG_TYPES) {
+          if (!isUnlocked(meta.key)) continue;
+          const r = (_C.typeLps && _C.typeLps[meta.key]) || 0;
+          const e = Math.floor(r * elapsed);
+          if (e > 0) {
+            engAddRes(meta.key, e);
+            if (meta.key === 'coder') earnedActive = e;
+          }
+        }
+        if (earnedActive > 0) {
+          S._offlineEarned = earnedActive;  // stash so network clock check can claw back (coder only)
+          pendingOfflineMsg = t('welcomeBack') + ' ' + fmt(earnedActive) + ' ' + t('whileAway') + ' (' + Math.floor(elapsed / 60) + 'm)';
         }
       }
     }
@@ -2419,7 +2680,7 @@ const SS = { SECRETARY:0, RECRUITER:1, FACILITY:2, TRAINER:3 };
 
 // ========== MULTIPLIER CACHE ==========
 let _dirty = true;
-const _C = { prodMul:1, genSpeedMul:1, genSynergyMul:1, tierSynergyMul:1, fameMul:1, clickPow:1, lps:0, shipAt:0, hireCostMul:1, euMul:[], tierCount:[] };
+const _C = { prodMul:1, genSpeedMul:1, genSynergyMul:1, tierSynergyMul:1, fameMul:1, clickPow:1, lps:0, shipAt:0, hireCostMul:1, euMul:[], tierCount:[], tierLps:[], typeLps:{}, typeTierCount:{}, typeTierSynergyMul:{} };
 function markDirty() { _dirty = true; }
 function recalcIfDirty() {
   if (!_dirty) return;
@@ -2428,8 +2689,8 @@ function recalcIfDirty() {
   let pm = energyPerkMul() * daycareMul() * gymMul() * retreatMul() * _C.fameMul * (1 + cbBonus('prod'));
   // Open Source: +5% production per shipped game per level
   if (S.f.genOpenSource) pm *= (1 + 0.05 * S.f.genOpenSource * S.shipped);
-  // v6.9: Office tier production multiplier
-  pm *= officeProdMul();
+  // v7.3: Office tier production multiplier is now per-type — applied inside the
+  // per-type LPS loop below (not folded into the global _C.prodMul).
   _C.prodMul = pm;
   _C.hireCostMul = (0.9 ** S.f.genCheap) * (0.85 ** S.f.genAcquihire) * deskDiscount() * ptoDiscount() * (1 - cbBonus('cheap'));
   _C.genSpeedMul = (1 + 0.25 * S.f.genSpeed) * (1 + 0.15 * S.f.genThreads) * (1 + cbBonus('speed'));
@@ -2449,29 +2710,51 @@ function recalcIfDirty() {
   }
   const evMul = (activeEvent && !activeEvent.pending) ? activeEvent.mul : 1;
   const evClk = (activeEvent && !activeEvent.pending) ? activeEvent.clickMul : 1;
-  // v7.1: per-coder production — iterate S.coders so rarity + exp actually matter
-  // v7.2: count by tier in the same pass for set-bonus synergy
-  const tierLps = new Array(GEN.length).fill(0);
-  const tierCount = new Array(GEN.length).fill(0);
-  let lpsVal = 0;
-  const _coders = Array.isArray(S.coders) ? S.coders : [];
-  for (const c of _coders) {
-    const t = c.tier | 0;
-    if (t < 0 || t >= GEN.length) continue;
-    const contrib = GEN[t].rate * _C.euMul[t] * coderProdMul(c);
-    tierLps[t] += contrib;
-    lpsVal += contrib;
-    tierCount[t]++;
+  // v7.1/7.2: per-coder production — iterate the engineer list for each type so
+  // rarity + exp + tier set bonuses all apply per type independently. Coder is the
+  // primary type and remains in S.coders.
+  // v7.3: same loop runs for every engineer type into _C.typeLps[type].
+  _C.typeLps = {};
+  _C.typeTierCount = {};
+  _C.typeTierSynergyMul = {};
+  _C.typeTierLps = {};
+  const _outerLpsRef = { val: 0 };
+  const _aTypeForCache = activeType();
+  for (const meta of ENG_TYPES) {
+    const list = engList(meta.key);
+    const tCount = new Array(GEN.length).fill(0);
+    const tLps = new Array(GEN.length).fill(0);
+    let raw = 0;
+    for (const c of list) {
+      const t = c.tier | 0;
+      if (t < 0 || t >= GEN.length) continue;
+      const contrib = GEN[t].rate * _C.euMul[t] * coderProdMul(c);
+      raw += contrib;
+      tLps[t] += contrib;
+      tCount[t]++;
+    }
+    let tierBonusSum = 0;
+    for (let i = 0; i < GEN.length; i++) tierBonusSum += setTierBonus(tCount[i]);
+    const tierSyn = 1 + tierBonusSum;
+    // v7.3: each type's office prod multiplier applies only to its own production
+    const officeMul = officeProdMul(meta.key);
+    const finalLps = raw * _C.genSpeedMul * _C.genSynergyMul * tierSyn * _C.prodMul * officeMul * evMul;
+    _C.typeLps[meta.key] = finalLps;
+    _C.typeTierCount[meta.key] = tCount;
+    _C.typeTierSynergyMul[meta.key] = tierSyn;
+    _C.typeTierLps[meta.key] = tLps;
+    if (meta.key === 'coder') _outerLpsRef.val = finalLps;
   }
-  _C.tierLps = tierLps;
-  _C.tierCount = tierCount;
-  // v7.2: sum set-bonus contributions across tiers into tierSynergyMul
-  let tierBonusSum = 0;
-  for (let i = 0; i < GEN.length; i++) tierBonusSum += setTierBonus(tierCount[i]);
-  _C.tierSynergyMul = 1 + tierBonusSum;
-  _C.lps = lpsVal * _C.genSpeedMul * _C.genSynergyMul * _C.tierSynergyMul * _C.prodMul * evMul;
-  _C.clickPow = (1 + lunchBonus()) * gameRoomMul() * (1 + S.f.clickDouble) * _C.prodMul * evClk * (1 + cbBonus('click'));
-  _C.shipAt = Math.floor(1e6 * (S.shipped <= 3 ? 10 ** S.shipped : 1e3 * 5 ** (S.shipped - 3)) * (0.9 ** S.f.franchise));
+  // Backward-compat fields used by older code paths and the HUD/UI for the active type.
+  const aType = activeType();
+  _C.tierCount = _C.typeTierCount[aType] || new Array(GEN.length).fill(0);
+  _C.tierSynergyMul = _C.typeTierSynergyMul[aType] || 1;
+  _C.tierLps = _C.typeTierLps[aType] || new Array(GEN.length).fill(0);
+  _C.lps = _C.typeLps[aType] || 0;
+  // v7.3: click power uses the active type's office prod multiplier (since clicks
+  // generate the active type's resource and the office bonus is per-type).
+  _C.clickPow = (1 + lunchBonus()) * gameRoomMul() * (1 + S.f.clickDouble) * _C.prodMul * officeProdMul(aType) * evClk * (1 + cbBonus('click'));
+  _C.shipAt = engShipAt(aType);
 }
 
 function shipInflation() { return 1.03 ** S.shipped; }
@@ -2481,7 +2764,9 @@ const fameMul = () => { recalcIfDirty(); return _C.fameMul; };
 // Office Perk helpers
 let napTimer = 0;
 function energyPerkMul() { return 1 + 0.30 * S.c[P.ENERGY]; }
-function lunchBonus() { let t = 0; for (let i = 0; i < GEN.length; i++) t += S.g[i]; return S.c[P.LUNCH] * t * 1.0; }
+// v7.3: lunch bonus counts only the active type's roster — switching tabs changes
+// click power. Each engineer "ate lunch" for their own discipline.
+function lunchBonus() { return S.c[P.LUNCH] * engList(activeType()).length * 1.0; }
 function deskDiscount() { return 0.90 ** S.c[P.DESK]; }
 function daycareMul() { return 1.6 ** S.c[P.DAYCARE]; }
 function gameRoomMul() { return 1 + 0.70 * S.c[P.GAMEROOM]; }
@@ -3258,6 +3543,9 @@ function openAchievements() {
 // ========== DOM ==========
 const $ = document.getElementById.bind(document);
 const dYear = $('dYear'), dCat = $('dCat'), dLoc = $('dLoc'), dLps = $('dLps'), dFame = $('dFame');
+// v7.3: dynamic labels and tab container
+const _dLocLbl = $('dLocLbl'), _dLpsLbl = $('dLpsLbl');
+let _typeTabsEl = null;
 const dCp = $('dCp'), dFm = $('dFm');
 const pFill = $('pFill'), pTxt = $('pTxt'), shipBtn = $('shipBtn');
 const upsEl = $('ups'), ups2El = $('ups2'), logCol = $('logCol'), toasts = $('toasts'), mon = $('mon'), scr = $('scr');
@@ -3342,7 +3630,7 @@ function buildUI() {
     ph.id = 'packHeader';
     const pInfo = document.createElement('div'); pInfo.className = 'pack-info';
     const pTitle = document.createElement('div'); pTitle.className = 'pack-title'; pTitle.textContent = 'Hire Pack';
-    const pDesc = document.createElement('div'); pDesc.className = 'pack-desc'; pDesc.id = 'packDesc'; pDesc.textContent = '5 random coders';
+    const pDesc = document.createElement('div'); pDesc.className = 'pack-desc'; pDesc.id = 'packDesc'; pDesc.textContent = '5 random engineers';
     pInfo.append(pTitle, pDesc);
     const pCost = document.createElement('div'); pCost.className = 'pack-cost'; pCost.id = 'packCost';
     ph.append(pInfo, pCost);
@@ -3546,6 +3834,9 @@ function buildUI() {
 
   // v7.2: initial render of always-open roster column
   renderRosterCol();
+  // v7.3: initial render of engineer type tabs + ship panel
+  renderTypeTabs();
+  renderShipPanel();
 
   upsEl.innerHTML = ''; ups2El.innerHTML = '';
   upsEl.appendChild(frag);
@@ -3894,7 +4185,8 @@ function bubblePop(el, isGood) {
       _bub.aimLog.push({ t: performance.now(), hit: true });
       // Bug kill reward: 5× click power
       const reward = 5 * clickPow() * streakMul * acPenalty() * aimbotMul();
-      S.loc += reward; S.tLoc += reward;
+      // v7.3: bug-kill reward goes to the active type's resource (matches click target)
+      engAddRes(activeType(), reward);
       const bRect = container.getBoundingClientRect();
       float(bRect.left + parseFloat(el.style.left) + 10, bRect.top + parseFloat(el.style.top) - 5, '+' + fmt(reward));
       aimAccUpdate();
@@ -3942,8 +4234,8 @@ function doClick(e) {
   if (S.f.streakCombo) pw += lps() * 0.001 * S.f.streakCombo * Math.floor(streakMul) * acPenalty() * bubbleMul();
   // Lucky Click: 8% chance per level of 15× click
   if (S.f.clickLucky && Math.random() < 0.08 * S.f.clickLucky) { pw *= 15; float(e.clientX + 10, e.clientY - 40, '\u2728 LUCKY!'); }
-  S.loc += pw;
-  S.tLoc += pw;
+  // v7.3: clicks now generate the active engineer type's resource
+  engAddRes(activeType(), pw);
   const nowClick = performance.now();
   ctPush(nowClick);
   lastClickTime = nowClick;
@@ -4067,8 +4359,18 @@ function rollCoder() {
   return c;
 }
 function recomputeG() {
+  // v7.3: S.g still tracks tier counts but now reflects ALL engineer types combined.
+  // This keeps lunchBonus(), Synergy/Code Review, and Trainer auto-pick working
+  // across all types without per-type branching.
   for (let i = 0; i < GEN.length; i++) S.g[i] = 0;
-  for (const c of S.coders) S.g[c.tier]++;
+  for (const c of (S.coders || [])) S.g[c.tier]++;
+  if (S.engineers) {
+    for (const k in S.engineers) {
+      for (const c of (S.engineers[k].list || [])) {
+        if (c.tier >= 0 && c.tier < GEN.length) S.g[c.tier]++;
+      }
+    }
+  }
 }
 function recruiterPackDiscount() {
   const count = (S.ss && S.ss[SS.RECRUITER]) || 0;
@@ -4089,41 +4391,66 @@ const OFFICES = [
   { name: 'Company HQ',    cap: 300, cost: 2.5e11, prod: 2.10 },
   { name: 'Campus',        cap: 500, cost: 1e13,   prod: 2.50 },
 ];
-function officeTier() { return OFFICES[Math.max(0, Math.min(OFFICES.length - 1, S.office || 0))]; }
-function coderCap() { return officeTier().cap; }
-function officeProdMul() { return officeTier().prod; }
-function officeCost() {
-  const next = (S.office || 0) + 1;
+// v7.3: per-type office helpers — each engineer type has its own office level
+function officeLvl(type) {
+  type = type || activeType();
+  const v = (S.offices && typeof S.offices[type] === 'number') ? S.offices[type] : 0;
+  return Math.max(0, Math.min(OFFICES.length - 1, v));
+}
+function officeTier(type) { return OFFICES[officeLvl(type)]; }
+function coderCap(type) { return officeTier(type).cap; }
+function officeProdMul(type) { return officeTier(type).prod; }
+function officeCost(type) {
+  type = type || activeType();
+  const next = officeLvl(type) + 1;
   if (next >= OFFICES.length) return Infinity;
   return Math.floor(OFFICES[next].cost * shipInflation());
 }
-function canFitPack() { return (S.coders ? S.coders.length : 0) + 5 <= coderCap(); }
+// v7.3: pack-fit check counts ONLY the active type's roster against its own office cap
+function canFitPack() {
+  const t = activeType();
+  return engList(t).length + 5 <= coderCap(t);
+}
 function buyOffice() {
-  const next = (S.office || 0) + 1;
+  const t = activeType();
+  const next = officeLvl(t) + 1;
   if (next >= OFFICES.length) return;
-  const cost = officeCost();
-  if (S.loc < cost) { toast('Not enough LoC'); return; }
-  S.loc -= cost;
-  S.office = next;
+  const cost = officeCost(t);
+  if (engRes(t) < cost) { toast('Not enough ' + (ENG_TYPE_MAP[t] ? ENG_TYPE_MAP[t].res : 'LoC')); return; }
+  if (!engSubRes(t, cost)) return;
+  if (!S.offices) S.offices = { coder:0, frontend:0, backend:0, network:0, security:0 };
+  S.offices[t] = next;
+  if (t === 'coder') S.office = next; // keep legacy field in sync for any old reader
   markDirty();
+  // Invalidate sprite cache since cap changed (empty desk count)
+  if (typeof _ofc !== 'undefined') _ofc.spriteCache = [];
   playSfx('buy');
-  log('\u{1F3E2} Moved to ' + OFFICES[next].name);
+  log('\u{1F3E2} ' + (ENG_TYPE_MAP[t] ? ENG_TYPE_MAP[t].name : 'Coder') + ' team moved to ' + OFFICES[next].name);
 }
 function packCost() {
-  const total = S.coders ? S.coders.length : 0;
-  const base = 100;
+  // v7.3: cost scales with the active type's roster size, paid in active type's resource.
+  // Base is per-type (ENG_TYPES.packBase) so each new engineer type costs 4x the previous.
+  const aType = activeType();
+  const list = engList(aType);
+  const total = list.length;
+  const meta = ENG_TYPE_MAP[aType];
+  const base = (meta && meta.packBase) || 100;
   const growth = Math.pow(2, Math.floor(total / 5));
   return Math.floor(base * growth * recruiterPackDiscount() * (_C.hireCostMul || 1) * shipInflation());
 }
+// v7.2: severance cost — 500 base, ×1.25 per fire, resets on ship
+function fireCost() {
+  return Math.floor(500 * Math.pow(1.25, S.fireCount || 0));
+}
 function buyPack() {
-  if (!S.coders) S.coders = [];
+  const aType = activeType();
   if (!canFitPack()) { toast('Office full \u2014 upgrade office'); return; }
   const cost = packCost();
-  if (S.loc < cost) { toast(t('hired') ? 'Not enough LoC' : 'Not enough LoC'); return; }
-  S.loc -= cost;
+  if (engRes(aType) < cost) { toast('Not enough ' + (ENG_TYPE_MAP[aType] ? ENG_TYPE_MAP[aType].res : 'LoC')); return; }
+  engSubRes(aType, cost);
   const pulls = [];
   for (let k = 0; k < 5; k++) pulls.push(rollCoder());
-  S.coders.push(...pulls);
+  engList(aType).push(...pulls);
   recomputeG();
   markDirty();
   playSfx('buy');
@@ -4314,8 +4641,11 @@ let _rosLastUpdate = 0;
 function _coderContribLps(c) {
   const ti = c.tier | 0;
   if (ti < 0 || ti >= GEN.length) return 0;
+  // v7.3: use the active type's tier synergy mul + office prod mul (per-type set bonuses & office)
+  const aT = activeType();
+  const tierSyn = _C.typeTierSynergyMul ? (_C.typeTierSynergyMul[aT] || 1) : (_C.tierSynergyMul || 1);
   return GEN[ti].rate * _C.euMul[ti] * coderProdMul(c)
-       * _C.genSpeedMul * _C.genSynergyMul * _C.tierSynergyMul * _C.prodMul;
+       * _C.genSpeedMul * _C.genSynergyMul * tierSyn * _C.prodMul * officeProdMul(aT);
 }
 
 // Build roster contents into a panel element. Used by both openRoster (modal)
@@ -4332,7 +4662,7 @@ function buildRosterInto(panel, isModal) {
 
   const title = document.createElement('div');
   title.className = 'stats-title';
-  title.textContent = t('rosterTitle') || 'Coder Roster';
+  title.textContent = t('rosterTitle') || 'Engineer Roster';
   panel.appendChild(title);
 
   const synTitle = document.createElement('div');
@@ -4357,7 +4687,8 @@ function buildRosterInto(panel, isModal) {
   function rebuildHeader() {
     recalcIfDirty();
     synBox.innerHTML = '';
-    const counts = _C.tierCount || [];
+    // v7.3: tier counts shown reflect the active type only (set bonuses are per-type)
+    const counts = (_C.typeTierCount && _C.typeTierCount[activeType()]) || _C.tierCount || [];
     // Only show rows for tiers the player has unlocked (count > 0) to keep
     // the header tight; players see tiers appear as they hire.
     for (let i = 0; i < GEN.length; i++) {
@@ -4389,14 +4720,16 @@ function buildRosterInto(panel, isModal) {
     if (synBox.children.length === 0) {
       const empty = document.createElement('div');
       empty.style.cssText = 'color:#8b949e;font-size:.65rem;text-align:center;padding:4px';
-      empty.textContent = 'Hire coders to unlock tier bonuses';
+      empty.textContent = 'Hire engineers to unlock tier bonuses';
       synBox.appendChild(empty);
     }
   }
 
   function rebuildList() {
     listEl.innerHTML = '';
-    const rows = (S.coders || []).filter(c => _rosFilter < 0 || c.rarity === _rosFilter);
+    // v7.3: roster shows the active engineer type only
+    const sourceList = engList(activeType());
+    const rows = sourceList.filter(c => _rosFilter < 0 || c.rarity === _rosFilter);
     rows.sort((a, b) => {
       if (_rosSort === 'rarity') return (b.rarity - a.rarity) || (b.tier - a.tier);
       if (_rosSort === 'tier')   return (b.tier - a.tier) || (b.rarity - a.rarity);
@@ -4407,7 +4740,8 @@ function buildRosterInto(panel, isModal) {
     if (rows.length === 0) {
       const empty = document.createElement('div');
       empty.style.cssText = 'text-align:center;color:#8b949e;padding:20px;font-size:.75rem';
-      empty.textContent = (S.coders && S.coders.length > 0) ? 'No coders match this filter.' : 'No coders yet — buy a pack!';
+      const meta = activeTypeMeta();
+      empty.textContent = (sourceList.length > 0) ? 'No engineers match this filter.' : ('No ' + meta.name.toLowerCase() + 's yet — buy a pack!');
       listEl.appendChild(empty);
       return;
     }
@@ -4427,23 +4761,36 @@ function buildRosterInto(panel, isModal) {
       lpsEl.textContent = fmt(_coderContribLps(c)) + '/s';
       const fireBtn = document.createElement('button');
       fireBtn.className = 'fire-btn';
-      fireBtn.textContent = t('fire') || 'Fire';
+      const fireLabel = () => (t('fire') || 'Fire') + ' ' + fmt(fireCost());
+      const confirmLabel = () => (t('fireConfirm') || 'Fire?') + ' ' + fmt(fireCost());
+      fireBtn.textContent = fireLabel();
       let revertTimer = null;
       fireBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (!fireBtn.classList.contains('confirm')) {
           fireBtn.classList.add('confirm');
-          fireBtn.textContent = t('fireConfirm') || 'Fire?';
+          fireBtn.textContent = confirmLabel();
           revertTimer = setTimeout(() => {
             fireBtn.classList.remove('confirm');
-            fireBtn.textContent = t('fire') || 'Fire';
+            fireBtn.textContent = fireLabel();
             revertTimer = null;
           }, 3000);
           return;
         }
         if (revertTimer) { clearTimeout(revertTimer); revertTimer = null; }
-        const idx = (S.coders || []).indexOf(c);
-        if (idx >= 0) S.coders.splice(idx, 1);
+        const cost = fireCost();
+        const aType = activeType();
+        if (engRes(aType) < cost) {
+          fireBtn.classList.remove('confirm');
+          fireBtn.textContent = fireLabel();
+          toast('Not enough ' + (ENG_TYPE_MAP[aType] ? ENG_TYPE_MAP[aType].res : 'LoC') + ' for severance');
+          return;
+        }
+        engSubRes(aType, cost);
+        S.fireCount = (S.fireCount || 0) + 1;
+        const list = engList(aType);
+        const idx = list.indexOf(c);
+        if (idx >= 0) list.splice(idx, 1);
         recomputeG();
         markDirty();
         recalcIfDirty();
@@ -4453,9 +4800,23 @@ function buildRosterInto(panel, isModal) {
         if (isModal) renderRosterCol();
       });
       row.append(nameEl, metaEl, lpsEl, fireBtn);
+      // Stash the coder ref so soft refresh can update LPS text without
+      // having to re-derive identity from sort order.
+      row._coder = c;
       listEl.appendChild(row);
     }
   }
+  // Soft refresh: update LPS text in place. Used by the periodic tick so
+  // an in-progress fire-confirm state isn't clobbered by a full rebuild.
+  panel._rosterSoftRefresh = () => {
+    recalcIfDirty();
+    panel.querySelectorAll('.roster-row').forEach(row => {
+      const c = row._coder;
+      if (!c) return;
+      const lpsEl = row.querySelector('.r-lps');
+      if (lpsEl) lpsEl.textContent = fmt(_coderContribLps(c)) + '/s';
+    });
+  };
 
   function mkCtrlBtn(label, isActive, onClick) {
     const b = document.createElement('button');
@@ -4494,12 +4855,24 @@ function buildRosterInto(panel, isModal) {
 
 // Render the always-open roster column. Throttled by tick(); also called
 // after user actions that mutate S.coders.
+//
+// Fingerprint detects structural changes (hire, fire, ship-tier-bump). Anything
+// else is a soft text refresh — we don't tear down the DOM, since that would
+// clobber any in-progress fire-confirm state and make the button feel laggy.
 function renderRosterCol() {
   if (!_rosColEl) _rosColEl = document.getElementById('rosterCol');
   if (!_rosColEl) return;
-  const scrollY = _rosColEl.scrollTop;
-  buildRosterInto(_rosColEl, false);
-  _rosColEl.scrollTop = scrollY;
+  // v7.3: fingerprint includes active type so switching tabs rebuilds
+  const aType = activeType();
+  const fp = aType + ':' + engList(aType).length + ':' + (S.shipped || 0);
+  if (_rosColEl._rosterFp !== fp || !_rosColEl._rosterSoftRefresh) {
+    const scrollY = _rosColEl.scrollTop;
+    buildRosterInto(_rosColEl, false);
+    _rosColEl._rosterFp = fp;
+    _rosColEl.scrollTop = scrollY;
+  } else {
+    _rosColEl._rosterSoftRefresh();
+  }
 }
 
 function openRoster() {
@@ -4537,11 +4910,14 @@ function openStats() {
   const sum = document.createElement('div');
   sum.className = 'stats-summary';
   const cats = new Set(S.games.map(g => g.cat));
-  const totalCoders = S.g.reduce((a, b) => a + b, 0);
+  const totalEngineers = totalEngineerCount();
+  const unlockedTypes = ENG_TYPES.filter(m => isUnlocked(m.key));
   const totalPerks = S.c.filter(n => n > 0).length;
+  // v7.3: show available/total fame so players know what's bankable vs lifetime
+  const fameCell = S.tFame > S.fame ? (S.fame + ' / ' + S.tFame) : S.fame;
   const stats = [
     { val: S.games.length, lbl: t('statsShipped') },
-    { val: S.tFame, lbl: t('totalFame') },
+    { val: fameCell, lbl: t('totalFame') },
     { val: cats.size, lbl: t('categories') },
     { val: S.ach.length + '/' + ACHIEVEMENTS.length, lbl: t('achievements') },
   ];
@@ -4552,19 +4928,30 @@ function openStats() {
   });
   panel.appendChild(sum);
 
+  // v7.3: ensure cache is up-to-date so per-type LPS/synergy reads are accurate
+  recalcIfDirty();
+
   // Current run details
   const runSec = document.createElement('div');
   runSec.className = 'stats-section';
   runSec.innerHTML = '<div class="stats-sec-title">' + t('currentRun') + '</div>';
+  // v7.3: Click-driven LoC/s addition (autoClick etc. all go through the coder LoC stream)
+  const autoClickLps = (S.f.autoClick + S.f.autoBotnet * 2 + petAutoClick()) * clickPow();
+  const coderTotalLps = ((_C.typeLps && _C.typeLps.coder) || 0) + autoClickLps;
+  // v7.3: Count hired support staff + their total trainer level boosts
+  const staffHired = S.ss.filter(n => n >= 1).length;
   const runDetails = [
     [t('year'), currentYear()],
     [t('developing'), getLandmark(currentYear()).cat],
-    [t('loc') + '/s', fmt(lps() + (S.f.autoClick + S.f.autoBotnet * 2 + petAutoClick()) * clickPow())],
+    [t('loc') + '/s', fmt(coderTotalLps)],
     [t('clickPower'), fmt(clickPow())],
-    [t('coders'), totalCoders + ' (' + S.g.filter(n => n > 0).length + ' ' + t('types') + ')'],
+    ['Lifetime LoC', fmt(S.tLoc || 0)],
+    ['Engineers', totalEngineers + ' (' + unlockedTypes.length + '/' + ENG_TYPES.length + ' types)'],
     [t('officePerks'), totalPerks + '/' + CLK.length],
     [t('equipment'), S.eu.flat().reduce((a, v) => a + v, 0) + '/' + (S.g.filter(n => n > 0).length * EMP_UPS.length * 3) + ' ' + t('tiers')],
     [t('codeBase'), S.cb + '/' + CODE_BASE.length + ' ' + t('statsUnlocked')],
+    ['Support Staff', staffHired + '/' + SUPPORT.length + ' hired'],
+    ['Milestones', (S.milestones ? S.milestones.length : 0) + ' reached'],
     [t('shipInflation'), Math.round((shipInflation() - 1) * 100) + '% ' + t('costIncrease')],
     [t('fameMultiplier'), '\u00d7' + fameMul().toFixed(1) + ' ' + t('allProd')],
   ];
@@ -4577,6 +4964,104 @@ function openStats() {
   });
   runSec.appendChild(runTbl);
   panel.appendChild(runSec);
+
+  // v7.3: Engineer Types breakdown — one row per unlocked type with count, office, current/lifetime resource, rate
+  if (unlockedTypes.length > 0) {
+    const engSec = document.createElement('div');
+    engSec.className = 'stats-section';
+    engSec.innerHTML = '<div class="stats-sec-title">Engineer Types</div>';
+    const engTbl = document.createElement('table');
+    engTbl.className = 'stats-table';
+    // header
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>Type</th><th>Owned</th><th>Office</th><th>Lifetime</th><th>Rate</th></tr>';
+    engTbl.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for (const meta of unlockedTypes) {
+      const list = engList(meta.key);
+      const cap = coderCap(meta.key);
+      const ofcName = officeTier(meta.key).name;
+      const lpsVal = (_C.typeLps && _C.typeLps[meta.key]) || 0;
+      // Extra bonus for coder type: autoClick LPS
+      const extra = meta.key === 'coder' ? autoClickLps : 0;
+      const syn = (_C.typeTierSynergyMul && _C.typeTierSynergyMul[meta.key]) || 1;
+      const synPct = syn > 1 ? ' <span style="color:#3fb950">(+' + Math.round((syn - 1) * 100) + '%)</span>' : '';
+      const lifetime = engTRes(meta.key);
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><span style="color:' + meta.color + '">\u25cf</span> ' + meta.name + '</td>' +
+        '<td>' + list.length + '/' + cap + '</td>' +
+        '<td style="font-size:.7rem;color:#8b949e">' + ofcName + '</td>' +
+        '<td>' + fmt(lifetime) + ' ' + meta.res + '</td>' +
+        '<td>' + fmt(lpsVal + extra) + '/s' + synPct + '</td>';
+      tbody.appendChild(tr);
+    }
+    engTbl.appendChild(tbody);
+    engSec.appendChild(engTbl);
+    panel.appendChild(engSec);
+  }
+
+  // v7.3: Support Staff section — hired staff + their trainer levels + recruiter/facility sub-upgrades
+  if (staffHired > 0) {
+    const staffSec = document.createElement('div');
+    staffSec.className = 'stats-section';
+    staffSec.innerHTML = '<div class="stats-sec-title">Support Staff</div>';
+    const staffTbl = document.createElement('table');
+    staffTbl.className = 'stats-table';
+    const stHead = document.createElement('thead');
+    stHead.innerHTML = '<tr><th>Staff</th><th>Status</th><th>Trainer Lv</th></tr>';
+    staffTbl.appendChild(stHead);
+    const stBody = document.createElement('tbody');
+    for (let i = 0; i < SUPPORT.length; i++) {
+      const owned = S.ss[i] >= 1;
+      if (!owned) continue;
+      const tLv = (S.trainerSSLvl && S.trainerSSLvl[i]) || 0;
+      const paused = S.sp[i] >= 1;
+      let extra = '';
+      // v7.3: surface Recruiter sub-upgrades + Facility sub-upgrades so players see what's active
+      if (i === SS.RECRUITER) {
+        const subs = RECRUITER_UPS.filter((_, idx) => (S.ru[idx] || 0) >= 1).length;
+        if (subs > 0) extra = ' <span style="color:#8b949e;font-size:.65rem">+' + subs + ' perks</span>';
+      } else if (i === SS.FACILITY) {
+        const subs = FACILITY_UPS.filter((_, idx) => (S.fu[idx] || 0) >= 1).length;
+        if (subs > 0) extra = ' <span style="color:#8b949e;font-size:.65rem">+' + subs + ' perks</span>';
+      }
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + SUPPORT[i].name + extra + '</td>' +
+        '<td>' + (paused ? '<span style="color:#f0883e">Paused</span>' : '<span style="color:#3fb950">Active</span>') + '</td>' +
+        '<td>' + (tLv > 0 ? 'Lv' + tLv + ' <span style="color:#3fb950;font-size:.65rem">(+' + tLv + '%)</span>' : '-') + '</td>';
+      stBody.appendChild(tr);
+    }
+    staffTbl.appendChild(stBody);
+    staffSec.appendChild(staffTbl);
+    panel.appendChild(staffSec);
+  }
+
+  // v7.3: Collection — rarity counts across ALL engineer types
+  if (totalEngineers > 0) {
+    const rarityCounts = [0, 0, 0, 0, 0];
+    for (const meta of unlockedTypes) {
+      for (const c of engList(meta.key)) {
+        if (c.rarity >= 0 && c.rarity < 5) rarityCounts[c.rarity]++;
+      }
+    }
+    const colSec = document.createElement('div');
+    colSec.className = 'stats-section';
+    colSec.innerHTML = '<div class="stats-sec-title">Collection</div>';
+    const colList = document.createElement('div');
+    colList.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px';
+    for (let r = 4; r >= 0; r--) {
+      if (rarityCounts[r] === 0 && r > 0) continue; // always show Common, hide empty higher rarities
+      const tag = document.createElement('span');
+      tag.className = RARITY_CLS[r];
+      tag.style.cssText = 'font-size:.7rem;padding:3px 10px;background:#0d1117;border:1px solid currentColor;border-radius:10px;font-weight:600';
+      tag.textContent = RARITY_NAMES[r] + ' \u00d7' + rarityCounts[r];
+      colList.appendChild(tag);
+    }
+    colSec.appendChild(colList);
+    panel.appendChild(colSec);
+  }
 
   // Category breakdown
   if (S.catsSeen.length > 0) {
@@ -4913,8 +5398,16 @@ function buyFame(bIdx, uIdx) {
   playSfx('buy');
 }
 
+// v7.3: ship requires every unlocked engineer type to meet its own threshold
+function canShip() {
+  if (!Array.isArray(S.unlockedTypes)) return false;
+  for (const type of S.unlockedTypes) {
+    if (engTRes(type) < engShipAt(type)) return false;
+  }
+  return true;
+}
 function ship() {
-  if (S.tLoc < shipAt()) return;
+  if (!canShip()) return;
   const year = currentYear();
   const lm = getLandmark(year);
   const name = lm.parody;
@@ -4933,34 +5426,60 @@ function ship() {
   S.fame += gain; S.tFame += gain;
   S.shipped++;
   S.fameResetUsed = 0;
-  // Golden Parachute: keep 5%×Lv of total LoC
-  const keepLoc = S.f.goldenParachute ? S.tLoc * 0.15 * S.f.goldenParachute : 0;
-  S.loc = 0;
-  S.tLoc = 0;
-  // v6.8: coders PERSIST across ships and gain +1 year of experience
+  // v7.2: severance cost resets to 500 base each ship
+  S.fireCount = 0;
+  // v7.2: ship is no longer a prestige reset — generators, equipment, clickers,
+  // support, recruiters, facilities, and resources all persist across ships.
+  // Engineers gain +1 year of experience per ship; exp can bump tier so rebuild S.g.
   if (!Array.isArray(S.coders)) S.coders = [];
   S.coders.forEach(c => { c.exp += 1; c.tier = computeTier(c.edu, c.exp, c.seed); });
-  S.g = GEN.map(() => 0);
+  // v7.3: also age engineers from the new types
+  if (S.engineers) {
+    for (const k in S.engineers) {
+      for (const c of (S.engineers[k].list || [])) {
+        c.exp += 1; c.tier = computeTier(c.edu, c.exp, c.seed);
+      }
+    }
+  }
+  // v7.3: bump shippedSince for every unlocked type so each one's threshold scales
+  if (Array.isArray(S.unlockedTypes) && S.engineers) {
+    for (const k of S.unlockedTypes) {
+      if (k === 'coder') continue;
+      if (S.engineers[k]) S.engineers[k].shippedSince = (S.engineers[k].shippedSince || 0) + 1;
+    }
+  }
   recomputeG();
-  S.eu = GEN.map(() => EMP_UPS.map(() => 0));
-  S.c = CLK.map(() => 0);
-  S.ss = SUPPORT.map(() => 0);
-  S.ru = RECRUITER_UPS.map(() => 0);
-  S.fu = FACILITY_UPS.map(() => 0);
   markDirty();
-  napTimer = 0; buyerTimer = 0; facilityTimer = 0; trainerTimer = 0; nytShown = 0; _nytPicked = null;
-  ctReset(); streakMul = 1; lastClickTime = 0;
+  // v7.3: year-based unlock for the next engineer type
+  const newYear = currentYear();
+  if (Array.isArray(S.unlockedTypes)) {
+    for (const meta of ENG_TYPES) {
+      if (meta.key === 'coder') continue;
+      if (newYear >= meta.unlockYear && !S.unlockedTypes.includes(meta.key)) {
+        S.unlockedTypes.push(meta.key);
+        toast('\u{1F389} New engineer type unlocked: ' + meta.name + ' (' + meta.res + ')');
+        log('\u{1F389} ' + meta.name + ' engineers can now be hired (\u2192 ' + meta.res + ')');
+      }
+    }
+    renderTypeTabs();
+    renderResourceBar();
+    renderShipPanel();
+  }
   // v6.8: Engine perk pushes starter coders into the roster (not just S.g)
   if (S.f.engine) {
-    // v6.9: auto-raise office so the 18 starters fit (needed cap = current + 18)
-    const needCap = (S.coders.length || 0) + 18;
-    while ((S.office || 0) < OFFICES.length - 1 && OFFICES[S.office || 0].cap < needCap) {
-      S.office = (S.office || 0) + 1;
+    // v7.3: auto-raise the active type's office so the 18 starters fit
+    const t = activeType();
+    if (!S.offices) S.offices = { coder:0, frontend:0, backend:0, network:0, security:0 };
+    const needCap = engList(t).length + 18;
+    while (S.offices[t] < OFFICES.length - 1 && OFFICES[S.offices[t]].cap < needCap) {
+      S.offices[t]++;
     }
+    if (t === 'coder') S.office = S.offices.coder;
     const starters = [[0,10],[1,5],[2,3]];
+    const targetList = engList(t);
     for (const [i, n] of starters) {
       for (let k = 0; k < n; k++) {
-        S.coders.push({
+        targetList.push({
           name: FIRST_NAMES[Math.floor(Math.random()*FIRST_NAMES.length)] + ' ' + LAST_NAMES[Math.floor(Math.random()*LAST_NAMES.length)],
           edu: Math.min(4, Math.floor(i/2) + 1),
           exp: Math.max(S.shipped, i * 2),
@@ -4973,10 +5492,16 @@ function ship() {
     recomputeG();
     markDirty();
   }
-  // Venture Capital: start with 1000×Lv LoC
-  if (S.f.ventureCapital) { const vc = Math.floor(shipAt() * 0.02 * S.f.ventureCapital); S.loc += vc; S.tLoc += vc; }
-  // Golden Parachute: carry over LoC
-  if (keepLoc > 0) { S.loc += keepLoc; S.tLoc += keepLoc; }
+  // Venture Capital: bonus to active type's resource per ship
+  if (S.f.ventureCapital) {
+    const vc = Math.floor(engShipAt(activeType()) * 0.02 * S.f.ventureCapital);
+    if (vc > 0) engAddRes(activeType(), vc);
+  }
+  // v7.2: Golden Parachute — bonus 15%×Lv of current Total of active type per ship
+  if (S.f.goldenParachute) {
+    const bonus = Math.floor(engTRes(activeType()) * 0.15 * S.f.goldenParachute);
+    if (bonus > 0) engAddRes(activeType(), bonus);
+  }
   clearOfficeSprites();
   isShipping = true;
   showYearTransition(year, name, lm.cat);
@@ -5090,6 +5615,7 @@ const _ofc = {
   lastCb: -1,
   lastUpdate: 0,
   factCache: [],     // random fact index per sprite
+  activeType: null,  // v7.3: which engineer type is currently rendered
   MAX_SPRITES: 50,
 };
 
@@ -5104,11 +5630,13 @@ function updateOfficeSprites() {
   if (now - _ofc.lastUpdate < 500) return;
   _ofc.lastUpdate = now;
 
-  // --- Coder sprites (v6.8: driven by S.coders, one row per tier) ---
+  // --- Engineer sprites (v7.3: driven by the ACTIVE engineer type, not all coders) ---
   const maxSprites = window.matchMedia('(max-width:480px)').matches ? 20 : _ofc.MAX_SPRITES;
-  // Group coders by tier, preserving hire order
+  const aType = activeType();
+  const activeList = engList(aType);
+  // Group by tier, preserving hire order
   const byTier = GEN.map(() => []);
-  for (const c of (S.coders || [])) byTier[c.tier].push(c);
+  for (const c of activeList) byTier[c.tier].push(c);
   let ownedTypes = 0;
   for (let i = 0; i < GEN.length; i++) if (byTier[i].length > 0) ownedTypes++;
   const perType = ownedTypes > 0 ? Math.floor(maxSprites / ownedTypes) : maxSprites;
@@ -5125,12 +5653,14 @@ function updateOfficeSprites() {
     }
   }
 
-  // v6.9: empty desk placeholders (cap - owned), capped at 30 visible
-  const totalOwned = (S.coders || []).length;
-  const emptyCount = Math.max(0, Math.min(coderCap() - totalOwned, 30));
+  // v7.3: empty desk count is per-active-type (uses that type's office cap)
+  const totalOwned = activeList.length;
+  const emptyCount = Math.max(0, Math.min(coderCap(aType) - totalOwned, 30));
 
-  // Diff against cache — rebuild only if changed (coder identity + exp + equipment + empty count)
-  let dirty = desired.length !== _ofc.spriteCache.length || emptyCount !== (_ofc.emptyCount || 0);
+  // Diff against cache — rebuild only if changed (active type, coder identity + exp + equipment + empty count)
+  let dirty = desired.length !== _ofc.spriteCache.length
+            || emptyCount !== (_ofc.emptyCount || 0)
+            || aType !== _ofc.activeType;
   if (!dirty) {
     for (let i = 0; i < desired.length; i++) {
       const d = desired[i], c = _ofc.spriteCache[i];
@@ -5144,6 +5674,7 @@ function updateOfficeSprites() {
     _ofc.el.innerHTML = '';
     _ofc.spriteCache = [];
     _ofc.emptyCount = emptyCount;
+    _ofc.activeType = aType;
     // Group desired by type into rows
     let curType = -1, curRow = null, rowIdx = 0, rowCount = 0;
     for (let i = 0; i < desired.length; i++) {
@@ -5277,9 +5808,11 @@ function tick(now) {
     const napInterval = NAP_INTERVAL / (1 + 0.5 * S.f.clickHackathon);
     if (napTimer >= napInterval) {
       napTimer = 0;
-      const burst = lps() * NAP_BURST_MUL * S.c[P.NAP] * (S.f.clickFrenzy ? 5 : 1) * streakMul * zoneMul * acPenalty() * bubbleMul();
-      S.loc += burst; S.tLoc += burst;
-      toast(t('napBurst') + ' +' + fmt(burst) + ' ' + t('loc'));
+      // v7.3: nap burst applies to the active type's resource (uses its lps)
+      const aType = activeType();
+      const burst = (_C.typeLps[aType] || 0) * NAP_BURST_MUL * S.c[P.NAP] * (S.f.clickFrenzy ? 5 : 1) * streakMul * zoneMul * acPenalty() * bubbleMul();
+      engAddRes(aType, burst);
+      toast(t('napBurst') + ' +' + fmt(burst) + ' ' + (ENG_TYPE_MAP[aType] ? ENG_TYPE_MAP[aType].res : t('loc')));
     }
   }
   // Caffeine IV: auto-clicks advance nap timer faster
@@ -5288,12 +5821,22 @@ function tick(now) {
     if (acTicks > 0) napTimer += dt * acTicks * 0.3;
   }
 
-  // Production
-  const rate = lps();
+  // Production — v7.3: each unlocked engineer type produces its own resource.
+  // Auto-clicks (autoClick perk, pet) feed the active type only since they
+  // simulate the player clicking the monitor.
+  recalcIfDirty();
+  const aType = activeType();
   const acRate = (S.f.autoClick + S.f.autoBotnet * 2 + petAutoClick()) * clickPow();
-  const totalProd = (rate + acRate) * dt * streakMul * zoneMul * acPenalty() * bubbleMul();
-  S.loc += totalProd;
-  S.tLoc += totalProd;
+  const tickMul = dt * streakMul * zoneMul * acPenalty() * bubbleMul();
+  for (const meta of ENG_TYPES) {
+    if (!isUnlocked(meta.key)) continue;
+    let typeRate = _C.typeLps[meta.key] || 0;
+    if (meta.key === aType) typeRate += acRate;
+    const prod = typeRate * tickMul;
+    if (prod > 0) engAddRes(meta.key, prod);
+  }
+  // Backward-compat aliases for the rest of the tick code
+  const rate = _C.typeLps[aType] || 0;
 
   // Pet dog animation
   if (!_petEl) { _petEl = document.getElementById('petDog'); if (_petEl) _petEl.addEventListener('click', petBark); }
@@ -5323,15 +5866,21 @@ function tick(now) {
   updateMusic();
 
   // Auto-ship
-  if (S.f.publisher && S.tLoc >= sa) ship();
+  if (S.f.publisher && canShip()) ship();
 
-  // Update top bar
+  // Update top bar (v7.3: dLoc/dLps reflect the active engineer type)
   dYear.textContent = currentYear();
   dCat.textContent = getLandmark(currentYear()).cat;
-  dLoc.textContent = fmt(S.loc);
-  dLps.textContent = fmt(rate + acRate) + '/s';
+  const _aMeta = activeTypeMeta();
+  dLoc.textContent = fmt(engRes(aType));
+  dLps.textContent = fmt(rate + (aType === activeType() ? acRate : 0)) + '/s';
+  if (_dLocLbl) _dLocLbl.textContent = _aMeta.res;
+  if (_dLpsLbl) _dLpsLbl.textContent = _aMeta.res + ' / sec';
   dFame.textContent = S.fame + (S.tFame > S.fame ? ' /' + S.tFame : '');
-  dCp.textContent = '+' + fmt(clickPow()) + ' ' + t('locPerClick');
+  dCp.textContent = '+' + fmt(clickPow()) + ' ' + _aMeta.res + '/click';
+  // Refresh type tabs (cheap soft refresh of resource counts)
+  refreshTypeTabValues();
+  refreshShipPanel();
   const fm = fameMul();
   const parts = [];
   if (fm > 1) parts.push(t('fame') + ' \u00d7' + fm.toFixed(1));
@@ -5341,14 +5890,25 @@ function tick(now) {
   dFm.textContent = parts.join(' \u2022 ');
   updateThermo();
 
-  // Progress bar
-  const pct = Math.min(S.tLoc / sa, 1);
+  // Progress bar — v7.3: shows the WORST progress across all unlocked types so the
+  // player sees their actual blocker. The `sa` cached above is the active type's
+  // ship target; we re-compute the slowest type's pct here.
+  let worstPct = 1;
+  for (const meta of ENG_TYPES) {
+    if (!isUnlocked(meta.key)) continue;
+    const target = engShipAt(meta.key);
+    if (target <= 0) continue;
+    const p = Math.min(engTRes(meta.key) / target, 1);
+    if (p < worstPct) worstPct = p;
+  }
+  const pct = worstPct;
   pFill.style.transform = 'scaleX(' + pct + ')';
   pTxt.textContent = '';
   const gain = fameGain();
   const lm = getLandmark(currentYear());
   shipBtn.textContent = t('shipVerb') + ' ' + lm.parody + '! (+' + gain + ' ' + t('fame') + ')';
-  shipBtn.classList.toggle('show', S.tLoc >= sa && !S.f.publisher);
+  const _canShipNow = canShip();
+  shipBtn.classList.toggle('show', _canShipNow && !S.f.publisher);
 
   // Find best-value coder (requires Secretary)
   let bestIdx = -1, bestEff = 0;
@@ -5494,25 +6054,31 @@ function tick(now) {
     if (_pc && _ph) {
       const _cost = packCost();
       const _cap = coderCap();
-      const _own = S.coders ? S.coders.length : 0;
+      // v7.3: pack count is per-active-type; display reflects active type's roster size
+      const _aT = activeType();
+      const _own = engList(_aT).length;
+      const _meta = activeTypeMeta();
       const _full = !canFitPack();
-      _pd.textContent = '5 random coders \u00b7 ' + _own + '/' + _cap;
+      _pd.textContent = '5 random ' + _meta.name.toLowerCase() + 's \u00b7 ' + _own + '/' + _cap;
       _pc.textContent = _full ? 'FULL' : fmt(_cost);
-      _ph.classList.toggle('no', _full || S.loc < _cost);
+      _ph.classList.toggle('no', _full || engRes(_aT) < _cost);
       _ph.classList.toggle('full', _full);
     }
   }
-  // v6.9: update Upgrade Office button
+  // v7.3: Upgrade Office button shows the ACTIVE type's office tier + cost
   {
     const _ot = document.getElementById('officeTitle');
     const _od = document.getElementById('officeDesc');
     const _oc = document.getElementById('officeCost');
     const _oh = document.getElementById('officeHeader');
     if (_ot && _oh) {
-      const cur = officeTier();
-      const nextIdx = (S.office || 0) + 1;
+      const _ofcType = activeType();
+      const _ofcMeta = activeTypeMeta();
+      const cur = officeTier(_ofcType);
+      const nextIdx = officeLvl(_ofcType) + 1;
       const maxed = nextIdx >= OFFICES.length;
-      _ot.textContent = cur.name + ' \u00b7 ' + coderCap() + ' seats \u00b7 \u00d7' + cur.prod.toFixed(2) + ' prod';
+      // v7.3: Drop redundant type name (already in tab above); compact seats/prod suffix
+      _ot.textContent = cur.name + ' \u00b7 ' + coderCap(_ofcType) + ' seats \u00b7 \u00d7' + cur.prod.toFixed(2);
       if (maxed) {
         _od.textContent = 'Max office reached';
         _oc.textContent = '';
@@ -5520,10 +6086,10 @@ function tick(now) {
         _oh.classList.add('maxed');
       } else {
         const nxt = OFFICES[nextIdx];
-        _od.textContent = 'Upgrade \u2192 ' + nxt.name + ' (' + nxt.cap + ' seats, \u00d7' + nxt.prod.toFixed(2) + ')';
-        const cost = officeCost();
-        _oc.textContent = fmt(cost);
-        _oh.classList.toggle('no', S.loc < cost);
+        _od.textContent = '\u2192 ' + nxt.name + ' (' + nxt.cap + ', \u00d7' + nxt.prod.toFixed(2) + ')';
+        const cost = officeCost(_ofcType);
+        _oc.textContent = fmt(cost) + ' ' + _ofcMeta.res;
+        _oh.classList.toggle('no', engRes(_ofcType) < cost);
         _oh.classList.remove('maxed');
       }
     }
@@ -5537,21 +6103,28 @@ function tick(now) {
 
     if (a === 'g') {
       // v6.8: tier rows are display-only. Shown when owned, or when the previous tier has coders.
+      // v7.3: owned/isOpen are per-active-type so switching tabs shows only that type's roster.
       const i = ref.idx;
-      const isOpen = S.g[i] >= 1 || i < 1 || S.g[i - 1] >= 1;
+      recalcIfDirty();
+      const _aT = activeType();
+      const tCounts = (_C.typeTierCount && _C.typeTierCount[_aT]) || [];
+      const ownedThis = tCounts[i] | 0;
+      const prevThis = tCounts[i - 1] | 0;
+      const isOpen = ownedThis >= 1 || i < 1 || prevThis >= 1;
       locked = !isOpen;
       afford = true;  // disable .no dimming — rows are display-only now
       maxed = false;
       if (isOpen) {
-        owned = S.g[i];
+        owned = ownedThis;
         costEl.textContent = '';
         const tLv = (S.trainerLvl && S.trainerLvl[i]) || 0;
         ownEl.textContent = owned ? '×' + owned + (tLv > 0 ? ' Lv' + tLv : '') : '\u2014';
         if (ref.rateEl) {
-          // v7.1: read the per-coder summed contribution cached in _C.tierLps
-          recalcIfDirty();
-          const tl = (_C.tierLps && _C.tierLps[i]) || 0;
-          const tierRate = tl * _C.genSpeedMul * _C.genSynergyMul * _C.prodMul;
+          // v7.3: per-tier sum for active type × active type's office prod
+          const tLpsArr = (_C.typeTierLps && _C.typeTierLps[_aT]) || _C.tierLps || [];
+          const tl = tLpsArr[i] || 0;
+          const tierSyn = (_C.typeTierSynergyMul && _C.typeTierSynergyMul[_aT]) || 1;
+          const tierRate = tl * _C.genSpeedMul * _C.genSynergyMul * tierSyn * _C.prodMul * officeProdMul(_aT);
           ref.rateEl.textContent = owned ? fmt(tierRate) + '/s' : '';
         }
         el.classList.toggle('best', i === bestIdx);
@@ -5759,6 +6332,7 @@ slotRow.addEventListener('click', e => {
   slotsEl.classList.add('hidden');
   gameEl.classList.remove('hidden');
   buildUI();
+  updateDeskScale();
   eventCooldown = 135 + Math.random() * 135;
   achCheckAcc = 0;
   last = performance.now();
@@ -5766,6 +6340,26 @@ slotRow.addEventListener('click', e => {
 });
 
 window.addEventListener('beforeunload', () => { if (!gameEl.classList.contains('hidden')) save(); });
+
+// ========== DESK SCENE RESPONSIVE SCALING ==========
+// v7.3: desk scene scales fluidly with the .left column width. Previously fixed at 2x;
+// v7.3 baseline is 1x (half the old size) and scales ~0.9x (tight) to ~1.15x (wide).
+// Margin-bottom compensates for transform:scale which does not affect layout box.
+function updateDeskScale() {
+  if (!deskScene) return;
+  const leftEl = deskScene.parentElement;
+  const w = leftEl ? leftEl.clientWidth : 320;
+  let s;
+  if (w <= 240) s = 0.9;
+  else if (w >= 520) s = 1.15;
+  else s = 0.9 + (w - 240) * (1.15 - 0.9) / (520 - 240);
+  deskScene.style.setProperty('--desk-scale', s.toFixed(3));
+  // offsetHeight is the unscaled box height; compensate only when scaled >1.
+  const h = deskScene.offsetHeight;
+  const compensate = s > 1 ? Math.round((s - 1) * h) : 0;
+  deskScene.style.marginBottom = compensate + 'px';
+}
+window.addEventListener('resize', updateDeskScale);
 
 // ========== MOBILE TAB SYSTEM ==========
 (function initMobileTabs() {
@@ -5795,6 +6389,7 @@ window.addEventListener('beforeunload', () => { if (!gameEl.classList.contains('
   function activate(key) {
     gameEl.dataset.tab = key;
     tabs.querySelectorAll('.mob-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
+    if (key === 'desk') updateDeskScale();
   }
   tabs.addEventListener('click', e => {
     const btn = e.target.closest('.mob-tab');
