@@ -104,6 +104,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .coder-sprite.r-r svg{filter:drop-shadow(0 0 3px #58a6ff)}
 .coder-sprite.r-e svg{filter:drop-shadow(0 0 4px #bc8cff)}
 .coder-sprite.r-l svg{filter:drop-shadow(0 0 6px #f0883e)}
+.coder-sprite.empty svg{animation:none;opacity:.45}
+.coder-row.empty-row{opacity:.65}
 @keyframes coderType{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
 
 /* Staff Inline Sprites — next to buy buttons */
@@ -179,10 +181,19 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .pack-header:hover{border-color:#58a6ff;background:linear-gradient(135deg,#1c2129,#161b22)}
 .pack-header.no{opacity:.45;cursor:default}
 .pack-header.no:hover{border-color:#30363d;background:linear-gradient(135deg,#161b22,#0d1117)}
+.pack-header.full{border-color:#f85149}
+.pack-header.full .pack-cost{color:#f85149}
 .pack-info{flex:1;min-width:0}
 .pack-title{font-size:.85rem;font-weight:700;color:#58a6ff}
 .pack-desc{font-size:.65rem;color:#8b949e;margin-top:2px}
 .pack-cost{font-size:.85rem;font-weight:700;color:#7ee787;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* v6.9 Office upgrade button (shares layout with .pack-header) */
+.office-header{display:flex;align-items:center;gap:10px;padding:8px 12px;margin:0 0 10px;background:linear-gradient(135deg,#161b22,#0d1117);border:1px solid #30363d;border-radius:6px;cursor:pointer;transition:border-color .15s,background .15s}
+.office-header:hover{border-color:#d29922;background:linear-gradient(135deg,#1c2129,#161b22)}
+.office-header.no{opacity:.45;cursor:default}
+.office-header.no:hover{border-color:#30363d;background:linear-gradient(135deg,#161b22,#0d1117)}
+.office-header.maxed{opacity:.6;cursor:default;border-color:#30363d}
+.office-title{font-size:.8rem;font-weight:700;color:#d29922}
 
 /* v6.8 Rarity colors */
 .r-c{color:#7d8590}
@@ -1659,7 +1670,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.8';
+const GAME_VERSION = '6.9';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -1795,6 +1806,16 @@ function coderSVG(type, deskT, chairT, pcT) {
     <circle cx="10" cy="4" r="3" fill="${c}"/>
     <rect x="7" y="7" width="6" height="6" rx="1" fill="${c}" opacity=".85"/>
     <rect class="typer" x="13" y="10" width="2" height="1.5" rx=".5" fill="${c}" opacity=".7"/>
+  </svg>`;
+}
+
+// v6.9: empty desk placeholder (no coder figure)
+function emptyDeskSVG() {
+  return `<svg width="24" height="20" viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg">
+    <rect x="8" y="14" width="8" height="6" rx="1" fill="#30363d" opacity=".5"/>
+    <rect x="4" y="13" width="16" height="3" rx="1" fill="#21262d"/>
+    <rect x="5" y="16" width="14" height="1" fill="#161b22"/>
+    <rect x="14" y="8" width="5" height="5" rx="1" fill="#0d1117" stroke="#30363d" stroke-width=".5"/>
   </svg>`;
 }
 
@@ -2181,6 +2202,7 @@ const defaults = () => ({
   meetingPaused: 0,
   fameResetUsed: 0,
   coders: [],
+  office: 0,
   sp: SUPPORT.map(() => 0),
   trainerLvl: GEN.map(() => 0),
   trainerSSLvl: SUPPORT.map(() => 0),
@@ -2293,6 +2315,14 @@ function loadSlot(raw) {
       d._coderRework = 1;
     }
     if (!Array.isArray(d.coders)) d.coders = [];
+    // v6.9 migration: grant office tier large enough to hold existing coders
+    if (!d._v69office) {
+      if (typeof d.office !== 'number') d.office = 0;
+      while (d.office < OFFICES.length - 1 && OFFICES[d.office].cap < d.coders.length) {
+        d.office++;
+      }
+      d._v69office = 1;
+    }
     // Apply state first, then calculate offline progress using cached multipliers
     S = d;
     markDirty();
@@ -2352,6 +2382,8 @@ function recalcIfDirty() {
   let pm = energyPerkMul() * daycareMul() * gymMul() * retreatMul() * _C.fameMul * (1 + cbBonus('prod'));
   // Open Source: +5% production per shipped game per level
   if (S.f.genOpenSource) pm *= (1 + 0.05 * S.f.genOpenSource * S.shipped);
+  // v6.9: Office tier production multiplier
+  pm *= officeProdMul();
   _C.prodMul = pm;
   _C.hireCostMul = (0.9 ** S.f.genCheap) * (0.85 ** S.f.genAcquihire) * deskDiscount() * ptoDiscount() * (1 - cbBonus('cheap'));
   _C.genSpeedMul = (1 + 0.25 * S.f.genSpeed) * (1 + 0.15 * S.f.genThreads) * (1 + cbBonus('speed'));
@@ -3246,11 +3278,24 @@ function buildUI() {
     ph.id = 'packHeader';
     const pInfo = document.createElement('div'); pInfo.className = 'pack-info';
     const pTitle = document.createElement('div'); pTitle.className = 'pack-title'; pTitle.textContent = 'Hire Pack';
-    const pDesc = document.createElement('div'); pDesc.className = 'pack-desc'; pDesc.textContent = '5 random coders';
+    const pDesc = document.createElement('div'); pDesc.className = 'pack-desc'; pDesc.id = 'packDesc'; pDesc.textContent = '5 random coders';
     pInfo.append(pTitle, pDesc);
     const pCost = document.createElement('div'); pCost.className = 'pack-cost'; pCost.id = 'packCost';
     ph.append(pInfo, pCost);
     frag.appendChild(ph);
+  }
+  // v6.9: Upgrade Office button
+  {
+    const oh = document.createElement('div');
+    oh.className = 'office-header';
+    oh.id = 'officeHeader';
+    const oInfo = document.createElement('div'); oInfo.className = 'pack-info';
+    const oTitle = document.createElement('div'); oTitle.className = 'office-title'; oTitle.id = 'officeTitle'; oTitle.textContent = 'Office';
+    const oDesc = document.createElement('div'); oDesc.className = 'pack-desc'; oDesc.id = 'officeDesc';
+    oInfo.append(oTitle, oDesc);
+    const oCost = document.createElement('div'); oCost.className = 'pack-cost'; oCost.id = 'officeCost';
+    oh.append(oInfo, oCost);
+    frag.appendChild(oh);
   }
   GEN.forEach((g, i) => {
     // Main employee row (same as row() but with toggle button)
@@ -3936,6 +3981,37 @@ function recruiterPackDiscount() {
   if (S.c && S.c[P.MEETING]) mul *= 0.85;
   return mul;
 }
+// v6.9: Office tiers — cap = max coders in roster, prod = flat production multiplier
+const OFFICES = [
+  { name: 'Garage',        cap:  20, cost: 0,      prod: 1.00 },
+  { name: 'Coworking Desk',cap:  35, cost: 5e3,    prod: 1.10 },
+  { name: 'Startup Loft',  cap:  55, cost: 1e5,    prod: 1.20 },
+  { name: 'Small Office',  cap:  85, cost: 3e6,    prod: 1.35 },
+  { name: 'Open Floor',    cap: 130, cost: 1e8,    prod: 1.55 },
+  { name: 'Tower Floor',   cap: 200, cost: 5e9,    prod: 1.80 },
+  { name: 'Company HQ',    cap: 300, cost: 2.5e11, prod: 2.10 },
+  { name: 'Campus',        cap: 500, cost: 1e13,   prod: 2.50 },
+];
+function officeTier() { return OFFICES[Math.max(0, Math.min(OFFICES.length - 1, S.office || 0))]; }
+function coderCap() { return officeTier().cap; }
+function officeProdMul() { return officeTier().prod; }
+function officeCost() {
+  const next = (S.office || 0) + 1;
+  if (next >= OFFICES.length) return Infinity;
+  return Math.floor(OFFICES[next].cost * shipInflation());
+}
+function canFitPack() { return (S.coders ? S.coders.length : 0) + 5 <= coderCap(); }
+function buyOffice() {
+  const next = (S.office || 0) + 1;
+  if (next >= OFFICES.length) return;
+  const cost = officeCost();
+  if (S.loc < cost) { toast('Not enough LoC'); return; }
+  S.loc -= cost;
+  S.office = next;
+  markDirty();
+  playSfx('buy');
+  log('\u{1F3E2} Moved to ' + OFFICES[next].name);
+}
 function packCost() {
   const total = S.coders ? S.coders.length : 0;
   const base = 100;
@@ -3944,6 +4020,7 @@ function packCost() {
 }
 function buyPack() {
   if (!S.coders) S.coders = [];
+  if (!canFitPack()) { toast('Office full \u2014 upgrade office'); return; }
   const cost = packCost();
   if (S.loc < cost) { toast(t('hired') ? 'Not enough LoC' : 'Not enough LoC'); return; }
   S.loc -= cost;
@@ -4560,6 +4637,11 @@ function ship() {
   ctReset(); streakMul = 1; lastClickTime = 0;
   // v6.8: Engine perk pushes starter coders into the roster (not just S.g)
   if (S.f.engine) {
+    // v6.9: auto-raise office so the 18 starters fit (needed cap = current + 18)
+    const needCap = (S.coders.length || 0) + 18;
+    while ((S.office || 0) < OFFICES.length - 1 && OFFICES[S.office || 0].cap < needCap) {
+      S.office = (S.office || 0) + 1;
+    }
     const starters = [[0,10],[1,5],[2,3]];
     for (const [i, n] of starters) {
       for (let k = 0; k < n; k++) {
@@ -4594,6 +4676,8 @@ $('G').addEventListener('click', e => {
   if (e.target.closest('#mon')) return doClick(e);
   // v6.8: Hire Pack button
   if (e.target.closest('#packHeader')) { buyPack(); return; }
+  // v6.9: Upgrade Office button
+  if (e.target.closest('#officeHeader')) { buyOffice(); return; }
   // Quantity selector
   const qBtn = e.target.closest('.qty-btn');
   if (qBtn) {
@@ -4726,8 +4810,12 @@ function updateOfficeSprites() {
     }
   }
 
-  // Diff against cache — rebuild only if changed (coder identity + exp + equipment)
-  let dirty = desired.length !== _ofc.spriteCache.length;
+  // v6.9: empty desk placeholders (cap - owned), capped at 30 visible
+  const totalOwned = (S.coders || []).length;
+  const emptyCount = Math.max(0, Math.min(coderCap() - totalOwned, 30));
+
+  // Diff against cache — rebuild only if changed (coder identity + exp + equipment + empty count)
+  let dirty = desired.length !== _ofc.spriteCache.length || emptyCount !== (_ofc.emptyCount || 0);
   if (!dirty) {
     for (let i = 0; i < desired.length; i++) {
       const d = desired[i], c = _ofc.spriteCache[i];
@@ -4740,6 +4828,7 @@ function updateOfficeSprites() {
   if (dirty) {
     _ofc.el.innerHTML = '';
     _ofc.spriteCache = [];
+    _ofc.emptyCount = emptyCount;
     // Group desired by type into rows
     let curType = -1, curRow = null, rowIdx = 0, rowCount = 0;
     for (let i = 0; i < desired.length; i++) {
@@ -4779,6 +4868,22 @@ function updateOfficeSprites() {
         type: d.type, deskT: d.deskT, chairT: d.chairT, pcT: d.pcT,
         el: div
       });
+    }
+    // v6.9: append empty desks in their own row(s)
+    if (emptyCount > 0) {
+      const emptyRow = document.createElement('div');
+      emptyRow.className = 'coder-row empty-row';
+      _ofc.el.appendChild(emptyRow);
+      for (let k = 0; k < emptyCount; k++) {
+        const div = document.createElement('div');
+        div.className = 'coder-sprite empty';
+        div.innerHTML = emptyDeskSVG();
+        const tip = document.createElement('div');
+        tip.className = 'sprite-tip';
+        tip.textContent = 'Empty desk';
+        div.appendChild(tip);
+        emptyRow.appendChild(div);
+      }
     }
   }
 
@@ -5066,14 +5171,46 @@ function tick(now) {
     pendingOfflineMsg = null;
   }
 
-  // v6.8: update Hire Pack button cost + afford state
+  // v6.8: update Hire Pack button cost + afford state + v6.9 capacity
   {
     const _pc = document.getElementById('packCost');
+    const _pd = document.getElementById('packDesc');
     const _ph = document.getElementById('packHeader');
     if (_pc && _ph) {
       const _cost = packCost();
-      _pc.textContent = fmt(_cost);
-      _ph.classList.toggle('no', S.loc < _cost);
+      const _cap = coderCap();
+      const _own = S.coders ? S.coders.length : 0;
+      const _full = !canFitPack();
+      _pd.textContent = '5 random coders \u00b7 ' + _own + '/' + _cap;
+      _pc.textContent = _full ? 'FULL' : fmt(_cost);
+      _ph.classList.toggle('no', _full || S.loc < _cost);
+      _ph.classList.toggle('full', _full);
+    }
+  }
+  // v6.9: update Upgrade Office button
+  {
+    const _ot = document.getElementById('officeTitle');
+    const _od = document.getElementById('officeDesc');
+    const _oc = document.getElementById('officeCost');
+    const _oh = document.getElementById('officeHeader');
+    if (_ot && _oh) {
+      const cur = officeTier();
+      const nextIdx = (S.office || 0) + 1;
+      const maxed = nextIdx >= OFFICES.length;
+      _ot.textContent = cur.name + ' \u00b7 ' + coderCap() + ' seats \u00b7 \u00d7' + cur.prod.toFixed(2) + ' prod';
+      if (maxed) {
+        _od.textContent = 'Max office reached';
+        _oc.textContent = '';
+        _oh.classList.add('no');
+        _oh.classList.add('maxed');
+      } else {
+        const nxt = OFFICES[nextIdx];
+        _od.textContent = 'Upgrade \u2192 ' + nxt.name + ' (' + nxt.cap + ' seats, \u00d7' + nxt.prod.toFixed(2) + ')';
+        const cost = officeCost();
+        _oc.textContent = fmt(cost);
+        _oh.classList.toggle('no', S.loc < cost);
+        _oh.classList.remove('maxed');
+      }
     }
   }
 
