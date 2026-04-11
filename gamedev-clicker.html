@@ -734,7 +734,7 @@ const T={en:{
   clickInfo:'Click the monitor to write code',locPerClick:'LoC per click',
   desk:'Desk',coders:'Coders',supportStaff:'Support Staff',officePerks:'Office Perks',codeBase:'Code Base',
   max:'Max',skillTree:'Skill Tree',achievements:'Achievements',stats:'Stats',btnContinue:'Continue',
-  roster:'Roster',rosterTitle:'Coder Roster',rosterSynergy:'Rarity Set Bonuses',
+  roster:'Roster',rosterTitle:'Coder Roster',rosterSynergy:'Tier Set Bonuses',
   filterAll:'All',sortRarity:'Rarity',sortTier:'Tier',sortExp:'Exp',sortLps:'LPS',
   fire:'Fire',fireConfirm:'Fire?',
   locToShip:'LoC to ship',shipVerb:'Ship',
@@ -2410,7 +2410,7 @@ const SS = { SECRETARY:0, RECRUITER:1, FACILITY:2, TRAINER:3 };
 
 // ========== MULTIPLIER CACHE ==========
 let _dirty = true;
-const _C = { prodMul:1, genSpeedMul:1, genSynergyMul:1, raritySynergyMul:1, fameMul:1, clickPow:1, lps:0, shipAt:0, hireCostMul:1, euMul:[], rarityCount:[0,0,0,0,0] };
+const _C = { prodMul:1, genSpeedMul:1, genSynergyMul:1, tierSynergyMul:1, fameMul:1, clickPow:1, lps:0, shipAt:0, hireCostMul:1, euMul:[], tierCount:[] };
 function markDirty() { _dirty = true; }
 function recalcIfDirty() {
   if (!_dirty) return;
@@ -2441,9 +2441,9 @@ function recalcIfDirty() {
   const evMul = (activeEvent && !activeEvent.pending) ? activeEvent.mul : 1;
   const evClk = (activeEvent && !activeEvent.pending) ? activeEvent.clickMul : 1;
   // v7.1: per-coder production — iterate S.coders so rarity + exp actually matter
-  // v7.2: count rarities in the same pass for set-bonus synergy
+  // v7.2: count by tier in the same pass for set-bonus synergy
   const tierLps = new Array(GEN.length).fill(0);
-  const rarityCount = [0, 0, 0, 0, 0];
+  const tierCount = new Array(GEN.length).fill(0);
   let lpsVal = 0;
   const _coders = Array.isArray(S.coders) ? S.coders : [];
   for (const c of _coders) {
@@ -2452,16 +2452,15 @@ function recalcIfDirty() {
     const contrib = GEN[t].rate * _C.euMul[t] * coderProdMul(c);
     tierLps[t] += contrib;
     lpsVal += contrib;
-    const r = c.rarity | 0;
-    if (r >= 0 && r < 5) rarityCount[r]++;
+    tierCount[t]++;
   }
   _C.tierLps = tierLps;
-  _C.rarityCount = rarityCount;
-  // v7.2: sum set-bonus contributions across rarities into raritySynergyMul
-  let rarityBonusSum = 0;
-  for (let r = 0; r < 5; r++) rarityBonusSum += rarityTierBonus(rarityCount[r]);
-  _C.raritySynergyMul = 1 + rarityBonusSum;
-  _C.lps = lpsVal * _C.genSpeedMul * _C.genSynergyMul * _C.raritySynergyMul * _C.prodMul * evMul;
+  _C.tierCount = tierCount;
+  // v7.2: sum set-bonus contributions across tiers into tierSynergyMul
+  let tierBonusSum = 0;
+  for (let i = 0; i < GEN.length; i++) tierBonusSum += setTierBonus(tierCount[i]);
+  _C.tierSynergyMul = 1 + tierBonusSum;
+  _C.lps = lpsVal * _C.genSpeedMul * _C.genSynergyMul * _C.tierSynergyMul * _C.prodMul * evMul;
   _C.clickPow = (1 + lunchBonus()) * gameRoomMul() * (1 + S.f.clickDouble) * _C.prodMul * evClk * (1 + cbBonus('click'));
   _C.shipAt = Math.floor(1e6 * (S.shipped <= 3 ? 10 ** S.shipped : 1e3 * 5 ** (S.shipped - 3)) * (0.9 ** S.f.franchise));
 }
@@ -4036,16 +4035,16 @@ function coderProdMul(c) {
   const e = 1 + Math.min(0.50, 0.01 * (c.exp || 0));
   return r * e;
 }
-// v7.2: Rarity set bonuses — same thresholds for every rarity, applied independently.
-// Highest met threshold wins per rarity; sum across all rarities becomes _C.raritySynergyMul.
-const RARITY_SET_TIERS = [
+// v7.2: Tier set bonuses — same thresholds for every coder tier, applied independently.
+// Highest met threshold wins per tier; sum across all tiers becomes _C.tierSynergyMul.
+const SET_TIERS = [
   { n: 3,  bonus: 0.05 },
   { n: 10, bonus: 0.10 },
   { n: 25, bonus: 0.20 },
 ];
-function rarityTierBonus(count) {
+function setTierBonus(count) {
   let b = 0;
-  for (const t of RARITY_SET_TIERS) if (count >= t.n) b = t.bonus;
+  for (const t of SET_TIERS) if (count >= t.n) b = t.bonus;
   return b;
 }
 function rollCoder() {
@@ -4307,7 +4306,7 @@ function _coderContribLps(c) {
   const ti = c.tier | 0;
   if (ti < 0 || ti >= GEN.length) return 0;
   return GEN[ti].rate * _C.euMul[ti] * coderProdMul(c)
-       * _C.genSpeedMul * _C.genSynergyMul * _C.raritySynergyMul * _C.prodMul;
+       * _C.genSpeedMul * _C.genSynergyMul * _C.tierSynergyMul * _C.prodMul;
 }
 
 // Build roster contents into a panel element. Used by both openRoster (modal)
@@ -4329,7 +4328,7 @@ function buildRosterInto(panel, isModal) {
 
   const synTitle = document.createElement('div');
   synTitle.className = 'stats-sec-title';
-  synTitle.textContent = t('rosterSynergy') || 'Rarity Set Bonuses';
+  synTitle.textContent = t('rosterSynergy') || 'Tier Set Bonuses';
   panel.appendChild(synTitle);
   const synBox = document.createElement('div');
   synBox.className = 'roster-syn';
@@ -4349,31 +4348,40 @@ function buildRosterInto(panel, isModal) {
   function rebuildHeader() {
     recalcIfDirty();
     synBox.innerHTML = '';
-    const counts = _C.rarityCount || [0,0,0,0,0];
-    for (let r = 0; r < 5; r++) {
+    const counts = _C.tierCount || [];
+    // Only show rows for tiers the player has unlocked (count > 0) to keep
+    // the header tight; players see tiers appear as they hire.
+    for (let i = 0; i < GEN.length; i++) {
+      if ((counts[i] || 0) === 0) continue;
       const row = document.createElement('div');
       row.className = 'roster-syn-row';
       const name = document.createElement('span');
-      name.className = 'rn ' + RARITY_CLS[r];
-      name.textContent = RARITY_NAMES[r];
+      name.className = 'rn';
+      name.textContent = GEN[i].name;
       const cnt = document.createElement('span');
       cnt.className = 'rc';
-      cnt.textContent = counts[r] + ' owned';
-      const cur = rarityTierBonus(counts[r]);
+      cnt.textContent = (counts[i] || 0) + ' owned';
+      const cur = setTierBonus(counts[i] || 0);
       const bonus = document.createElement('span');
       bonus.className = 'rb';
       bonus.textContent = cur > 0 ? '+' + Math.round(cur * 100) + '%' : '—';
       const prog = document.createElement('span');
       prog.className = 'rp';
       let nextN = 0, nextB = 0;
-      for (const tier of RARITY_SET_TIERS) { if (counts[r] < tier.n) { nextN = tier.n; nextB = tier.bonus; break; } }
+      for (const tier of SET_TIERS) { if ((counts[i] || 0) < tier.n) { nextN = tier.n; nextB = tier.bonus; break; } }
       if (nextN > 0) {
-        prog.textContent = (nextN - counts[r]) + ' more → +' + Math.round(nextB * 100) + '%';
+        prog.textContent = (nextN - (counts[i] || 0)) + ' more → +' + Math.round(nextB * 100) + '%';
       } else {
         prog.textContent = 'MAX';
       }
       row.append(name, cnt, bonus, prog);
       synBox.appendChild(row);
+    }
+    if (synBox.children.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color:#8b949e;font-size:.65rem;text-align:center;padding:4px';
+      empty.textContent = 'Hire coders to unlock tier bonuses';
+      synBox.appendChild(empty);
     }
   }
 
