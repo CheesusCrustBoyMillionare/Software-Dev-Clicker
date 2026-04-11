@@ -1670,7 +1670,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.9';
+const GAME_VERSION = '7.1';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -2323,6 +2323,15 @@ function loadSlot(raw) {
       }
       d._v69office = 1;
     }
+    // v7.1 migration: per-coder production formula — zero exp on existing coders
+    // so the new +1%/yr bonus doesn't silently buff historic rosters on load.
+    // Ship-earned exp accrues from v7.1 forward.
+    if (!d._v71prodFormula) {
+      if (Array.isArray(d.coders)) {
+        for (const c of d.coders) c.exp = 0;
+      }
+      d._v71prodFormula = 1;
+    }
     // Apply state first, then calculate offline progress using cached multipliers
     S = d;
     markDirty();
@@ -2403,8 +2412,18 @@ function recalcIfDirty() {
   }
   const evMul = (activeEvent && !activeEvent.pending) ? activeEvent.mul : 1;
   const evClk = (activeEvent && !activeEvent.pending) ? activeEvent.clickMul : 1;
+  // v7.1: per-coder production — iterate S.coders so rarity + exp actually matter
+  const tierLps = new Array(GEN.length).fill(0);
   let lpsVal = 0;
-  for (let i = 0; i < GEN.length; i++) lpsVal += GEN[i].rate * S.g[i] * _C.euMul[i];
+  const _coders = Array.isArray(S.coders) ? S.coders : [];
+  for (const c of _coders) {
+    const t = c.tier | 0;
+    if (t < 0 || t >= GEN.length) continue;
+    const contrib = GEN[t].rate * _C.euMul[t] * coderProdMul(c);
+    tierLps[t] += contrib;
+    lpsVal += contrib;
+  }
+  _C.tierLps = tierLps;
   _C.lps = lpsVal * _C.genSpeedMul * _C.genSynergyMul * _C.prodMul * evMul;
   _C.clickPow = (1 + lunchBonus()) * gameRoomMul() * (1 + S.f.clickDouble) * _C.prodMul * evClk * (1 + cbBonus('click'));
   _C.shipAt = Math.floor(1e6 * (S.shipped <= 3 ? 10 ** S.shipped : 1e3 * 5 ** (S.shipped - 3)) * (0.9 ** S.f.franchise));
@@ -3959,6 +3978,18 @@ function computeTier(edu, exp, seed) {
   const jitter = seed < 0.33 ? -1 : seed < 0.66 ? 0 : 1;
   return Math.max(0, Math.min(GEN.length - 1, base + jitter));
 }
+// v7.1: Per-coder production multipliers — rarity + experience
+// Commons stay neutral (1.0) so new-player pack feel is unchanged.
+// Rare-tier multipliers interact with tier correlation (high rarities land
+// in high tiers), so measured buff on a natural roster is ~25% — treated as
+// a v7.1 launch bonus for existing saves.
+const RARITY_MUL = [1.00, 1.08, 1.22, 1.50, 2.00]; // C, U, R, E, L
+function coderProdMul(c) {
+  const r = RARITY_MUL[c.rarity] || 1;
+  // +1% per year of exp, soft-capped at +50%
+  const e = 1 + Math.min(0.50, 0.01 * (c.exp || 0));
+  return r * e;
+}
 function rollCoder() {
   const rarity = rollRarity();
   const [eMin, eMax] = RARITY_EDU[rarity];
@@ -5233,8 +5264,11 @@ function tick(now) {
         const tLv = (S.trainerLvl && S.trainerLvl[i]) || 0;
         ownEl.textContent = owned ? '×' + owned + (tLv > 0 ? ' Lv' + tLv : '') : '\u2014';
         if (ref.rateEl) {
-          const perUnit = GEN[i].rate * euMul(i) * genSpeedMul() * genSynergyMul() * prodMul();
-          ref.rateEl.textContent = owned ? fmt(perUnit * owned) + '/s' : '';
+          // v7.1: read the per-coder summed contribution cached in _C.tierLps
+          recalcIfDirty();
+          const tl = (_C.tierLps && _C.tierLps[i]) || 0;
+          const tierRate = tl * _C.genSpeedMul * _C.genSynergyMul * _C.prodMul;
+          ref.rateEl.textContent = owned ? fmt(tierRate) + '/s' : '';
         }
         el.classList.toggle('best', i === bestIdx);
       }
