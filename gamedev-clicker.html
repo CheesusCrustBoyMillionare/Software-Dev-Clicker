@@ -118,6 +118,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 /* Sprite Tooltip */
 .sprite-tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:.5rem;color:#e6edf3;white-space:nowrap;pointer-events:none;z-index:20;opacity:0;transition:opacity .15s;text-align:center;line-height:1.3}
 .sprite-tip b{color:#f0f6fc}
+.sprite-tip .tip-fact{color:#8b949e;font-style:italic}
 .coder-sprite:hover .sprite-tip,.staff-sprite-inline:hover .sprite-tip{opacity:1}
 
 /* Pet dog auto-clicker */
@@ -4759,9 +4760,15 @@ function updateOfficeSprites() {
       div.innerHTML = coderSVG(d.type, d.deskT, d.chairT, d.pcT);
       const tip = document.createElement('div');
       tip.className = 'sprite-tip';
+      // Stable fact pick via seed: strip the prefix "Name. " from the canned fact
+      const factList = CODER_FACTS[d.type] || [];
+      const fact = factList.length
+        ? factList[Math.floor(c.seed * factList.length) % factList.length].replace(/^[^.]+\.\s*/, '')
+        : '';
       tip.innerHTML = '<b>' + c.name + '</b><br>' +
                       '<span class="' + rCls + '">' + RARITY_NAMES[c.rarity] + '</span> ' + GEN[d.type].name + '<br>' +
-                      EDU_NAMES[c.edu] + ' \u2022 ' + c.exp + ' yr';
+                      EDU_NAMES[c.edu] + ' \u2022 ' + c.exp + ' yr' +
+                      (fact ? '<br><i class="tip-fact">' + fact + '</i>' : '');
       if (rowIdx < 2) { tip.style.left = '0'; tip.style.transform = 'none'; }
       else if (rowIdx >= rowCount - 2) { tip.style.left = 'auto'; tip.style.right = '0'; tip.style.transform = 'none'; }
       div.appendChild(tip);
