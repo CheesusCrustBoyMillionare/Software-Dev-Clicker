@@ -20,10 +20,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 
 /* Main Layout */
 .main{display:flex;flex:1;overflow:hidden}
-.left{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;overflow:hidden}
-.left-panel{width:300px;min-width:180px;background:#161b22;border-right:1px solid #30363d;overflow-y:auto;padding:10px;flex-shrink:1;position:relative;z-index:2}
-.right{width:500px;min-width:400px;background:#161b22;border-left:1px solid #30363d;display:flex;flex-shrink:1;position:relative;z-index:2}
-.right-log{flex:1;min-width:0;display:flex;flex-direction:column;padding:10px;border-right:1px solid #21262d}
+.left{flex:1;min-width:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;overflow:hidden}
+.left-log{width:220px;min-width:180px;background:#161b22;border-right:1px solid #30363d;display:flex;flex-direction:column;padding:10px;overflow:hidden;flex-shrink:1;position:relative;z-index:2}
+.left-panel{width:280px;min-width:180px;background:#161b22;border-right:1px solid #30363d;overflow-y:auto;padding:10px;flex-shrink:1;position:relative;z-index:2}
+.right{width:520px;min-width:420px;background:#161b22;border-left:1px solid #30363d;display:flex;flex-shrink:1;position:relative;z-index:2}
+.right-roster{flex:1;min-width:0;display:flex;flex-direction:column;padding:10px;border-right:1px solid #21262d;overflow-y:auto}
 .right-coders{flex:1;min-width:0;overflow-y:auto;padding:10px}
 
 /* Desk Scene */
@@ -356,6 +357,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 
 /* v7.2: Roster modal */
 .roster-panel{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;width:560px;max-width:calc(100vw - 24px);max-height:80vh;overflow-y:auto;position:relative}
+/* Always-open roster column reuses .roster-* sub-rules; .right-roster wrapper provides padding/scroll */
+.right-roster .stats-title{font-size:1rem;margin-bottom:6px}
+.right-roster .roster-row .r-meta{max-width:none;flex-shrink:1}
+.right-roster .roster-row .r-lps{width:auto;min-width:60px}
 .roster-syn{display:grid;grid-template-columns:1fr;gap:4px;margin:4px 0 14px;padding:8px;background:#0d1117;border:1px solid #21262d;border-radius:6px}
 .roster-syn-row{display:flex;align-items:center;gap:8px;font-size:.7rem}
 .roster-syn-row .rn{width:80px;font-weight:700}
@@ -538,24 +543,22 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
   .main{flex-direction:column;overflow:hidden}
 
   /* Default: hide all, desk tab shows center */
-  .game .left-panel,.game .right{display:none;overflow-y:auto}
+  .game .left-log,.game .left-panel,.game .right{display:none;overflow-y:auto}
   .game .left{display:flex;flex:1;overflow-y:auto}
 
   .game[data-tab="desk"] .left{display:flex;flex:1}
-  .game[data-tab="desk"] .left-panel,.game[data-tab="desk"] .right{display:none}
+  .game[data-tab="desk"] .left-log,.game[data-tab="desk"] .left-panel,.game[data-tab="desk"] .right{display:none}
 
-  .game[data-tab="coders"] .left,.game[data-tab="coders"] .left-panel{display:none}
+  .game[data-tab="coders"] .left,.game[data-tab="coders"] .left-log,.game[data-tab="coders"] .left-panel{display:none}
   .game[data-tab="coders"] .right{display:flex;flex-direction:column;flex:1;width:100%;min-width:0;overflow-y:auto}
-  .game[data-tab="coders"] .right-log{display:none}
+  .game[data-tab="coders"] .right-roster{display:flex;flex:0 0 auto;max-height:50vh;overflow-y:auto;border:none;border-bottom:1px solid #21262d}
   .game[data-tab="coders"] .right-coders{display:block;flex:1;overflow-y:auto;border:none}
 
-  .game[data-tab="upgrades"] .left,.game[data-tab="upgrades"] .right{display:none}
+  .game[data-tab="upgrades"] .left,.game[data-tab="upgrades"] .left-log,.game[data-tab="upgrades"] .right{display:none}
   .game[data-tab="upgrades"] .left-panel{display:block;flex:1;width:100%;min-width:0;overflow-y:auto;border:none}
 
-  .game[data-tab="log"] .left,.game[data-tab="log"] .left-panel{display:none}
-  .game[data-tab="log"] .right{display:flex;flex-direction:column;flex:1;width:100%;min-width:0;overflow-y:auto}
-  .game[data-tab="log"] .right-log{display:block;flex:1;overflow-y:auto;border:none}
-  .game[data-tab="log"] .right-coders{display:none}
+  .game[data-tab="log"] .left,.game[data-tab="log"] .left-panel,.game[data-tab="log"] .right{display:none}
+  .game[data-tab="log"] .left-log{display:flex;flex-direction:column;flex:1;width:100%;min-width:0;overflow-y:auto;border:none}
 
   /* Top bar: wrap on small screens */
   .top-bar{flex-wrap:wrap;padding:6px 10px;gap:2px 10px;justify-content:center}
@@ -672,6 +675,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
     <div class="stat fame"><div class="stat-val" id="dFame">0</div><div class="stat-lbl">Fame</div></div>
   </div>
   <div class="main">
+    <div class="left-log" id="logCol"></div>
     <div class="left-panel" id="ups2"></div>
     <div class="left">
       <div class="desk-scene" id="deskScene">
@@ -704,7 +708,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
       <div class="fame-mult" id="dFm"></div>
     </div>
     <div class="right">
-      <div class="right-log" id="logCol"></div>
+      <div class="right-roster" id="rosterCol"></div>
       <div class="right-coders" id="ups"></div>
     </div>
   </div>
@@ -3532,6 +3536,9 @@ function buildUI() {
   logCol.innerHTML = '';
   logCol.appendChild(logFrag);
 
+  // v7.2: initial render of always-open roster column
+  renderRosterCol();
+
   upsEl.innerHTML = ''; ups2El.innerHTML = '';
   upsEl.appendChild(frag);
   ups2El.appendChild(frag2);
@@ -4290,22 +4297,36 @@ function showFunPopup() {
 }
 
 // ========== ROSTER MODAL (v7.2) ==========
-function openRoster() {
-  // Remove any existing overlay first
-  const old = document.querySelector('.st-ov');
-  if (old) old.remove();
+// v7.2: Roster shared state (used by both modal and always-open panel)
+let _rosFilter = -1;   // -1 = all, 0..4 = rarity index
+let _rosSort = 'rarity';
+let _rosColEl = null;
+let _rosLastUpdate = 0;
 
-  const ov = document.createElement('div');
-  ov.className = 'st-ov';
-  const panel = document.createElement('div');
-  panel.className = 'roster-panel';
+function _coderContribLps(c) {
+  const ti = c.tier | 0;
+  if (ti < 0 || ti >= GEN.length) return 0;
+  return GEN[ti].rate * _C.euMul[ti] * coderProdMul(c)
+       * _C.genSpeedMul * _C.genSynergyMul * _C.raritySynergyMul * _C.prodMul;
+}
+
+// Build roster contents into a panel element. Used by both openRoster (modal)
+// and renderRosterCol (always-open). Filter/sort state is module-scoped so both
+// views share it.
+function buildRosterInto(panel, isModal) {
+  panel.innerHTML = '';
+  if (isModal) {
+    panel.className = 'roster-panel';
+  }
+  // For always-open variant, leave .right-roster wrapper class as-is — its
+  // padding/scroll/border come from the .right-roster CSS rule. The .roster-*
+  // sub-element rules apply regardless of parent.
 
   const title = document.createElement('div');
   title.className = 'stats-title';
   title.textContent = t('rosterTitle') || 'Coder Roster';
   panel.appendChild(title);
 
-  // Synergy header
   const synTitle = document.createElement('div');
   synTitle.className = 'stats-sec-title';
   synTitle.textContent = t('rosterSynergy') || 'Rarity Set Bonuses';
@@ -4314,7 +4335,6 @@ function openRoster() {
   synBox.className = 'roster-syn';
   panel.appendChild(synBox);
 
-  // Controls: filter + sort
   const filterRow = document.createElement('div');
   filterRow.className = 'roster-ctrl';
   panel.appendChild(filterRow);
@@ -4322,21 +4342,9 @@ function openRoster() {
   sortRow.className = 'roster-ctrl';
   panel.appendChild(sortRow);
 
-  // List
   const listEl = document.createElement('div');
   listEl.className = 'roster-list';
   panel.appendChild(listEl);
-
-  // State
-  let filterRarity = -1;
-  let sortKey = 'rarity';
-
-  function coderContribLps(c) {
-    const ti = c.tier | 0;
-    if (ti < 0 || ti >= GEN.length) return 0;
-    return GEN[ti].rate * _C.euMul[ti] * coderProdMul(c)
-         * _C.genSpeedMul * _C.genSynergyMul * _C.raritySynergyMul * _C.prodMul;
-  }
 
   function rebuildHeader() {
     recalcIfDirty();
@@ -4371,12 +4379,12 @@ function openRoster() {
 
   function rebuildList() {
     listEl.innerHTML = '';
-    const rows = (S.coders || []).filter(c => filterRarity < 0 || c.rarity === filterRarity);
+    const rows = (S.coders || []).filter(c => _rosFilter < 0 || c.rarity === _rosFilter);
     rows.sort((a, b) => {
-      if (sortKey === 'rarity') return (b.rarity - a.rarity) || (b.tier - a.tier);
-      if (sortKey === 'tier')   return (b.tier - a.tier) || (b.rarity - a.rarity);
-      if (sortKey === 'exp')    return (b.exp || 0) - (a.exp || 0);
-      if (sortKey === 'lps')    return coderContribLps(b) - coderContribLps(a);
+      if (_rosSort === 'rarity') return (b.rarity - a.rarity) || (b.tier - a.tier);
+      if (_rosSort === 'tier')   return (b.tier - a.tier) || (b.rarity - a.rarity);
+      if (_rosSort === 'exp')    return (b.exp || 0) - (a.exp || 0);
+      if (_rosSort === 'lps')    return _coderContribLps(b) - _coderContribLps(a);
       return 0;
     });
     if (rows.length === 0) {
@@ -4399,7 +4407,7 @@ function openRoster() {
       metaEl.textContent = tierName + ' · ' + eduName + ' · ' + (c.exp || 0) + 'yr';
       const lpsEl = document.createElement('span');
       lpsEl.className = 'r-lps';
-      lpsEl.textContent = fmt(coderContribLps(c)) + '/s';
+      lpsEl.textContent = fmt(_coderContribLps(c)) + '/s';
       const fireBtn = document.createElement('button');
       fireBtn.className = 'fire-btn';
       fireBtn.textContent = t('fire') || 'Fire';
@@ -4424,13 +4432,14 @@ function openRoster() {
         recalcIfDirty();
         rebuildHeader();
         rebuildList();
+        // Mirror the change to the other view (always-open + modal share state)
+        if (isModal) renderRosterCol();
       });
       row.append(nameEl, metaEl, lpsEl, fireBtn);
       listEl.appendChild(row);
     }
   }
 
-  // Build filter buttons
   function mkCtrlBtn(label, isActive, onClick) {
     const b = document.createElement('button');
     b.textContent = label;
@@ -4440,9 +4449,9 @@ function openRoster() {
   }
   function buildFilters() {
     filterRow.innerHTML = '';
-    filterRow.appendChild(mkCtrlBtn(t('filterAll') || 'All', filterRarity === -1, () => { filterRarity = -1; buildFilters(); rebuildList(); }));
+    filterRow.appendChild(mkCtrlBtn(t('filterAll') || 'All', _rosFilter === -1, () => { _rosFilter = -1; buildFilters(); rebuildList(); if (isModal) renderRosterCol(); }));
     for (let r = 0; r < 5; r++) {
-      const b = mkCtrlBtn(RARITY_NAMES[r][0], filterRarity === r, (() => { const rr = r; return () => { filterRarity = rr; buildFilters(); rebuildList(); }; })());
+      const b = mkCtrlBtn(RARITY_NAMES[r][0], _rosFilter === r, (() => { const rr = r; return () => { _rosFilter = rr; buildFilters(); rebuildList(); if (isModal) renderRosterCol(); }; })());
       b.classList.add(RARITY_CLS[r]);
       filterRow.appendChild(b);
     }
@@ -4456,7 +4465,7 @@ function openRoster() {
       ['lps',    t('sortLps')    || 'LPS'],
     ];
     for (const [k, lbl] of keys) {
-      sortRow.appendChild(mkCtrlBtn(lbl, sortKey === k, (() => { const kk = k; return () => { sortKey = kk; buildSort(); rebuildList(); }; })()));
+      sortRow.appendChild(mkCtrlBtn(lbl, _rosSort === k, (() => { const kk = k; return () => { _rosSort = kk; buildSort(); rebuildList(); if (isModal) renderRosterCol(); }; })()));
     }
   }
 
@@ -4464,6 +4473,27 @@ function openRoster() {
   buildSort();
   rebuildHeader();
   rebuildList();
+}
+
+// Render the always-open roster column. Throttled by tick(); also called
+// after user actions that mutate S.coders.
+function renderRosterCol() {
+  if (!_rosColEl) _rosColEl = document.getElementById('rosterCol');
+  if (!_rosColEl) return;
+  const scrollY = _rosColEl.scrollTop;
+  buildRosterInto(_rosColEl, false);
+  _rosColEl.scrollTop = scrollY;
+}
+
+function openRoster() {
+  // Remove any existing overlay first
+  const old = document.querySelector('.st-ov');
+  if (old) old.remove();
+
+  const ov = document.createElement('div');
+  ov.className = 'st-ov';
+  const panel = document.createElement('div');
+  buildRosterInto(panel, true);
 
   const close = document.createElement('button');
   close.className = 'st-close';
@@ -5587,6 +5617,13 @@ function tick(now) {
 
   // Update office sprites
   updateOfficeSprites();
+
+  // v7.2: throttled refresh of always-open roster column (LPS values + synergy)
+  const _rosNow = performance.now();
+  if (_rosNow - _rosLastUpdate >= 500) {
+    _rosLastUpdate = _rosNow;
+    renderRosterCol();
+  }
 
   // Autosave every 30s
   saveAcc += dt;
