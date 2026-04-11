@@ -100,6 +100,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .coder-sprite svg{animation:coderType 1.5s ease-in-out infinite}
 .coder-sprite:nth-child(odd) svg{animation-delay:-.75s}
 .coder-sprite:nth-child(3n) svg{animation-delay:-.5s}
+.coder-sprite.r-u svg{filter:drop-shadow(0 0 2px #7ee787)}
+.coder-sprite.r-r svg{filter:drop-shadow(0 0 3px #58a6ff)}
+.coder-sprite.r-e svg{filter:drop-shadow(0 0 4px #bc8cff)}
+.coder-sprite.r-l svg{filter:drop-shadow(0 0 6px #f0883e)}
 @keyframes coderType{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
 
 /* Staff Inline Sprites — next to buy buttons */
@@ -112,7 +116,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .coder-row-label{font-size:.4rem;color:#8b949e;width:8px;text-align:center;flex-shrink:0;writing-mode:vertical-lr;transform:rotate(180deg);letter-spacing:.02em;opacity:.6}
 
 /* Sprite Tooltip */
-.sprite-tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:.5rem;color:#e6edf3;white-space:nowrap;pointer-events:none;z-index:20;opacity:0;transition:opacity .15s}
+.sprite-tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:.5rem;color:#e6edf3;white-space:nowrap;pointer-events:none;z-index:20;opacity:0;transition:opacity .15s;text-align:center;line-height:1.3}
+.sprite-tip b{color:#f0f6fc}
 .coder-sprite:hover .sprite-tip,.staff-sprite-inline:hover .sprite-tip{opacity:1}
 
 /* Pet dog auto-clicker */
@@ -4699,37 +4704,43 @@ function updateOfficeSprites() {
   if (now - _ofc.lastUpdate < 500) return;
   _ofc.lastUpdate = now;
 
-  // --- Coder sprites (one row per type, fair allocation) ---
+  // --- Coder sprites (v6.8: driven by S.coders, one row per tier) ---
   const maxSprites = window.matchMedia('(max-width:480px)').matches ? 20 : _ofc.MAX_SPRITES;
+  // Group coders by tier, preserving hire order
+  const byTier = GEN.map(() => []);
+  for (const c of (S.coders || [])) byTier[c.tier].push(c);
   let ownedTypes = 0;
-  for (let i = 0; i < GEN.length; i++) if (S.g[i] > 0) ownedTypes++;
+  for (let i = 0; i < GEN.length; i++) if (byTier[i].length > 0) ownedTypes++;
   const perType = ownedTypes > 0 ? Math.floor(maxSprites / ownedTypes) : maxSprites;
   const desired = [];
-  let total = 0;
   for (let i = 0; i < GEN.length; i++) {
-    if (S.g[i] < 1) continue;
-    const count = Math.min(S.g[i], 30, perType);
+    if (byTier[i].length < 1) continue;
+    const count = Math.min(byTier[i].length, 30, perType);
     for (let j = 0; j < count; j++) {
-      desired.push({ type: i, deskT: S.eu[i][0], chairT: S.eu[i][1], pcT: S.eu[i][2] });
+      desired.push({
+        coder: byTier[i][j],
+        type: i,
+        deskT: S.eu[i][0], chairT: S.eu[i][1], pcT: S.eu[i][2]
+      });
     }
-    total += count;
   }
 
-  // Diff against cache — rebuild only if changed
+  // Diff against cache — rebuild only if changed (coder identity + exp + equipment)
   let dirty = desired.length !== _ofc.spriteCache.length;
   if (!dirty) {
     for (let i = 0; i < desired.length; i++) {
       const d = desired[i], c = _ofc.spriteCache[i];
-      if (d.type !== c.type || d.deskT !== c.deskT || d.chairT !== c.chairT || d.pcT !== c.pcT) { dirty = true; break; }
+      if (d.coder !== c.coder || d.coder.exp !== c.exp ||
+          d.type !== c.type || d.deskT !== c.deskT ||
+          d.chairT !== c.chairT || d.pcT !== c.pcT) { dirty = true; break; }
     }
   }
 
   if (dirty) {
     _ofc.el.innerHTML = '';
     _ofc.spriteCache = [];
-    _ofc.factCache = [];
     // Group desired by type into rows
-    let curType = -1, curRow = null, shuffledFacts = [], rowIdx = 0, rowCount = 0;
+    let curType = -1, curRow = null, rowIdx = 0, rowCount = 0;
     for (let i = 0; i < desired.length; i++) {
       const d = desired[i];
       if (d.type !== curType) {
@@ -4740,24 +4751,27 @@ function updateOfficeSprites() {
         curRow = document.createElement('div');
         curRow.className = 'coder-row';
         _ofc.el.appendChild(curRow);
-        shuffledFacts = Array.from({length: CODER_FACTS[curType].length}, (_, k) => k);
-        for (let j = shuffledFacts.length - 1; j > 0; j--) { const k = Math.floor(Math.random() * (j + 1)); [shuffledFacts[j], shuffledFacts[k]] = [shuffledFacts[k], shuffledFacts[j]]; }
       }
+      const c = d.coder;
+      const rCls = RARITY_CLS[c.rarity] || 'r-c';
       const div = document.createElement('div');
-      div.className = 'coder-sprite';
+      div.className = 'coder-sprite ' + rCls;
       div.innerHTML = coderSVG(d.type, d.deskT, d.chairT, d.pcT);
-      const facts = CODER_FACTS[d.type];
-      const factIdx = shuffledFacts.length > 0 ? shuffledFacts.pop() : Math.floor(Math.random() * facts.length);
       const tip = document.createElement('div');
       tip.className = 'sprite-tip';
-      tip.textContent = GEN[d.type].name + ': ' + facts[factIdx];
+      tip.innerHTML = '<b>' + c.name + '</b><br>' +
+                      '<span class="' + rCls + '">' + RARITY_NAMES[c.rarity] + '</span> ' + GEN[d.type].name + '<br>' +
+                      EDU_NAMES[c.edu] + ' \u2022 ' + c.exp + ' yr';
       if (rowIdx < 2) { tip.style.left = '0'; tip.style.transform = 'none'; }
       else if (rowIdx >= rowCount - 2) { tip.style.left = 'auto'; tip.style.right = '0'; tip.style.transform = 'none'; }
       div.appendChild(tip);
       rowIdx++;
       curRow.appendChild(div);
-      _ofc.spriteCache.push({ type: d.type, deskT: d.deskT, chairT: d.chairT, pcT: d.pcT, el: div });
-      _ofc.factCache.push(factIdx);
+      _ofc.spriteCache.push({
+        coder: c, exp: c.exp,
+        type: d.type, deskT: d.deskT, chairT: d.chairT, pcT: d.pcT,
+        el: div
+      });
     }
   }
 
