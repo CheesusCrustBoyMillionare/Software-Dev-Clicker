@@ -354,6 +354,27 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .stats-section{margin-top:14px;padding-top:10px;border-top:1px solid #21262d}
 .stats-sec-title{font-size:.7rem;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
 
+/* v7.2: Roster modal */
+.roster-panel{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px;width:560px;max-width:calc(100vw - 24px);max-height:80vh;overflow-y:auto;position:relative}
+.roster-syn{display:grid;grid-template-columns:1fr;gap:4px;margin:4px 0 14px;padding:8px;background:#0d1117;border:1px solid #21262d;border-radius:6px}
+.roster-syn-row{display:flex;align-items:center;gap:8px;font-size:.7rem}
+.roster-syn-row .rn{width:80px;font-weight:700}
+.roster-syn-row .rc{width:70px;color:#8b949e;font-size:.65rem}
+.roster-syn-row .rb{width:50px;color:#7ee787;text-align:right;font-family:monospace}
+.roster-syn-row .rp{flex:1;color:#8b949e;font-size:.6rem;text-align:right}
+.roster-ctrl{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}
+.roster-ctrl button{font-size:.65rem;padding:4px 9px;background:#21262d;border:1px solid #30363d;color:#8b949e;cursor:pointer;border-radius:4px;font-family:inherit}
+.roster-ctrl button:hover{background:#30363d}
+.roster-ctrl button.active{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.roster-list{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.roster-row{display:flex;align-items:center;gap:8px;padding:6px 8px;background:#0d1117;border:1px solid #21262d;border-radius:4px;font-size:.7rem}
+.roster-row .r-name{flex:1;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.roster-row .r-meta{color:#8b949e;font-size:.6rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+.roster-row .r-lps{color:#7ee787;width:72px;text-align:right;font-family:monospace;font-size:.65rem}
+.roster-row .fire-btn{font-size:.6rem;padding:4px 9px;background:#21262d;border:1px solid #30363d;color:#8b949e;cursor:pointer;border-radius:4px;font-family:inherit}
+.roster-row .fire-btn:hover{color:#f85149;border-color:#f85149}
+.roster-row .fire-btn.confirm{background:#f85149;color:#fff;border-color:#f85149}
+
 /* Bottom Bar */
 .prog-bar-top{padding:4px 20px;background:#161b22;border-bottom:1px solid #30363d}
 .bot{padding:8px 20px;background:#161b22;border-top:1px solid #30363d}
@@ -709,6 +730,9 @@ const T={en:{
   clickInfo:'Click the monitor to write code',locPerClick:'LoC per click',
   desk:'Desk',coders:'Coders',supportStaff:'Support Staff',officePerks:'Office Perks',codeBase:'Code Base',
   max:'Max',skillTree:'Skill Tree',achievements:'Achievements',stats:'Stats',btnContinue:'Continue',
+  roster:'Roster',rosterTitle:'Coder Roster',rosterSynergy:'Rarity Set Bonuses',
+  filterAll:'All',sortRarity:'Rarity',sortTier:'Tier',sortExp:'Exp',sortLps:'LPS',
+  fire:'Fire',fireConfirm:'Fire?',
   locToShip:'LoC to ship',shipVerb:'Ship',
   napIn:'Nap in',choose:'(choose!)',
   hired:'Hired',unlocked:'Unlocked',napBurst:'Nap Burst!',recruiterHired:'Recruiter hired',trainerLvlUp:'Trainer leveled up',
@@ -1670,7 +1694,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '7.1';
+const GAME_VERSION = '7.2';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -2382,7 +2406,7 @@ const SS = { SECRETARY:0, RECRUITER:1, FACILITY:2, TRAINER:3 };
 
 // ========== MULTIPLIER CACHE ==========
 let _dirty = true;
-const _C = { prodMul:1, genSpeedMul:1, genSynergyMul:1, fameMul:1, clickPow:1, lps:0, shipAt:0, hireCostMul:1, euMul:[] };
+const _C = { prodMul:1, genSpeedMul:1, genSynergyMul:1, raritySynergyMul:1, fameMul:1, clickPow:1, lps:0, shipAt:0, hireCostMul:1, euMul:[], rarityCount:[0,0,0,0,0] };
 function markDirty() { _dirty = true; }
 function recalcIfDirty() {
   if (!_dirty) return;
@@ -2413,7 +2437,9 @@ function recalcIfDirty() {
   const evMul = (activeEvent && !activeEvent.pending) ? activeEvent.mul : 1;
   const evClk = (activeEvent && !activeEvent.pending) ? activeEvent.clickMul : 1;
   // v7.1: per-coder production — iterate S.coders so rarity + exp actually matter
+  // v7.2: count rarities in the same pass for set-bonus synergy
   const tierLps = new Array(GEN.length).fill(0);
+  const rarityCount = [0, 0, 0, 0, 0];
   let lpsVal = 0;
   const _coders = Array.isArray(S.coders) ? S.coders : [];
   for (const c of _coders) {
@@ -2422,9 +2448,16 @@ function recalcIfDirty() {
     const contrib = GEN[t].rate * _C.euMul[t] * coderProdMul(c);
     tierLps[t] += contrib;
     lpsVal += contrib;
+    const r = c.rarity | 0;
+    if (r >= 0 && r < 5) rarityCount[r]++;
   }
   _C.tierLps = tierLps;
-  _C.lps = lpsVal * _C.genSpeedMul * _C.genSynergyMul * _C.prodMul * evMul;
+  _C.rarityCount = rarityCount;
+  // v7.2: sum set-bonus contributions across rarities into raritySynergyMul
+  let rarityBonusSum = 0;
+  for (let r = 0; r < 5; r++) rarityBonusSum += rarityTierBonus(rarityCount[r]);
+  _C.raritySynergyMul = 1 + rarityBonusSum;
+  _C.lps = lpsVal * _C.genSpeedMul * _C.genSynergyMul * _C.raritySynergyMul * _C.prodMul * evMul;
   _C.clickPow = (1 + lunchBonus()) * gameRoomMul() * (1 + S.f.clickDouble) * _C.prodMul * evClk * (1 + cbBonus('click'));
   _C.shipAt = Math.floor(1e6 * (S.shipped <= 3 ? 10 ** S.shipped : 1e3 * 5 ** (S.shipped - 3)) * (0.9 ** S.f.franchise));
 }
@@ -3480,6 +3513,12 @@ function buildUI() {
   statsBtn.textContent = t('stats');
   statsBtn.addEventListener('click', openStats);
   logBtns.appendChild(statsBtn);
+  // v7.2: Roster modal button
+  const rosterBtn = document.createElement('button');
+  rosterBtn.className = 'ach-btn';
+  rosterBtn.textContent = t('roster') || 'Roster';
+  rosterBtn.addEventListener('click', openRoster);
+  logBtns.appendChild(rosterBtn);
 
   const settBtn = document.createElement('button');
   settBtn.className = 'ach-btn';
@@ -3990,6 +4029,18 @@ function coderProdMul(c) {
   const e = 1 + Math.min(0.50, 0.01 * (c.exp || 0));
   return r * e;
 }
+// v7.2: Rarity set bonuses — same thresholds for every rarity, applied independently.
+// Highest met threshold wins per rarity; sum across all rarities becomes _C.raritySynergyMul.
+const RARITY_SET_TIERS = [
+  { n: 3,  bonus: 0.05 },
+  { n: 10, bonus: 0.10 },
+  { n: 25, bonus: 0.20 },
+];
+function rarityTierBonus(count) {
+  let b = 0;
+  for (const t of RARITY_SET_TIERS) if (count >= t.n) b = t.bonus;
+  return b;
+}
 function rollCoder() {
   const rarity = rollRarity();
   const [eMin, eMax] = RARITY_EDU[rarity];
@@ -4233,6 +4284,192 @@ function showFunPopup() {
   fbBtn.onclick = () => { window.open('https://github.com/CheesusCrustBoyMillionare/Software-Dev-Clicker/issues/new', '_blank'); ov.remove(); };
   btns.append(yesBtn, fbBtn);
   panel.append(h, p, btns);
+  ov.appendChild(panel);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+// ========== ROSTER MODAL (v7.2) ==========
+function openRoster() {
+  // Remove any existing overlay first
+  const old = document.querySelector('.st-ov');
+  if (old) old.remove();
+
+  const ov = document.createElement('div');
+  ov.className = 'st-ov';
+  const panel = document.createElement('div');
+  panel.className = 'roster-panel';
+
+  const title = document.createElement('div');
+  title.className = 'stats-title';
+  title.textContent = t('rosterTitle') || 'Coder Roster';
+  panel.appendChild(title);
+
+  // Synergy header
+  const synTitle = document.createElement('div');
+  synTitle.className = 'stats-sec-title';
+  synTitle.textContent = t('rosterSynergy') || 'Rarity Set Bonuses';
+  panel.appendChild(synTitle);
+  const synBox = document.createElement('div');
+  synBox.className = 'roster-syn';
+  panel.appendChild(synBox);
+
+  // Controls: filter + sort
+  const filterRow = document.createElement('div');
+  filterRow.className = 'roster-ctrl';
+  panel.appendChild(filterRow);
+  const sortRow = document.createElement('div');
+  sortRow.className = 'roster-ctrl';
+  panel.appendChild(sortRow);
+
+  // List
+  const listEl = document.createElement('div');
+  listEl.className = 'roster-list';
+  panel.appendChild(listEl);
+
+  // State
+  let filterRarity = -1;
+  let sortKey = 'rarity';
+
+  function coderContribLps(c) {
+    const ti = c.tier | 0;
+    if (ti < 0 || ti >= GEN.length) return 0;
+    return GEN[ti].rate * _C.euMul[ti] * coderProdMul(c)
+         * _C.genSpeedMul * _C.genSynergyMul * _C.raritySynergyMul * _C.prodMul;
+  }
+
+  function rebuildHeader() {
+    recalcIfDirty();
+    synBox.innerHTML = '';
+    const counts = _C.rarityCount || [0,0,0,0,0];
+    for (let r = 0; r < 5; r++) {
+      const row = document.createElement('div');
+      row.className = 'roster-syn-row';
+      const name = document.createElement('span');
+      name.className = 'rn ' + RARITY_CLS[r];
+      name.textContent = RARITY_NAMES[r];
+      const cnt = document.createElement('span');
+      cnt.className = 'rc';
+      cnt.textContent = counts[r] + ' owned';
+      const cur = rarityTierBonus(counts[r]);
+      const bonus = document.createElement('span');
+      bonus.className = 'rb';
+      bonus.textContent = cur > 0 ? '+' + Math.round(cur * 100) + '%' : '—';
+      const prog = document.createElement('span');
+      prog.className = 'rp';
+      let nextN = 0, nextB = 0;
+      for (const tier of RARITY_SET_TIERS) { if (counts[r] < tier.n) { nextN = tier.n; nextB = tier.bonus; break; } }
+      if (nextN > 0) {
+        prog.textContent = (nextN - counts[r]) + ' more → +' + Math.round(nextB * 100) + '%';
+      } else {
+        prog.textContent = 'MAX';
+      }
+      row.append(name, cnt, bonus, prog);
+      synBox.appendChild(row);
+    }
+  }
+
+  function rebuildList() {
+    listEl.innerHTML = '';
+    const rows = (S.coders || []).filter(c => filterRarity < 0 || c.rarity === filterRarity);
+    rows.sort((a, b) => {
+      if (sortKey === 'rarity') return (b.rarity - a.rarity) || (b.tier - a.tier);
+      if (sortKey === 'tier')   return (b.tier - a.tier) || (b.rarity - a.rarity);
+      if (sortKey === 'exp')    return (b.exp || 0) - (a.exp || 0);
+      if (sortKey === 'lps')    return coderContribLps(b) - coderContribLps(a);
+      return 0;
+    });
+    if (rows.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'text-align:center;color:#8b949e;padding:20px;font-size:.75rem';
+      empty.textContent = (S.coders && S.coders.length > 0) ? 'No coders match this filter.' : 'No coders yet — buy a pack!';
+      listEl.appendChild(empty);
+      return;
+    }
+    for (const c of rows) {
+      const row = document.createElement('div');
+      row.className = 'roster-row';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'r-name ' + (RARITY_CLS[c.rarity] || '');
+      nameEl.textContent = c.name || '?';
+      const metaEl = document.createElement('span');
+      metaEl.className = 'r-meta';
+      const tierName = GEN[c.tier] ? GEN[c.tier].name : '?';
+      const eduName = EDU_NAMES[c.edu] || '?';
+      metaEl.textContent = tierName + ' · ' + eduName + ' · ' + (c.exp || 0) + 'yr';
+      const lpsEl = document.createElement('span');
+      lpsEl.className = 'r-lps';
+      lpsEl.textContent = fmt(coderContribLps(c)) + '/s';
+      const fireBtn = document.createElement('button');
+      fireBtn.className = 'fire-btn';
+      fireBtn.textContent = t('fire') || 'Fire';
+      let revertTimer = null;
+      fireBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!fireBtn.classList.contains('confirm')) {
+          fireBtn.classList.add('confirm');
+          fireBtn.textContent = t('fireConfirm') || 'Fire?';
+          revertTimer = setTimeout(() => {
+            fireBtn.classList.remove('confirm');
+            fireBtn.textContent = t('fire') || 'Fire';
+            revertTimer = null;
+          }, 3000);
+          return;
+        }
+        if (revertTimer) { clearTimeout(revertTimer); revertTimer = null; }
+        const idx = (S.coders || []).indexOf(c);
+        if (idx >= 0) S.coders.splice(idx, 1);
+        recomputeG();
+        markDirty();
+        recalcIfDirty();
+        rebuildHeader();
+        rebuildList();
+      });
+      row.append(nameEl, metaEl, lpsEl, fireBtn);
+      listEl.appendChild(row);
+    }
+  }
+
+  // Build filter buttons
+  function mkCtrlBtn(label, isActive, onClick) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if (isActive) b.classList.add('active');
+    b.addEventListener('click', onClick);
+    return b;
+  }
+  function buildFilters() {
+    filterRow.innerHTML = '';
+    filterRow.appendChild(mkCtrlBtn(t('filterAll') || 'All', filterRarity === -1, () => { filterRarity = -1; buildFilters(); rebuildList(); }));
+    for (let r = 0; r < 5; r++) {
+      const b = mkCtrlBtn(RARITY_NAMES[r][0], filterRarity === r, (() => { const rr = r; return () => { filterRarity = rr; buildFilters(); rebuildList(); }; })());
+      b.classList.add(RARITY_CLS[r]);
+      filterRow.appendChild(b);
+    }
+  }
+  function buildSort() {
+    sortRow.innerHTML = '';
+    const keys = [
+      ['rarity', t('sortRarity') || 'Rarity'],
+      ['tier',   t('sortTier')   || 'Tier'],
+      ['exp',    t('sortExp')    || 'Exp'],
+      ['lps',    t('sortLps')    || 'LPS'],
+    ];
+    for (const [k, lbl] of keys) {
+      sortRow.appendChild(mkCtrlBtn(lbl, sortKey === k, (() => { const kk = k; return () => { sortKey = kk; buildSort(); rebuildList(); }; })()));
+    }
+  }
+
+  buildFilters();
+  buildSort();
+  rebuildHeader();
+  rebuildList();
+
+  const close = document.createElement('button');
+  close.className = 'st-close';
+  close.textContent = '\u00d7';
+  close.addEventListener('click', () => ov.remove());
+  ov.appendChild(close);
   ov.appendChild(panel);
   ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
   document.body.appendChild(ov);
