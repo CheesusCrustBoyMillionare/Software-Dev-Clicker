@@ -168,6 +168,39 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf
 .up.maxed:hover{border-color:#2ea04366}
 .up.maxed .up-own{color:#2ea043}
 
+/* v6.8 Hire Pack button */
+.pack-header{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:6px 0 10px;background:linear-gradient(135deg,#161b22,#0d1117);border:1px solid #30363d;border-radius:6px;cursor:pointer;transition:border-color .15s,background .15s}
+.pack-header:hover{border-color:#58a6ff;background:linear-gradient(135deg,#1c2129,#161b22)}
+.pack-header.no{opacity:.45;cursor:default}
+.pack-header.no:hover{border-color:#30363d;background:linear-gradient(135deg,#161b22,#0d1117)}
+.pack-info{flex:1;min-width:0}
+.pack-title{font-size:.85rem;font-weight:700;color:#58a6ff}
+.pack-desc{font-size:.65rem;color:#8b949e;margin-top:2px}
+.pack-cost{font-size:.85rem;font-weight:700;color:#7ee787;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* v6.8 Rarity colors */
+.r-c{color:#7d8590}
+.r-u{color:#7ee787}
+.r-r{color:#58a6ff}
+.r-e{color:#bc8cff}
+.r-l{color:#f0883e}
+
+/* v6.8 Pack reveal modal */
+.pack-reveal{position:fixed;inset:0;background:rgba(1,4,9,.9);display:flex;align-items:center;justify-content:center;z-index:9999;cursor:pointer}
+.pack-reveal-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:90vw}
+.pack-card{width:140px;padding:14px 10px;background:#0d1117;border:2px solid #30363d;border-radius:10px;text-align:center;animation:pcIn .35s ease both}
+.pack-card.r-c{border-color:#7d8590}
+.pack-card.r-u{border-color:#7ee787;box-shadow:0 0 10px #7ee78744}
+.pack-card.r-r{border-color:#58a6ff;box-shadow:0 0 12px #58a6ff55}
+.pack-card.r-e{border-color:#bc8cff;box-shadow:0 0 14px #bc8cff66}
+.pack-card.r-l{border-color:#f0883e;box-shadow:0 0 18px #f0883e77}
+.pack-card svg{width:48px;height:40px}
+.pack-card .pc-name{font-size:.78rem;font-weight:700;color:#e6edf3;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pack-card .pc-rarity{font-size:.7rem;font-weight:600;margin-top:2px}
+.pack-card .pc-info{font-size:.62rem;color:#8b949e;margin-top:4px}
+.pack-card .pc-tier{font-size:.7rem;color:#58a6ff;margin-top:4px;font-weight:600}
+@keyframes pcIn{from{opacity:0;transform:translateY(20px) scale(.85)}to{opacity:1;transform:none}}
+
 /* Buy Quantity Selector */
 .qty-bar{display:flex;gap:4px;margin-bottom:8px}
 .qty-btn{flex:1;padding:5px 0;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#8b949e;font-size:.7rem;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
@@ -1620,7 +1653,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '6.7';
+const GAME_VERSION = '6.8';
 
 const GEN = [
   { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
@@ -2141,6 +2174,7 @@ const defaults = () => ({
   shipped: 0,
   meetingPaused: 0,
   fameResetUsed: 0,
+  coders: [],
   sp: SUPPORT.map(() => 0),
   trainerLvl: GEN.map(() => 0),
   trainerSSLvl: SUPPORT.map(() => 0),
@@ -2236,6 +2270,23 @@ function loadSlot(raw) {
     // v6.4 migration: clamp trainer levels to 100
     d.trainerLvl = d.trainerLvl.map(v => Math.min(v, 100));
     d.trainerSSLvl = d.trainerSSLvl.map(v => Math.min(v, 100));
+    // v6.8 migration: synthesize individual coder objects from S.g counts
+    if (!d._coderRework) {
+      d.coders = [];
+      for (let i = 0; i < GEN.length; i++) {
+        const n = (d.g && d.g[i]) || 0;
+        for (let k = 0; k < n; k++) {
+          // edu/exp chosen high enough that computeTier returns >= i reliably
+          const edu = Math.min(4, Math.floor(i / 2) + 1);
+          const exp = Math.max(d.shipped || 0, i * 2);
+          const fn = FIRST_NAMES[Math.floor(Math.random()*FIRST_NAMES.length)];
+          const ln = LAST_NAMES[Math.floor(Math.random()*LAST_NAMES.length)];
+          d.coders.push({ name: fn + ' ' + ln, edu, exp, rarity: 0, seed: Math.random(), tier: i });
+        }
+      }
+      d._coderRework = 1;
+    }
+    if (!Array.isArray(d.coders)) d.coders = [];
     // Apply state first, then calculate offline progress using cached multipliers
     S = d;
     markDirty();
@@ -3182,6 +3233,19 @@ function buildUI() {
   frag.appendChild(qBar);
 
   sec(t('coders'));
+  // v6.8: Hire Pack button (single button replaces per-tier buying)
+  {
+    const ph = document.createElement('div');
+    ph.className = 'pack-header';
+    ph.id = 'packHeader';
+    const pInfo = document.createElement('div'); pInfo.className = 'pack-info';
+    const pTitle = document.createElement('div'); pTitle.className = 'pack-title'; pTitle.textContent = 'Hire Pack';
+    const pDesc = document.createElement('div'); pDesc.className = 'pack-desc'; pDesc.textContent = '5 random coders';
+    pInfo.append(pTitle, pDesc);
+    const pCost = document.createElement('div'); pCost.className = 'pack-cost'; pCost.id = 'packCost';
+    ph.append(pInfo, pCost);
+    frag.appendChild(ph);
+  }
   GEN.forEach((g, i) => {
     // Main employee row (same as row() but with toggle button)
     const el = document.createElement('div');
@@ -3221,7 +3285,7 @@ function buildUI() {
   // Secretary — simple row
   row('ss', 0, ta('sup_0_name', SUPPORT[0].name), ta('sup_0_desc', SUPPORT[0].desc));
   { const spr0 = document.createElement('div'); spr0.className = 'staff-sprite-inline'; spr0.id = 'staffSprite0'; target.lastElementChild.prepend(spr0); }
-  // Recruiter — row with toggle + training submenu
+  // Recruiter — v6.8: passive pack-cost discount (no pause, no progress bar)
   {
     const s = SUPPORT[1];
     const el2 = document.createElement('div');
@@ -3230,17 +3294,13 @@ function buildUI() {
     el2.dataset.i = 1;
     const info2 = document.createElement('div'); info2.className = 'up-info';
     const n2 = document.createElement('div'); n2.className = 'up-name'; n2.textContent = ta('sup_1_name', s.name);
-    const dd2 = document.createElement('div'); dd2.className = 'up-desc'; dd2.textContent = ta('sup_1_desc', s.desc);
+    const dd2 = document.createElement('div'); dd2.className = 'up-desc'; dd2.textContent = 'Each level reduces Hire Pack cost by 2% (Trainer scales).';
     info2.append(n2, dd2);
     const cost2 = document.createElement('div'); cost2.className = 'up-cost';
     const own2 = document.createElement('div'); own2.className = 'up-own';
-    const rBar = document.createElement('div'); rBar.className = 'recruiter-bar';
-    const rFill = document.createElement('div'); rFill.className = 'recruiter-fill'; rFill.id = 'recruiterFill';
-    rBar.appendChild(rFill);
-    const pause2 = document.createElement('button'); pause2.className = 'pause-toggle' + (S.sp[1] ? ' paused' : ''); pause2.textContent = S.sp[1] ? '\u25B6' : '\u23F8'; pause2.dataset.sp = '1';
     el2.style.position = 'relative'; el2.style.overflow = 'hidden';
     const spr1 = document.createElement('div'); spr1.className = 'staff-sprite-inline'; spr1.id = 'staffSprite1';
-    el2.append(spr1, info2, cost2, own2, pause2, rBar);
+    el2.append(spr1, info2, cost2, own2);
     target.appendChild(el2);
     upRefs.push({ el: el2, costEl: cost2, ownEl: own2, action: 'ss', idx: 1 });
   }
@@ -3288,10 +3348,11 @@ function buildUI() {
   }
 
   sec(t('officePerks'));
-  CLK.forEach((c, i) => row('c', i, ta('clk_'+i+'_name', c.name), ta('clk_'+i+'_desc', c.desc)));
-  // Add pause toggle to Meeting Room row
-  { const mEl = upRefs.find(r => r.action === 'c' && r.idx === P.MEETING);
-    if (mEl) { const mp = document.createElement('button'); mp.className = 'pause-toggle' + (S.meetingPaused ? ' paused' : ''); mp.textContent = S.meetingPaused ? '\u25B6' : '\u23F8'; mp.id = 'meetingPause'; mEl.el.appendChild(mp); } }
+  CLK.forEach((c, i) => {
+    // v6.8: Meeting Room repurposed — grants additional 15% pack-cost discount
+    const desc = (i === P.MEETING) ? '\u221215% Hire Pack cost (stacks with Recruiter)' : ta('clk_'+i+'_desc', c.desc);
+    row('c', i, ta('clk_'+i+'_name', c.name), desc);
+  });
 
   // Code Base Upgrades (permanent, unlocked by shipping new categories)
   sec(t('codeBase'));
@@ -3818,6 +3879,102 @@ function buyGen(i) {
   else if (n > 1) toast(t('hired') + ' ' + n + '× ' + gName);
   log(t('hired') + (n > 1 ? ' ' + n + '× ' : ': ') + gName);
   playSfx('buy');
+}
+
+// ========== CODER PACK SYSTEM (v6.8) ==========
+const FIRST_NAMES = ['Alex','Jordan','Taylor','Morgan','Casey','Riley','Sam','Jamie','Quinn','Avery','Blake','Drew','Reese','Skyler','Rowan','Sage','Finley','Hayden','Kai','Logan','Parker','Emerson','Dakota','Harper','Robin','Eden','Nico','Remy','Tatum','Marlowe','Arden','Bailey','Carson','Devon','Ellis','Frankie','Gray','Indigo','Jesse','Kendall'];
+const LAST_NAMES = ['Smith','Chen','Patel','Garcia','Kim','Nguyen','Johnson','Rivera','Lee','Khan','Brown','Park','Singh','Lopez','Ivanov','Fischer','Nakamura','O\u2019Brien','Dubois','Costa','Ng','Rossi','Yamamoto','Kowalski','Andersen','Tanaka','Silva','Hassan','Novak','Berg','Ruiz','Walsh','Morozov','Vega','Suzuki','Hoffmann','Mbeki','Liu','Rahman','Volkov'];
+const RARITY_NAMES = ['Common','Uncommon','Rare','Epic','Legendary'];
+const RARITY_CLS = ['r-c','r-u','r-r','r-e','r-l'];
+const EDU_NAMES = ['Bootcamp','Associate','Bachelor','Master','PhD'];
+// Rarity -> edu range [min, max]
+const RARITY_EDU = [[0,1],[1,2],[2,3],[3,4],[4,4]];
+
+function rollName() {
+  return FIRST_NAMES[Math.floor(Math.random()*FIRST_NAMES.length)] + ' ' +
+         LAST_NAMES[Math.floor(Math.random()*LAST_NAMES.length)];
+}
+function rollRarity() {
+  const r = Math.random();
+  if (r < 0.60) return 0;
+  if (r < 0.85) return 1;
+  if (r < 0.95) return 2;
+  if (r < 0.99) return 3;
+  return 4;
+}
+function computeTier(edu, exp, seed) {
+  const score = edu * 2 + Math.floor(exp / 2);
+  const base = Math.floor(score / 2);
+  const jitter = seed < 0.33 ? -1 : seed < 0.66 ? 0 : 1;
+  return Math.max(0, Math.min(GEN.length - 1, base + jitter));
+}
+function rollCoder() {
+  const rarity = rollRarity();
+  const [eMin, eMax] = RARITY_EDU[rarity];
+  const edu = eMin + Math.floor(Math.random() * (eMax - eMin + 1));
+  const exp = (S.shipped || 0) + Math.floor(Math.random() * 6);
+  const seed = Math.random();
+  const c = { name: rollName(), edu, exp, rarity, seed, tier: 0 };
+  c.tier = computeTier(edu, exp, seed);
+  return c;
+}
+function recomputeG() {
+  for (let i = 0; i < GEN.length; i++) S.g[i] = 0;
+  for (const c of S.coders) S.g[c.tier]++;
+}
+function recruiterPackDiscount() {
+  const count = (S.ss && S.ss[SS.RECRUITER]) || 0;
+  const tlvl = (S.trainerSSLvl && S.trainerSSLvl[SS.RECRUITER]) || 0;
+  const effective = count * (1 + 0.02 * tlvl);
+  let mul = Math.max(0.5, 1 - 0.02 * effective);
+  if (S.c && S.c[P.MEETING]) mul *= 0.85;
+  return mul;
+}
+function packCost() {
+  const total = S.coders ? S.coders.length : 0;
+  const base = 100;
+  const growth = Math.pow(2, Math.floor(total / 5));
+  return Math.floor(base * growth * recruiterPackDiscount() * (_C.hireCostMul || 1) * shipInflation());
+}
+function buyPack() {
+  if (!S.coders) S.coders = [];
+  const cost = packCost();
+  if (S.loc < cost) { toast(t('hired') ? 'Not enough LoC' : 'Not enough LoC'); return; }
+  S.loc -= cost;
+  const pulls = [];
+  for (let k = 0; k < 5; k++) pulls.push(rollCoder());
+  S.coders.push(...pulls);
+  recomputeG();
+  markDirty();
+  playSfx('buy');
+  const counts = [0,0,0,0,0];
+  pulls.forEach(c => counts[c.rarity]++);
+  const summary = counts.map((n,i) => n ? n + RARITY_NAMES[i][0] : '').filter(Boolean).join(' ');
+  log('\u{1F4E6} Hired pack: ' + summary);
+  showPackReveal(pulls);
+}
+function showPackReveal(pulls) {
+  // Remove any existing reveal overlay first
+  const old = document.querySelector('.pack-reveal');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.className = 'pack-reveal';
+  const row = document.createElement('div');
+  row.className = 'pack-reveal-row';
+  pulls.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'pack-card ' + RARITY_CLS[c.rarity];
+    card.innerHTML =
+      coderSVG(c.tier, 0, 0, 0) +
+      '<div class="pc-name">' + c.name + '</div>' +
+      '<div class="pc-rarity ' + RARITY_CLS[c.rarity] + '">' + RARITY_NAMES[c.rarity] + '</div>' +
+      '<div class="pc-info">' + EDU_NAMES[c.edu] + ' \u2022 ' + c.exp + 'yr</div>' +
+      '<div class="pc-tier">' + GEN[c.tier].name + '</div>';
+    row.appendChild(card);
+  });
+  ov.appendChild(row);
+  ov.addEventListener('click', () => ov.remove());
+  document.body.appendChild(ov);
 }
 
 function buyClk(i) {
@@ -4382,7 +4539,11 @@ function ship() {
   const keepLoc = S.f.goldenParachute ? S.tLoc * 0.15 * S.f.goldenParachute : 0;
   S.loc = 0;
   S.tLoc = 0;
+  // v6.8: coders PERSIST across ships and gain +1 year of experience
+  if (!Array.isArray(S.coders)) S.coders = [];
+  S.coders.forEach(c => { c.exp += 1; c.tier = computeTier(c.edu, c.exp, c.seed); });
   S.g = GEN.map(() => 0);
+  recomputeG();
   S.eu = GEN.map(() => EMP_UPS.map(() => 0));
   S.c = CLK.map(() => 0);
   S.ss = SUPPORT.map(() => 0);
@@ -4391,7 +4552,24 @@ function ship() {
   markDirty();
   napTimer = 0; buyerTimer = 0; facilityTimer = 0; trainerTimer = 0; nytShown = 0; _nytPicked = null;
   ctReset(); streakMul = 1; lastClickTime = 0;
-  if (S.f.engine) { S.g[0] = 10; S.g[1] = 5; S.g[2] = 3; }
+  // v6.8: Engine perk pushes starter coders into the roster (not just S.g)
+  if (S.f.engine) {
+    const starters = [[0,10],[1,5],[2,3]];
+    for (const [i, n] of starters) {
+      for (let k = 0; k < n; k++) {
+        S.coders.push({
+          name: FIRST_NAMES[Math.floor(Math.random()*FIRST_NAMES.length)] + ' ' + LAST_NAMES[Math.floor(Math.random()*LAST_NAMES.length)],
+          edu: Math.min(4, Math.floor(i/2) + 1),
+          exp: Math.max(S.shipped, i * 2),
+          rarity: 0,
+          seed: Math.random(),
+          tier: i
+        });
+      }
+    }
+    recomputeG();
+    markDirty();
+  }
   // Venture Capital: start with 1000×Lv LoC
   if (S.f.ventureCapital) { const vc = Math.floor(shipAt() * 0.02 * S.f.ventureCapital); S.loc += vc; S.tLoc += vc; }
   // Golden Parachute: carry over LoC
@@ -4408,6 +4586,8 @@ function ship() {
 $('G').addEventListener('click', e => {
   ensureAudio();
   if (e.target.closest('#mon')) return doClick(e);
+  // v6.8: Hire Pack button
+  if (e.target.closest('#packHeader')) { buyPack(); return; }
   // Quantity selector
   const qBtn = e.target.closest('.qty-btn');
   if (qBtn) {
@@ -4415,20 +4595,14 @@ $('G').addEventListener('click', e => {
     document.querySelectorAll('.qty-btn').forEach(b => b.classList.toggle('active', b === qBtn));
     return;
   }
-  // Pause toggle for support staff or Meeting Room
+  // Pause toggle for support staff (Facility Director, Trainer)
   const pauseBtn = e.target.closest('.pause-toggle');
   if (pauseBtn) {
     e.stopPropagation();
-    if (pauseBtn.id === 'meetingPause') {
-      S.meetingPaused = S.meetingPaused ? 0 : 1;
-      pauseBtn.textContent = S.meetingPaused ? '\u25B6' : '\u23F8';
-      pauseBtn.classList.toggle('paused', !!S.meetingPaused);
-    } else {
-      const idx = +pauseBtn.dataset.sp;
-      S.sp[idx] = S.sp[idx] ? 0 : 1;
-      pauseBtn.textContent = S.sp[idx] ? '\u25B6' : '\u23F8';
-      pauseBtn.classList.toggle('paused', !!S.sp[idx]);
-    }
+    const idx = +pauseBtn.dataset.sp;
+    S.sp[idx] = S.sp[idx] ? 0 : 1;
+    pauseBtn.textContent = S.sp[idx] ? '\u25B6' : '\u23F8';
+    pauseBtn.classList.toggle('paused', !!S.sp[idx]);
     return;
   }
   // Coder equipment toggle
@@ -4463,8 +4637,8 @@ $('G').addEventListener('click', e => {
   const up = e.target.closest('.up');
   if (up) {
     const a = up.dataset.a;
-    if (a === 'g') buyGen(+up.dataset.i);
-    else if (a === 'c') buyClk(+up.dataset.i);
+    // v6.8: per-tier 'g' buy disabled — tier rows are display-only; hiring is via Hire Pack
+    if (a === 'c') buyClk(+up.dataset.i);
     else if (a === 'ss') buySS(+up.dataset.i);
     else if (a === 'f') buyFame(+up.dataset.b, +up.dataset.u);
     return;
@@ -4744,56 +4918,22 @@ function tick(now) {
     }
   }
 
-  // Meeting Room perk: auto-pause the worse LoC/cost auto-buyer (runs BEFORE recruiter/facility so bars stay in sync)
-  if (S.c[P.MEETING] && S.ss[SS.RECRUITER] >= 1 && S.ss[SS.FACILITY] >= 1) {
-    if (S.meetingPaused) {
-      S.sp[SS.RECRUITER] = 1; S.sp[SS.FACILITY] = 1;
-    } else {
-      const rVal = bestIdx >= 0 ? GEN[bestIdx].rate * euMul(bestIdx) / gCost(bestIdx) : 0;
-      let fVal = 0;
-      for (let gi = 0; gi < GEN.length; gi++) {
-        if (S.g[gi] < 1) continue;
-        for (let ui = 0; ui < EMP_UPS.length; ui++) {
-          const tier = S.eu[gi][ui];
-          if (tier >= EMP_UPS[ui].tiers.length) continue;
-          const c = euCost(gi, ui);
-          const curMul = tier > 0 ? EMP_UPS[ui].tiers[tier - 1].mult : 1;
-          const nextMul = EMP_UPS[ui].tiers[tier].mult;
-          const val = S.g[gi] * GEN[gi].rate * euMul(gi) * (nextMul / curMul - 1) / c;
-          if (val > fVal) fVal = val;
-        }
-      }
-      if (rVal <= fVal) { S.sp[SS.RECRUITER] = 1; S.sp[SS.FACILITY] = 0; }
-      else { S.sp[SS.FACILITY] = 1; S.sp[SS.RECRUITER] = 0; }
-    }
-  }
-
-  // Recruiter auto-hires best coder
-  const hiringInterval = RECRUITER_SLOW / (1 + 0.02 * ((S.trainerSSLvl && S.trainerSSLvl[SS.RECRUITER]) || 0));
-  if (S.ss[SS.RECRUITER] >= 1 && bestIdx >= 0 && !S.sp[SS.RECRUITER]) {
+  // v6.8: Recruiter is now a passive pack-cost discount (see recruiterPackDiscount).
+  // Trainer still levels Recruiter to amplify the discount.
+  if (S.ss[SS.RECRUITER] >= 1 && S.ss[SS.TRAINER] && S.trainerSSCount) {
     buyerTimer += dt;
-    if (buyerTimer >= hiringInterval) {
+    if (buyerTimer >= 10) {
       buyerTimer = 0;
-      if (S.ss[SS.TRAINER] && S.trainerSSCount) { S.trainerSSCount[SS.RECRUITER] = (S.trainerSSCount[SS.RECRUITER]||0)+1; if (S.trainerSSCount[SS.RECRUITER]>=3){S.trainerSSCount[SS.RECRUITER]=0;if((S.trainerSSLvl[SS.RECRUITER]||0)<100)S.trainerSSLvl[SS.RECRUITER]=(S.trainerSSLvl[SS.RECRUITER]||0)+1;} }
-      const hireCount = 1;
-      let hired = 0;
-      for (let h = 0; h < hireCount; h++) {
-        const c = gCost(bestIdx);
-        if (S.loc >= c) { S.loc -= c; S.g[bestIdx]++; hired++; markDirty(); }
+      S.trainerSSCount[SS.RECRUITER] = (S.trainerSSCount[SS.RECRUITER]||0)+1;
+      if (S.trainerSSCount[SS.RECRUITER]>=3){
+        S.trainerSSCount[SS.RECRUITER]=0;
+        if((S.trainerSSLvl[SS.RECRUITER]||0)<100) S.trainerSSLvl[SS.RECRUITER]=(S.trainerSSLvl[SS.RECRUITER]||0)+1;
       }
-      if (hired) log('\uD83E\uDD16 ' + t('recruiterHired') + (hired > 1 ? ' ' + hired + '\u00d7 ' : ': ') + ta('gen_'+bestIdx+'_name', GEN[bestIdx].name));
     }
   }
-  // Update recruiter progress bar
+  // Recruiter progress bar: hidden / static since recruiter is passive now
   if (!_rFill) _rFill = document.getElementById('recruiterFill');
-  const rFill = _rFill;
-  if (rFill) {
-    if (S.ss[SS.RECRUITER] >= 1 && !S.sp[SS.RECRUITER]) {
-      rFill.style.width = Math.min(buyerTimer / hiringInterval * 100, 100) + '%';
-    } else {
-      rFill.style.width = '0%';
-    }
-  }
+  if (_rFill) _rFill.style.width = '0%';
 
   // Update facility director progress bar
   const facilityInterval = FACILITY_SLOW / (1 + 0.02 * ((S.trainerSSLvl && S.trainerSSLvl[SS.FACILITY]) || 0));
@@ -4905,6 +5045,17 @@ function tick(now) {
     pendingOfflineMsg = null;
   }
 
+  // v6.8: update Hire Pack button cost + afford state
+  {
+    const _pc = document.getElementById('packCost');
+    const _ph = document.getElementById('packHeader');
+    if (_pc && _ph) {
+      const _cost = packCost();
+      _pc.textContent = fmt(_cost);
+      _ph.classList.toggle('no', S.loc < _cost);
+    }
+  }
+
   // Update upgrade rows
   for (let r = 0; r < upRefs.length; r++) {
     const ref = upRefs[r];
@@ -4912,27 +5063,20 @@ function tick(now) {
     let cost, owned, afford, locked = false, maxed = false;
 
     if (a === 'g') {
+      // v6.8: tier rows are display-only. Shown when owned, or when the previous tier has coders.
       const i = ref.idx;
-      const isOpen = i < 1 || S.g[i - 1] >= 1;
-      const isNext = !isOpen && i > 0 && S.g[i - 1] < 1 && (i < 1 || S.g[i - 2] >= 1);
-      locked = !isOpen && !isNext;
-      if (isNext) {
-        afford = false;
+      const isOpen = S.g[i] >= 1 || i < 1 || S.g[i - 1] >= 1;
+      locked = !isOpen;
+      afford = true;  // disable .no dimming — rows are display-only now
+      maxed = false;
+      if (isOpen) {
+        owned = S.g[i];
         costEl.textContent = '';
-        ownEl.textContent = '\u{1F512}';
-        if (ref.rateEl) ref.rateEl.textContent = '';
-        el.classList.remove('best');
-      } else if (isOpen) {
-        const n = effectiveQty(gMax, i);
-        const strictBulk = buyQty !== Infinity && buyQty > 1;
-        cost = strictBulk ? gBulkCost(i, buyQty) : (n > 0 ? gBulkCost(i, n) : gCost(i));
-        owned = S.g[i]; afford = strictBulk ? (n >= buyQty && S.loc >= cost) : (n > 0 && S.loc >= cost);
-        costEl.textContent = fmt(cost);
         const tLv = (S.trainerLvl && S.trainerLvl[i]) || 0;
-        ownEl.textContent = owned ? '×' + owned + (tLv > 0 ? ' Lv' + tLv : '') : '';
+        ownEl.textContent = owned ? '×' + owned + (tLv > 0 ? ' Lv' + tLv : '') : '\u2014';
         if (ref.rateEl) {
           const perUnit = GEN[i].rate * euMul(i) * genSpeedMul() * genSynergyMul() * prodMul();
-          ref.rateEl.textContent = owned ? fmt(perUnit * owned) + '/s (+' + fmt(perUnit) + ')' : '+' + fmt(perUnit) + '/s';
+          ref.rateEl.textContent = owned ? fmt(perUnit * owned) + '/s' : '';
         }
         el.classList.toggle('best', i === bestIdx);
       }
