@@ -1591,7 +1591,7 @@ body{font-family:var(--font-ui);background-color:var(--bg-body);color:var(--text
 </div>
 <div class="game hidden" id="G">
   <div class="top-bar">
-    <div class="stat"><div class="stat-val" id="dYear">1979</div><div class="stat-lbl">Year</div></div>
+    <div class="stat"><div class="stat-val" id="dYear">1980</div><div class="stat-lbl">Year</div></div>
     <div class="stat"><div class="stat-lbl">Currently Developing</div><div class="stat-val" id="dCat">-</div></div>
     <div class="stat"><div class="stat-val" id="dLoc">0</div><div class="stat-lbl" id="dLocLbl">Lines of Code</div></div>
     <div class="stat"><div class="stat-val" id="dLps">0/s</div><div class="stat-lbl" id="dLpsLbl">LoC / sec</div></div>
@@ -1640,7 +1640,7 @@ body{font-family:var(--font-ui);background-color:var(--bg-body);color:var(--text
         <div class="ship-title">Next Release</div>
         <div class="prog-wrap" id="progWrap"><div class="prog-fill" id="pFill" style="transform:scaleX(0)"></div><div class="prog-txt" id="pTxt"></div></div>
         <div class="ship-confirm" id="shipConfirm">
-          <p id="shipWarnText">Your engineers gain +1 year experience!</p>
+          <p id="shipWarnText">Your engineers gain experience and age!</p>
           <div class="ship-confirm-btns">
             <button class="ship-yes" id="shipYes">Ship It!</button>
             <button class="ship-no" id="shipNo">Keep Working</button>
@@ -1681,7 +1681,7 @@ const T={en:{
   types:'types',tiers:'tiers',costIncrease:'cost increase',allProd:'all production',
   locked:'Locked',unknown:'???',maxLvl:'MAX',comingSoon:'Coming soon',
   clicksPerSec:'clicks/s',softwareShipped:'software shipped',statsUnlocked:'unlocked',
-  shipWarn:'Your engineers gain +1 year experience!',shipConfirm:'Ship It!',shipCancel:'Keep Working',
+  shipWarn:'Your engineers gain experience and age!',shipConfirm:'Ship It!',shipCancel:'Keep Working',
   activityLog:'Activity Log',logSkill:'Skill',logUpgraded:'Upgraded',logTraining:'Training',
   settings:'Settings',musicVol:'Music',sfxVol:'Sound FX',
 },es:{
@@ -2629,41 +2629,23 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '9.2';
+const GAME_VERSION = '10.0';
 
 // v7.5: Engineer types — coder is the original; others unlock by year (every 2 years from 1985).
 // Each type has its own resource, list of individuals, and ship threshold.
 // All upgrades (equipment, perks, support staff, trainers) are SHARED across types.
-// packBase scales 3x per subsequent type so unlocking a new type ramps in price.
+// v10: 10 landmark engineer types, one unlocking per release. packBase scales ~4x per type.
 const ENG_TYPES = [
-  // Original v7.3 lineup (1979-1983, every 1 year)
-  { key:'coder',      name:'Coder',      res:'LoC',          resKey:'loc', unlockYear:1979, color:'#7ee787', packBase:             100 },
-  { key:'frontend',   name:'Frontend',   res:'Pixels',       resKey:'pix', unlockYear:1980, color:'#79c0ff', packBase:             400 },
-  { key:'backend',    name:'Database',   res:'Queries',      resKey:'qry', unlockYear:1981, color:'#d2a8ff', packBase:            1600 },
-  { key:'network',    name:'Network',    res:'Packets',      resKey:'pkt', unlockYear:1982, color:'#ffa657', packBase:            6400 },
-  { key:'security',   name:'Security',   res:'Patches',      resKey:'pat', unlockYear:1983, color:'#ff7b72', packBase:           25600 },
-  // v7.5: 2-year cadence (1985-2025), 3x packBase per tier
-  { key:'embedded',   name:'Embedded',   res:'Interrupts',   resKey:'irq', unlockYear:1985, color:'#a5a5a5', packBase:           76800 },
-  { key:'gamedev',    name:'Game Dev',   res:'Sprites',      resKey:'spr', unlockYear:1987, color:'#ff7dda', packBase:          230400 },
-  { key:'qa',         name:'QA',         res:'Bug Reports',  resKey:'bug', unlockYear:1989, color:'#f1e05a', packBase:          691200 },
-  { key:'sysadmin',   name:'SysAdmin',   res:'Daemons',      resKey:'dmn', unlockYear:1991, color:'#8a9a5b', packBase:         2073600 },
-  { key:'webdev',     name:'Web Dev',    res:'Hits',         resKey:'hit', unlockYear:1993, color:'#58a6ff', packBase:         6220800 },
-  { key:'graphics',   name:'Graphics',   res:'Polygons',     resKey:'pgn', unlockYear:1995, color:'#9ee37d', packBase:        18662400 },
-  { key:'java',       name:'Java Dev',   res:'Beans',        resKey:'bns', unlockYear:1997, color:'#a0522d', packBase:        55987200 },
-  { key:'ecommerce',  name:'E-commerce', res:'Transactions', resKey:'txn', unlockYear:1999, color:'#e3b341', packBase:       167961600 },
-  { key:'search',     name:'Search',     res:'Crawls',       resKey:'crw', unlockYear:2001, color:'#6495ed', packBase:       503884800 },
-  { key:'api',        name:'API Dev',    res:'Endpoints',    resKey:'ept', unlockYear:2003, color:'#39c5cf', packBase:      1511654400 },
-  { key:'web2',       name:'Web 2.0',    res:'Mashups',      resKey:'msh', unlockYear:2005, color:'#56d4bf', packBase:      4534963200 },
-  { key:'mobile',     name:'Mobile',     res:'Taps',         resKey:'tap', unlockYear:2007, color:'#00d4aa', packBase:     13604889600 },
-  { key:'devops',     name:'DevOps',     res:'Deploys',      resKey:'dep', unlockYear:2009, color:'#3fb950', packBase:     40814668800 },
-  { key:'datasci',    name:'Data Sci',   res:'Datasets',     resKey:'dst', unlockYear:2011, color:'#6f42c1', packBase:    122444006400 },
-  { key:'cloud',      name:'Cloud',      res:'Instances',    resKey:'ins', unlockYear:2013, color:'#87ceeb', packBase:    367332019200 },
-  { key:'ml',         name:'ML Eng',     res:'Gradients',    resKey:'grd', unlockYear:2015, color:'#bc8cff', packBase:   1101996057600 },
-  { key:'blockchain', name:'Blockchain', res:'Blocks',       resKey:'blk', unlockYear:2017, color:'#f0b429', packBase:   3305988172800 },
-  { key:'sre',        name:'SRE',        res:'Uptime',       resKey:'upt', unlockYear:2019, color:'#b4e33d', packBase:   9917964518400 },
-  { key:'platform',   name:'Platform',   res:'Manifests',    resKey:'mfs', unlockYear:2021, color:'#4b6bff', packBase:  29753893555200 },
-  { key:'prompt',     name:'Prompt Eng', res:'Tokens',       resKey:'tok', unlockYear:2023, color:'#f78166', packBase:  89261680665600 },
-  { key:'agent',      name:'AI Agent',   res:'Traces',       resKey:'trc', unlockYear:2025, color:'#a371f7', packBase: 267785041996800 },
+  { key:'coder',    name:'Coder',    res:'LoC',       resKey:'loc', unlockYear:1980, color:'#7ee787', packBase:        100 },
+  { key:'frontend', name:'Frontend', res:'Pixels',    resKey:'pix', unlockYear:1986, color:'#79c0ff', packBase:        400 },
+  { key:'backend',  name:'Database', res:'Queries',   resKey:'qry', unlockYear:1992, color:'#d2a8ff', packBase:       1600 },
+  { key:'network',  name:'Network',  res:'Packets',   resKey:'pkt', unlockYear:1996, color:'#ffa657', packBase:       6400 },
+  { key:'webdev',   name:'Web Dev',  res:'Hits',      resKey:'hit', unlockYear:1999, color:'#58a6ff', packBase:      25600 },
+  { key:'gamedev',  name:'Game Dev', res:'Sprites',   resKey:'spr', unlockYear:2004, color:'#ff7dda', packBase:     102400 },
+  { key:'mobile',   name:'Mobile',   res:'Taps',      resKey:'tap', unlockYear:2010, color:'#00d4aa', packBase:     409600 },
+  { key:'devops',   name:'DevOps',   res:'Deploys',   resKey:'dep', unlockYear:2013, color:'#3fb950', packBase:    1638400 },
+  { key:'cloud',    name:'Cloud',    res:'Instances',  resKey:'ins', unlockYear:2018, color:'#87ceeb', packBase:    6553600 },
+  { key:'agent',    name:'AI Agent', res:'Traces',    resKey:'trc', unlockYear:2024, color:'#a371f7', packBase:   26214400 },
 ];
 const ENG_TYPE_MAP = Object.fromEntries(ENG_TYPES.map(e => [e.key, e]));
 function isEngType(k) { return !!ENG_TYPE_MAP[k]; }
@@ -2998,12 +2980,11 @@ const ACHIEVEMENTS = [
   { id:'hire_100',   name:'Mega Corp',         desc:'Have 100+ total engineers',    fame:2, check:()=>S.g.reduce((a,b)=>a+b,0)>=100 },
   { id:'hire_500',   name:'Tech Giant',        desc:'Have 500+ total engineers',    fame:2, check:()=>S.g.reduce((a,b)=>a+b,0)>=500 },
   // Shipping
-  { id:'ship_1',     name:'Gone Gold',         desc:'Ship your first software',     fame:1, check:()=>S.shipped>=1 },
-  { id:'ship_3',     name:'Hat Trick',         desc:'Ship 3 software titles',       fame:1, check:()=>S.shipped>=3 },
-  { id:'ship_5',     name:'Prolific Studio',   desc:'Ship 5 software titles',       fame:1, check:()=>S.shipped>=5 },
-  { id:'ship_10',    name:'AAA Publisher',     desc:'Ship 10 software titles',      fame:2, check:()=>S.shipped>=10 },
-  { id:'ship_20',    name:'Software Empire',   desc:'Ship 20 software titles',      fame:2, check:()=>S.shipped>=20 },
-  { id:'ship_40',    name:'Through the Ages',  desc:'Ship 40 software titles',      fame:3, check:()=>S.shipped>=40 },
+  { id:'ship_1',     name:'Gone Gold',           desc:'Ship your first software',      fame:1, check:()=>S.shipped>=1 },
+  { id:'ship_3',     name:'Hat Trick',           desc:'Ship 3 software titles',        fame:2, check:()=>S.shipped>=3 },
+  { id:'ship_5',     name:'Prolific Studio',     desc:'Ship 5 software titles',        fame:3, check:()=>S.shipped>=5 },
+  { id:'ship_7',     name:'Seasoned Publisher',   desc:'Ship 7 software titles',       fame:4, check:()=>S.shipped>=7 },
+  { id:'ship_10',    name:'Through the Ages',     desc:'Ship all 10 software titles',  fame:5, check:()=>S.shipped>=10 },
   // Office perks
   { id:'perk_first', name:'Office Upgrade',    desc:'Buy your first office perk',   fame:1, check:()=>S.c.some(n=>n>0) },
   { id:'perk_5',     name:'Nice Digs',         desc:'Buy 5 office perks',           fame:1, check:()=>S.c.filter(n=>n>0).length>=5 },
@@ -3257,20 +3238,17 @@ function engShipped(type) {
   return (S.engineers && S.engineers[type] && S.engineers[type].shippedSince) || 0;
 }
 function engShipAt(type) {
-  // v7.7: Decaying growth rate + global floor for new types.
-  // Base formula: rate(i) = max(4.7, 12 × 0.94^i), starts 12×, floors at 4.7×.
-  // New types (shippedSince < 2) get floor = coderIncrement × 2.5,
-  // making the newest type the bottleneck instead of always coder (LoC).
+  // v10: 10× growth per ship — 500K → 5M → 50M → … → 500T over 10 releases.
+  // New types (shippedSince < 2) get floor = 30% of coder's current threshold.
   const s = engShipped(type);
-  let base = 1e6;
-  for (let i = 0; i < s; i++) base *= Math.max(4.7, 12 * 0.94 ** i);
+  let base = 500000;
+  for (let i = 0; i < s; i++) base *= 10;
   if (type !== 'coder' && s < 2) {
     const gs = S.shipped || 0;
     if (gs > 0) {
-      let globalBase = 1e6;
-      for (let i = 0; i < gs; i++) globalBase *= Math.max(4.7, 12 * 0.94 ** i);
-      const lastRate = Math.max(4.7, 12 * 0.94 ** (gs - 1));
-      base = Math.max(base, (globalBase - globalBase / lastRate) * 2.5);
+      let globalBase = 500000;
+      for (let i = 0; i < gs; i++) globalBase *= 10;
+      base = Math.max(base, globalBase * 0.3);
     }
   }
   return Math.floor(base * (0.9 ** S.f.franchise));
@@ -3584,7 +3562,7 @@ function loadSlot(raw) {
     // Reconcile already-shipped progress: any type whose unlockYear is <= currentYear
     // becomes unlocked (so reloading mid-game doesn't lose unlocks).
     {
-      const yr = 1979 + (d.shipped || 0);
+      const yr = RELEASE_YEARS[Math.min(d.shipped || 0, RELEASE_YEARS.length - 1)];
       for (const e of ENG_TYPES) {
         if (yr >= e.unlockYear - ((d.f && d.f.goldenParachute) || 0) && !d.unlockedTypes.includes(e.key)) d.unlockedTypes.push(e.key);
       }
@@ -3760,7 +3738,7 @@ function recalcIfDirty() {
   _C.shipAt = engShipAt(aType);
 }
 
-function shipInflation() { return 1.03 ** S.shipped; }
+function shipInflation() { return 1.10 ** S.shipped; }
 const cCost = i => Math.floor(CLK[i].base * CLK[i].gr ** S.c[i] * shipInflation());
 const fameMul = () => { recalcIfDirty(); return _C.fameMul; };
 
@@ -3823,7 +3801,13 @@ function buyEU(gi, ui) {
   playSfx('buy');
 }
 
-function currentYear() { return 1979 + S.shipped; }
+const RELEASE_YEARS = [1980, 1986, 1992, 1996, 1999, 2004, 2010, 2013, 2018, 2024];
+function currentYear() { return RELEASE_YEARS[Math.min(S.shipped, RELEASE_YEARS.length - 1)]; }
+function yearGap() {
+  if (S.shipped <= 0) return 0;
+  const i = Math.min(S.shipped, RELEASE_YEARS.length - 1);
+  return RELEASE_YEARS[i] - RELEASE_YEARS[Math.max(0, i - 1)];
+}
 
 // ========== AUDIO SYSTEM ==========
 let audioCtx, musicGain, sfxGain;
@@ -4341,54 +4325,18 @@ const COMPUTER_ERAS = [
 ];
 
 // ========== LANDMARK SOFTWARE ==========
+// v10: 10 landmark software titles — one per release
 const LANDMARKS = {
-  1979:{real:'VisiCalc',parody:'VisiCrash',cat:'Spreadsheet'},
-  1980:{real:'dBASE',parody:'dBased',cat:'Database'},
-  1981:{real:'MS-DOS',parody:'MS-LOSS',cat:'Operating System'},
-  1982:{real:'AutoCAD',parody:'AutoSAD',cat:'CAD Software'},
-  1983:{real:'Lotus 1-2-3',parody:'Locus 4-5-6',cat:'Spreadsheet'},
-  1984:{real:'MacPaint',parody:'MacStain',cat:'Graphics Editor'},
-  1985:{real:'PageMaker',parody:'RageMaker',cat:'Desktop Publishing'},
-  1986:{real:'MATLAB',parody:'MADLAB',cat:'Scientific Computing'},
-  1987:{real:'PowerPoint',parody:'PowerPointless',cat:'Presentations'},
-  1988:{real:'Mathematica',parody:'Mathemagica',cat:'Math Software'},
-  1989:{real:'SimCity',parody:'SimBugs',cat:'Simulation'},
-  1990:{real:'Photoshop',parody:'Photoslop',cat:'Image Editing'},
-  1991:{real:'Linux',parody:'Penguinux',cat:'Operating System'},
-  1992:{real:'QuickTime',parody:'SlowTime',cat:'Multimedia Player'},
-  1993:{real:'Mosaic',parody:'Mosaic Tile',cat:'Web Browser'},
-  1994:{real:'Netscape',parody:'Netscapade',cat:'Web Browser'},
-  1995:{real:'Java',parody:'Decaf',cat:'Programming Language'},
-  1996:{real:'ICQ',parody:'UCQ',cat:'Instant Messaging'},
-  1997:{real:'Winamp',parody:'LoseAmp',cat:'Media Player'},
-  1998:{real:'StarCraft',parody:'StairCraft',cat:'Strategy Game'},
-  1999:{real:'Napster',parody:'Napsterdly',cat:'File Sharing'},
-  2000:{real:'The Sims',parody:'The Bugs',cat:'Life Simulator'},
-  2001:{real:'Windows XP',parody:'Windows XD',cat:'Operating System'},
-  2002:{real:'Photoshop 7',parody:'Illusthater',cat:'Creative Suite'},
-  2003:{real:'iTunes Store',parody:'iJunes',cat:'Digital Music Store'},
-  2004:{real:'Gmail',parody:'Gfail',cat:'Email Service'},
-  2005:{real:'YouTube',parody:'MeTube',cat:'Video Streaming'},
-  2006:{real:'Twitter',parody:'Bitter',cat:'Social Media'},
-  2007:{real:'iPhone SDK',parody:'iFoam SDK',cat:'Mobile Development'},
-  2008:{real:'Chrome',parody:'Chromium Oxide',cat:'Web Browser'},
-  2009:{real:'Minecraft',parody:'Minegraft',cat:'Sandbox Game'},
-  2010:{real:'Instagram',parody:'Instagrim',cat:'Photo Sharing'},
-  2011:{real:'Siri',parody:'Sorry',cat:'Voice Assistant'},
-  2012:{real:'Raspberry Pi OS',parody:'StrawberryPi',cat:'IoT Platform'},
-  2013:{real:'Docker',parody:'Dockyard',cat:'Containerization'},
-  2014:{real:'Swift',parody:'Slow',cat:'Programming Language'},
-  2015:{real:'TensorFlow',parody:'TenseFlow',cat:'Machine Learning'},
-  2016:{real:'Pokemon Go',parody:'Pokemon No',cat:'Augmented Reality'},
-  2017:{real:'Kubernetes',parody:'Kuberwrecks',cat:'Orchestration'},
-  2018:{real:'TikTok',parody:'ClikClok',cat:'Short Video'},
-  2019:{real:'Zoom',parody:'Doom Meeting',cat:'Video Conferencing'},
-  2020:{real:'Teams',parody:'Screams',cat:'Collaboration Tool'},
-  2021:{real:'Copilot',parody:'CoPillow',cat:'AI Coding Assistant'},
-  2022:{real:'ChatGPT',parody:'ChatGPD',cat:'AI Chatbot'},
-  2023:{real:'Threads',parody:'Shreds',cat:'Social Media'},
-  2024:{real:'Sora',parody:'Snora',cat:'AI Video Generator'},
-  2025:{real:'Claude Code',parody:'Clod Code',cat:'AI IDE'},
+  1980:{real:'VisiCalc',parody:'VisiCrash',cat:'Spreadsheet'},
+  1986:{real:'Super Mario Bros',parody:'Super Bario Bros',cat:'Video Game'},
+  1992:{real:'Microsoft Office',parody:'Microhurt Office',cat:'Office Suite'},
+  1996:{real:'Netscape Navigator',parody:'Netscam Navigator',cat:'Web Browser'},
+  1999:{real:'Amazon.com',parody:'Amazoom.biz',cat:'E-Commerce'},
+  2004:{real:'Google',parody:'Goggle Search',cat:'Search Engine'},
+  2010:{real:'Facebook',parody:'Faceplant',cat:'Social Network'},
+  2013:{real:'Instagram',parody:'Instantgram',cat:'Mobile App'},
+  2018:{real:'AWS',parody:'AW-Jeez',cat:'Cloud Platform'},
+  2024:{real:'ChatGPT',parody:'ChadGPT',cat:'AI Assistant'},
 };
 function getLandmark(year) {
   if (LANDMARKS[year]) return LANDMARKS[year];
@@ -4431,11 +4379,12 @@ function eventClickMul() { return (activeEvent && !activeEvent.pending) ? active
 function clickPow() { recalcIfDirty(); return _C.clickPow; }
 function lps() { recalcIfDirty(); return _C.lps; }
 function fameGain() {
-  let base = 2 + 0.5 * S.f.marketing;
+  // v10: boosted base — fewer ships means each must count more
+  let base = 3 + S.f.marketing;
   // Viral Marketing: +25% Fame per ship per level
   if (S.f.viralMarketing) base *= (1 + 0.25 * S.f.viralMarketing);
-  // IPO: +1 Fame per 5 lifetime ships
-  if (S.f.ipo) base += Math.floor(S.shipped / 3);
+  // IPO: +1 Fame per 2 lifetime ships
+  if (S.f.ipo) base += Math.floor(S.shipped / 2);
   return Math.max(1, Math.floor(base));
 }
 
@@ -6739,6 +6688,7 @@ function checkTypeUnlocks() {
 
 // v7.3: ship requires every unlocked engineer type to meet its own threshold
 function canShip() {
+  if (S.shipped >= RELEASE_YEARS.length) return false; // v10: no more than 10 releases
   if (!Array.isArray(S.unlockedTypes)) return false;
   for (const type of S.unlockedTypes) {
     if (engTRes(type) < engShipAt(type)) return false;
@@ -6768,18 +6718,19 @@ function ship() {
   S.fireCount = 0;
   // v7.2: ship is no longer a prestige reset — generators, equipment, clickers,
   // support, recruiters, facilities, and resources all persist across ships.
-  // Engineers gain +1 year of experience per ship; exp can bump tier so rebuild S.g.
+  // v10: Engineers gain +1 exp per ship (gradual tier progression) but age by real year gap.
+  const gap = yearGap();
   if (!Array.isArray(S.coders)) S.coders = [];
   S.coders.forEach(c => {
     if (c.age === undefined) { c.age = 20 + (c.edu || 0) * 2 + (c.exp || 0); c.retireAge = Math.min(78, 57 + (c.edu || 0) * 2 + Math.floor((c.seed || Math.random()) * (11 + (c.edu || 0) * 2))); }
-    c.exp += 1; c.age += 1; c.tier = computeTier(c.edu, c.exp, c.seed);
+    c.exp += 1; c.age += gap; c.tier = computeTier(c.edu, c.exp, c.seed);
   });
   // v7.3: also age engineers from the new types
   if (S.engineers) {
     for (const k in S.engineers) {
       for (const c of (S.engineers[k].list || [])) {
         if (c.age === undefined) { c.age = 20 + (c.edu || 0) * 2 + (c.exp || 0); c.retireAge = Math.min(78, 57 + (c.edu || 0) * 2 + Math.floor((c.seed || Math.random()) * (11 + (c.edu || 0) * 2))); }
-        c.exp += 1; c.age += 1; c.tier = computeTier(c.edu, c.exp, c.seed);
+        c.exp += 1; c.age += gap; c.tier = computeTier(c.edu, c.exp, c.seed);
       }
     }
   }
@@ -6871,6 +6822,13 @@ function ship() {
   showYearTransition(year, name, lm.cat);
   toast(name + ' ' + t('toastShipped') + ' +' + gain + ' ' + t('fame'));
   log('\uD83D\uDE80 ' + name + ' ' + t('toastShipped') + ' +' + gain + ' ' + t('fame'));
+  // v10: victory message after shipping all 10 releases
+  if (S.shipped >= RELEASE_YEARS.length) {
+    setTimeout(() => {
+      toast('\uD83C\uDFC6 You shipped through the entire history of computing!');
+      log('\uD83C\uDFC6 Congratulations — all ' + RELEASE_YEARS.length + ' landmark releases shipped!');
+    }, 2500);
+  }
   playSfx('ship');
 }
 
@@ -7922,18 +7880,18 @@ let _clockValidated = false;
       title.textContent = '\u{1F41B} Debug Panel';
       panel.appendChild(title);
 
-      // Year slider
+      // Year dropdown (v10: uses RELEASE_YEARS instead of linear slider)
       const curYear = currentYear();
       const lbl = document.createElement('div');
       lbl.style.cssText = 'margin-bottom:4px;font-size:11px';
       lbl.textContent = 'Year: ' + curYear + ' (shipped: ' + S.shipped + ')';
       panel.appendChild(lbl);
       const slider = document.createElement('input');
-      slider.type = 'range'; slider.min = 1979; slider.max = 2040; slider.value = curYear;
+      slider.type = 'range'; slider.min = 0; slider.max = RELEASE_YEARS.length; slider.value = S.shipped;
       slider.style.cssText = 'width:100%;margin-bottom:8px;accent-color:#f0883e';
       slider.addEventListener('input', () => {
-        const targetYear = +slider.value;
-        lbl.textContent = 'Year: ' + targetYear + ' (shipped: ' + (targetYear - 1979) + ')';
+        const idx = Math.min(+slider.value, RELEASE_YEARS.length - 1);
+        lbl.textContent = 'Year: ' + RELEASE_YEARS[idx] + ' (shipped: ' + slider.value + ')';
       });
       panel.appendChild(slider);
 
@@ -7943,7 +7901,7 @@ let _clockValidated = false;
       jumpBtn.style.cssText = 'width:100%;padding:6px;background:#f0883e;color:#000;border:none;border-radius:4px;font-weight:700;font-size:12px;cursor:pointer;margin-bottom:6px';
       jumpBtn.addEventListener('click', () => {
         _dbgMusicOverride = false;
-        const targetShipped = +slider.value - 1979;
+        const targetShipped = +slider.value;
         const diff = targetShipped - S.shipped;
         if (diff > 0) {
           for (let i = 0; i < diff; i++) {
@@ -7974,11 +7932,11 @@ let _clockValidated = false;
           renderTypeTabs(); renderResourceBar(); renderShipPanel();
         }
         lbl.textContent = 'Year: ' + currentYear() + ' (shipped: ' + S.shipped + ')';
-        slider.value = currentYear();
+        slider.value = S.shipped;
       });
       panel.appendChild(jumpBtn);
 
-      // Quick GUI era buttons
+      // Quick GUI era buttons (v10: mapped to RELEASE_YEARS indices)
       const eraLabel = document.createElement('div');
       eraLabel.style.cssText = 'margin-top:8px;font-size:11px;color:#f0883e;font-weight:700';
       eraLabel.textContent = '\u{1F5A5} GUI Eras';
@@ -7986,15 +7944,15 @@ let _clockValidated = false;
       const eraRow = document.createElement('div');
       eraRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:4px';
       const eras = [
-        { label:'Apple II', s:0 },{ label:'DOS', s:3 },{ label:'Win3.x', s:12 },
-        { label:'Win95', s:17 },{ label:'Win98', s:20 },{ label:'WinXP', s:23 },
-        { label:'Win7', s:32 },{ label:'Win10', s:37 },{ label:'Win11', s:44 }
+        { label:'Apple II', s:0 },{ label:'DOS', s:1 },{ label:'Win3.x', s:2 },
+        { label:'Win95', s:3 },{ label:'Win98', s:4 },{ label:'WinXP', s:5 },
+        { label:'Win7', s:6 },{ label:'Win10', s:8 },{ label:'Win11', s:9 }
       ];
       eras.forEach(era => {
         const b = document.createElement('button');
         b.textContent = era.label;
         b.style.cssText = 'flex:1;min-width:70px;padding:4px;background:#2a2a44;color:#ccc;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
-        b.addEventListener('click', () => { slider.value = 1979 + era.s; slider.dispatchEvent(new Event('input')); jumpBtn.click(); });
+        b.addEventListener('click', () => { slider.value = era.s; slider.dispatchEvent(new Event('input')); jumpBtn.click(); });
         eraRow.appendChild(b);
       });
       panel.appendChild(eraRow);
