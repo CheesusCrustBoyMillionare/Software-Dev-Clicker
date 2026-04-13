@@ -2629,7 +2629,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '9.3';
+const GAME_VERSION = '9.4';
 
 // v7.5: Engineer types — coder is the original; others unlock by year (every 2 years from 1985).
 // Each type has its own resource, list of individuals, and ship threshold.
@@ -3015,6 +3015,35 @@ const ACHIEVEMENTS = [
   { id:'lps_100',    name:'Assembly Line',     desc:'Reach 100 res/s',              fame:1, check:()=>lps()>=100 },
   { id:'lps_10k',    name:'Code Factory',      desc:'Reach 10,000 res/s',           fame:1, check:()=>lps()>=10000 },
   { id:'lps_1m',     name:'Code Singularity',  desc:'Reach 1,000,000 res/s',        fame:2, check:()=>lps()>=1e6 },
+  { id:'lps_1b',     name:'Infinite Monkeys',  desc:'Reach 1,000,000,000 res/s',    fame:3, check:()=>lps()>=1e9 },
+  // Engineer types
+  { id:'type_3',     name:'Triple Threat',     desc:'Unlock 3 engineer types',      fame:1, check:()=>S.unlockedTypes.length>=3 },
+  { id:'type_5',     name:'Department Heads',  desc:'Unlock 5 engineer types',      fame:2, check:()=>S.unlockedTypes.length>=5 },
+  { id:'type_all',   name:'Full Roster',       desc:'Unlock all 10 engineer types', fame:3, check:()=>S.unlockedTypes.length>=10 },
+  // Engineer tiers
+  { id:'tier_cto',   name:'C-Suite',           desc:'Promote an engineer to CTO',   fame:2, check:()=>{const all=[...S.coders,...Object.values(S.engineers||{}).flatMap(e=>e.list||[])];return all.some(c=>c.tier>=7);} },
+  { id:'tier_all',   name:'Career Ladder',     desc:'Have all 8 engineer tiers at once', fame:3, check:()=>{const tiers=new Set();S.coders.forEach(c=>tiers.add(c.tier));Object.values(S.engineers||{}).forEach(e=>(e.list||[]).forEach(c=>tiers.add(c.tier)));return tiers.size>=8;} },
+  // Skill tree
+  { id:'skill_auto', name:'Idle Hands',        desc:'Unlock Auto-Click',            fame:1, check:()=>!!S.f.autoClick },
+  { id:'skill_pub',  name:'Going Public',      desc:'Hire a Publisher',             fame:1, check:()=>!!S.f.publisher },
+  { id:'skill_ipo',  name:'IPO Day',           desc:'Take your company public',     fame:2, check:()=>!!S.f.ipo },
+  { id:'skill_10',   name:'Skill Hoarder',     desc:'Buy 10 skill tree perks',      fame:2, check:()=>Object.values(S.f).filter(v=>v>0).length>=10 },
+  // Click streaks
+  { id:'streak_5x',  name:'On Fire',           desc:'Reach a 5\u00d7 click streak', fame:1, check:()=>typeof streakMul!=='undefined'&&streakMul>=5 },
+  { id:'streak_max', name:'In the Zone',       desc:'Max out your click streak',    fame:2, check:()=>typeof streakMul!=='undefined'&&streakMul>=(2+(S.f.streakPower||0)+2*(S.f.streakTurbo||0)) },
+  // Retirement
+  { id:'retire_1',   name:'Gold Watch',        desc:'Have an engineer retire',      fame:1, check:()=>(S.totalRetired||0)>=1 },
+  { id:'retire_10',  name:'Old Guard',         desc:'Have 10 engineers retire',     fame:2, check:()=>(S.totalRetired||0)>=10 },
+  // Eras
+  { id:'era_dos',    name:'Command Line',      desc:'Reach the DOS era (1986)',     fame:1, check:()=>currentYear()>=1986 },
+  { id:'era_xp',     name:'Bliss Wallpaper',   desc:'Reach the Windows XP era (2004)', fame:2, check:()=>currentYear()>=2004 },
+  { id:'era_modern', name:'Flat Design',       desc:'Reach the Windows 11 era (2024)', fame:3, check:()=>currentYear()>=2024 },
+  // Recruiter upgrades
+  { id:'recruit_all',name:'Talent Pipeline',   desc:'Buy all recruiter upgrades',   fame:2, check:()=>S.ru.every(v=>v>0) },
+  // Trainer
+  { id:'train_max',  name:'Sensei',            desc:'Max out trainer level on any staff', fame:2, check:()=>S.trainerLvl&&S.trainerLvl.some(l=>l>=10) },
+  // Total engineers
+  { id:'hire_1k',    name:'Unicorn Status',    desc:'Have 1,000+ total engineers',  fame:3, check:()=>{let t=S.g.reduce((a,b)=>a+b,0);Object.values(S.engineers||{}).forEach(e=>t+=(e.list||[]).length);return t>=1000;} },
 ];
 
 // ========== RANDOM EVENTS ==========
@@ -3181,6 +3210,7 @@ const defaults = () => ({
   meetingPaused: 0,
   fameResetUsed: 0,
   fireCount: 0,
+  totalRetired: 0,
   coders: [],
   // v7.5: parallel state for all non-coder engineer types (built dynamically from ENG_TYPES).
   // Coder remains in S.coders/S.loc/S.tLoc. Each other type has its own resource, list, etc.
@@ -3471,6 +3501,7 @@ function loadSlot(raw) {
       d.cb = Math.min(d.catsSeen.length, CODE_BASE.length);
     }
     if (!d.ach) d.ach = [];
+    if (typeof d.totalRetired !== 'number') d.totalRetired = 0;
     if (!d.games) d.games = [];
     if (d.tFame === undefined) d.tFame = d.fame || 0;
     // Migrate perk order: old [E,L,D,DC,GR,NAP,PET,GYM,PTO,R] → new [E,L,D,DC,PET,GYM,GR,PTO,NAP,R]
@@ -6754,6 +6785,7 @@ function ship() {
       }
     }
     if (retired.length > 0) {
+      S.totalRetired = (S.totalRetired || 0) + retired.length;
       if (retired.length <= 3) {
         retired.forEach(c => log('\u{1F382} ' + c.name + ' retired at age ' + c.age));
       } else {
