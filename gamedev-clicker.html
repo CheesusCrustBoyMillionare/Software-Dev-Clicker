@@ -2644,7 +2644,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '9.5';
+const GAME_VERSION = '9.6';
 
 // v7.5: Engineer types — coder is the original; others unlock by year (every 2 years from 1985).
 // Each type has its own resource, list of individuals, and ship threshold.
@@ -2666,14 +2666,14 @@ const ENG_TYPE_MAP = Object.fromEntries(ENG_TYPES.map(e => [e.key, e]));
 function isEngType(k) { return !!ENG_TYPE_MAP[k]; }
 
 const GEN = [
-  { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 1.4,    gr: 1.15 },
-  { name: 'Junior Dev',         desc: 'Knows one framework well',      base: 610,           rate: 4.2,    gr: 1.15 },
-  { name: 'Mid-Level Dev',      desc: 'Can Google anything',           base: 20000,         rate: 12.6,   gr: 1.15 },
-  { name: 'Senior Dev',         desc: 'Has mass-deleted prod before',  base: 810000,        rate: 38,     gr: 1.15 },
-  { name: 'Staff Engineer',     desc: 'Writes docs nobody reads',       base: 33000000,      rate: 114,    gr: 1.15 },
-  { name: 'Principal Engineer', desc: 'Speaks only in abstractions',   base: 1100000000,    rate: 340,    gr: 1.15 },
-  { name: 'Tech Lead',          desc: '50% meetings, 50% Slack',      base: 44000000000,   rate: 1020,   gr: 1.15 },
-  { name: 'CTO',                desc: "Sends 'thoughts?' emails at 3am", base: 1800000000000, rate: 3060,   gr: 1.15 },
+  { name: 'Intern',             desc: 'Eager but error-prone',         base: 15,            rate: 0.7,    gr: 1.15 },
+  { name: 'Junior Dev',         desc: 'Knows one framework well',      base: 610,           rate: 2.1,    gr: 1.15 },
+  { name: 'Mid-Level Dev',      desc: 'Can Google anything',           base: 20000,         rate: 6.3,    gr: 1.15 },
+  { name: 'Senior Dev',         desc: 'Has mass-deleted prod before',  base: 810000,        rate: 19,     gr: 1.15 },
+  { name: 'Staff Engineer',     desc: 'Writes docs nobody reads',       base: 33000000,      rate: 57,     gr: 1.15 },
+  { name: 'Principal Engineer', desc: 'Speaks only in abstractions',   base: 1100000000,    rate: 170,    gr: 1.15 },
+  { name: 'Tech Lead',          desc: '50% meetings, 50% Slack',      base: 44000000000,   rate: 510,    gr: 1.15 },
+  { name: 'CTO',                desc: "Sends 'thoughts?' emails at 3am", base: 1800000000000, rate: 1530,   gr: 1.15 },
 ];
 
 const EMP_UPS = [
