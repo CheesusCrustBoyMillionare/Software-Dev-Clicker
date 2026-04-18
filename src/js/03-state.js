@@ -1,9 +1,9 @@
 // ========== STATE ==========
 // Schema version: incremented when save format changes in a breaking way.
-// v1 = clicker era (current). v2 = tycoon rework (planned in software-dev-2 branch).
+// v1 = clicker era (shipped on main). v2 = tycoon rework (this branch).
 // Migrations live in SCHEMA_MIGRATIONS below.
-const SCHEMA_VERSION = 1;
-const MIN_COMPATIBLE_SCHEMA = 1;
+const SCHEMA_VERSION = 2;
+const MIN_COMPATIBLE_SCHEMA = 1; // v1 saves flow through SCHEMA_MIGRATIONS[1] (wipe)
 
 const defaults = () => ({
   v:SCHEMA_VERSION, loc:0, tLoc:0, fame:0, tFame:0,
@@ -45,7 +45,31 @@ const defaults = () => ({
   ach: [],
   games: [],
   musicVol: 0.5, sfxVol: 0.7,
-  funShown: 0
+  funShown: 0,
+  // ========== v2 TYCOON STATE ==========
+  // Added in Phase 1A. v1 fields above remain for now; cleaned up in Phase 1F.
+  // Studio identity (set on new career)
+  studioName: '',
+  founderName: '',
+  founderSpecialty: 'coder',       // one of ENG_TYPES keys
+  founderTrait: '',                // one of the 4 starter traits
+  difficulty: 'normal',            // easy | normal | hard
+  // Finance
+  cash: 0,                         // current $ balance (set on career start per difficulty)
+  tRevenue: 0,                     // lifetime revenue
+  tExpenses: 0,                    // lifetime expenses
+  // Calendar — game date
+  calendar: { week: 1, month: 1, year: 1980 },  // week 1-4 within month, month 1-12, year 1980+
+  // Projects — the heart of Phase 1
+  projects: { active: [], shipped: [], contracts: [] },
+  // Founder — persistent engineer (set on career start). Simplified in Phase 1 — fuller model in Phase 3.
+  founder: null,
+  // Time control
+  speed: 1,                        // 0 (paused) | 1 | 2 | 4 | 8
+  paused: false,                   // distinct from speed=0 — user-initiated pause
+  // Career lifecycle
+  careerStarted: false,            // set true once studio is founded
+  careerStartedAt: 0               // trustedNow() timestamp
 });
 
 // v7.3: Engineer type helpers — single source of truth for resource & list access.
@@ -289,14 +313,20 @@ function trustedNow() {
 // ========== SAVE / LOAD ==========
 let KEY = 'gdc_save_1';
 
-// Schema migration registry: { fromVersion: (d) => migrated_d }
-// Each migrator mutates d in place + returns it with d.v bumped.
-// Example (for future use):
-//   SCHEMA_MIGRATIONS[1] = (d) => { /* convert clicker v1 → tycoon v2 */ d.v = 2; return d; }
-const SCHEMA_MIGRATIONS = {};
+// Schema migration registry: { fromVersion: (d) => migrated_d | null }
+// Each migrator mutates d in place + returns it with d.v bumped, OR returns null to discard.
+const SCHEMA_MIGRATIONS = {
+  // v1 → v2: clicker to tycoon rework. Incompatible data model.
+  // During alpha: discard v1 saves. Player starts a fresh v2 career.
+  1: function migrateClickerToTycoon(d) {
+    console.info('[schema] v1 clicker save detected. Discarding per v2 migration policy.');
+    console.info('[schema] Classic clicker is still playable on the main branch. This branch is the tycoon rework.');
+    return null; // signals loadSlot to treat as fresh career
+  },
+};
 
 function migrateSave(d) {
-  while (d.v < SCHEMA_VERSION) {
+  while (d && d.v < SCHEMA_VERSION) {
     const fromV = d.v;
     const migrator = SCHEMA_MIGRATIONS[fromV];
     if (!migrator) {
@@ -304,6 +334,7 @@ function migrateSave(d) {
       return null;
     }
     d = migrator(d);
+    if (!d) return null; // migrator chose to discard (fresh start)
     if (d.v <= fromV) {
       console.error('Migrator for v' + fromV + ' failed to advance schema version');
       return null;
