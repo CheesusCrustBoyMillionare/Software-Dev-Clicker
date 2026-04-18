@@ -1753,7 +1753,7 @@ const T={en:{
   clk_9_name:'Retiro Corporativo',clk_9_desc:'×1,75 toda la producción',
   // SUPPORT
   sup_0_name:'Secretaria',sup_0_desc:'Resalta mejor nivel y tipo cuello de botella',
-  sup_1_name:'Reclutador',sup_1_desc:'Descuento pasivo en coste de packs',
+  sup_1_name:'Reclutador',sup_1_desc:'Descuento pasivo en coste de contrataci\u00f3n',
   sup_2_name:'Director de Instalaciones',sup_2_desc:'Auto-compra equipamiento más barato',
   sup_3_name:'Entrenador',sup_3_desc:'Sube de nivel a programadores (+1%/30s) y personal',
   // RECRUITER_UPS
@@ -1941,7 +1941,7 @@ const T={en:{
   clk_9_name:'Retiro da Empresa',clk_9_desc:'×1.75 toda a produção',
   // SUPPORT
   sup_0_name:'Secretária',sup_0_desc:'Destaca melhor nível e tipo gargalo',
-  sup_1_name:'Recrutador',sup_1_desc:'Desconto passivo no custo de packs',
+  sup_1_name:'Recrutador',sup_1_desc:'Desconto passivo no custo de contrata\u00e7\u00e3o',
   sup_2_name:'Diretor de Instalações',sup_2_desc:'Auto-compra equipamento mais barato',
   sup_3_name:'Treinador',sup_3_desc:'Sobe de nível programadores (+1%/30s) e equipe',
   // RECRUITER_UPS
@@ -2129,7 +2129,7 @@ const T={en:{
   clk_9_name:'Séminaire d\'Entreprise',clk_9_desc:'×1.75 toute la production',
   // SUPPORT
   sup_0_name:'Secrétaire',sup_0_desc:'Surligne meilleur palier & type goulot',
-  sup_1_name:'Recruteur',sup_1_desc:'R\u00e9duction passive du co\u00fbt des packs',
+  sup_1_name:'Recruteur',sup_1_desc:'R\u00e9duction passive du co\u00fbt d\'embauche',
   sup_2_name:'Directeur des Installations',sup_2_desc:'Auto-achète l\'équipement le moins cher',
   sup_3_name:'Entraîneur',sup_3_desc:'Monte de niveau les codeurs (+1%/30s) et le personnel',
   // RECRUITER_UPS
@@ -2317,7 +2317,7 @@ const T={en:{
   clk_9_name:'Firmenausflug',clk_9_desc:'×1.75 gesamte Produktion',
   // SUPPORT
   sup_0_name:'Sekretär/in',sup_0_desc:'Markiert beste Stufe & Engpass-Typ',
-  sup_1_name:'Recruiter',sup_1_desc:'Passiver Rabatt auf Pack-Kosten',
+  sup_1_name:'Recruiter',sup_1_desc:'Passiver Rabatt auf Einstellungskosten',
   sup_2_name:'Facility Director',sup_2_desc:'Kauft automatisch die günstigste Ausrüstung',
   sup_3_name:'Trainer',sup_3_desc:'Levelt Programmierer (+1%/30s) und Personal auf',
   // RECRUITER_UPS
@@ -2505,7 +2505,7 @@ const T={en:{
   clk_9_name:'Team Retreat to Bali',clk_9_desc:'\u00d71.75 all production',
   // SUPPORT
   sup_0_name:'Analytics Intern',sup_0_desc:'highlights best tier & bottleneck type',
-  sup_1_name:'Talent Agent',sup_1_desc:'passive signing pack cost discount',
+  sup_1_name:'Talent Agent',sup_1_desc:'passive signing discount',
   sup_2_name:'Merch Director',sup_2_desc:'auto-cops cheapest gear',
   sup_3_name:'Coach',sup_3_desc:'levels up creators (+1%/30s) & squad',
   // RECRUITER_UPS
@@ -2644,7 +2644,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '9.4';
+const GAME_VERSION = '9.5';
 
 // v7.5: Engineer types — coder is the original; others unlock by year (every 2 years from 1985).
 // Each type has its own resource, list of individuals, and ship threshold.
@@ -2696,9 +2696,9 @@ const EMP_UPS = [
 
 // v7.4: recruiter upgrades — one-time purchases unlocked once Recruiter is hired.
 const RECRUITER_UPS = [
-  { id: 'headhunter', name: 'Headhunter Network', desc: '\u221215% Hire Pack cost',                baseCost: 40000,   gr: 1 },
-  { id: 'talentpool', name: 'Talent Pool',        desc: '+1 engineer per Hire Pack',               baseCost: 250000,  gr: 1 },
-  { id: 'retainer',   name: 'Executive Retainer', desc: 'Doubles Recruiter pack\u2011cost discount', baseCost: 1500000, gr: 1 },
+  { id: 'headhunter', name: 'Headhunter Network', desc: '\u221215% Hire cost',                baseCost: 40000,   gr: 1 },
+  { id: 'talentpool', name: 'Recruiting Drive',   desc: '+1 engineer per hire',                baseCost: 250000,  gr: 1 },
+  { id: 'retainer',   name: 'Executive Retainer', desc: 'Doubles Recruiter hire\u2011cost discount', baseCost: 1500000, gr: 1 },
 ];
 
 const CLK = [
@@ -2712,7 +2712,7 @@ const CLK = [
   { name: 'Unlimited PTO',      desc: '-20% engineer hire costs',        base: 1000000,  gr: 10 },
   { name: 'Nap Pods',           desc: 'Burst: 16s production every 50s', base: 2000000,  gr: 10 },
   { name: 'Company Retreat',    desc: '\u00d72.5 all production',        base: 6000000,  gr: 10 },
-  { name: 'Meeting Room',      desc: '\u221215% Hire Pack cost',          base: 150000,   gr: 10, req: 3 },
+  { name: 'Meeting Room',      desc: '\u221215% Hire cost',               base: 150000,   gr: 10, req: 3 },
 ];
 
 const FACILITY_UPS = [
@@ -2722,7 +2722,7 @@ const FACILITY_UPS = [
 
 const SUPPORT = [
   { name: 'Secretary',         desc: 'Highlights best-value tier & bottleneck type', base: 1500, gr: 10 },
-  { name: 'Recruiter',         desc: 'Passive hire pack cost discount',     base: 15000,  gr: 10 },
+  { name: 'Recruiter',         desc: 'Passive hire cost discount',          base: 15000,  gr: 10 },
   { name: 'Facility Director', desc: 'Auto-buys best value equipment',      base: 45000,  gr: 10 },
   { name: 'Trainer',           desc: 'Levels up engineers (+1%/30s) & staff', base: 60000, gr: 10 },
 ];
@@ -4676,8 +4676,8 @@ function buildUI() {
     ph.className = 'pack-header';
     ph.id = 'packHeader';
     const pInfo = document.createElement('div'); pInfo.className = 'pack-info';
-    const pTitle = document.createElement('div'); pTitle.className = 'pack-title'; pTitle.textContent = 'Hire Pack';
-    const pDesc = document.createElement('div'); pDesc.className = 'pack-desc'; pDesc.id = 'packDesc'; pDesc.textContent = packSize() + ' random engineers';
+    const pTitle = document.createElement('div'); pTitle.className = 'pack-title'; pTitle.textContent = 'Hire';
+    const pDesc = document.createElement('div'); pDesc.className = 'pack-desc'; pDesc.id = 'packDesc'; pDesc.textContent = packSize() === 1 ? '1 random engineer' : packSize() + ' random engineers';
     pInfo.append(pTitle, pDesc);
     const pCost = document.createElement('div'); pCost.className = 'pack-cost'; pCost.id = 'packCost';
     ph.append(pInfo, pCost);
@@ -4747,7 +4747,7 @@ function buildUI() {
     el2.dataset.i = 1;
     const info2 = document.createElement('div'); info2.className = 'up-info';
     const n2 = document.createElement('div'); n2.className = 'up-name'; n2.textContent = ta('sup_1_name', s.name);
-    const dd2 = document.createElement('div'); dd2.className = 'up-desc'; dd2.textContent = 'Each level reduces Hire Pack cost by 2% (Trainer scales).';
+    const dd2 = document.createElement('div'); dd2.className = 'up-desc'; dd2.textContent = 'Each level reduces Hire cost by 2% (Trainer scales).';
     info2.append(n2, dd2);
     const cost2 = document.createElement('div'); cost2.className = 'up-cost';
     const own2 = document.createElement('div'); own2.className = 'up-own';
@@ -4818,7 +4818,7 @@ function buildUI() {
   sec(t('officePerks'));
   CLK.forEach((c, i) => {
     // v6.8: Meeting Room repurposed — grants additional 15% pack-cost discount
-    const desc = (i === P.MEETING) ? '\u221215% Hire Pack cost (stacks with Recruiter)' : ta('clk_'+i+'_desc', c.desc);
+    const desc = (i === P.MEETING) ? '\u221215% Hire cost (stacks with Recruiter)' : ta('clk_'+i+'_desc', c.desc);
     row('c', i, ta('clk_'+i+'_name', c.name), desc);
   });
 
@@ -5491,7 +5491,7 @@ function recruiterPackDiscount() {
   if (S.ru && S.ru[0]) mul *= 0.85;
   return mul;
 }
-// v7.4: dynamic pack size — base 3, +1 per Talent Pool upgrade
+// v9.5: hire size — base 1, +1 with Recruiting Drive upgrade
 function packSize() {
   return PACK_SIZE + ((S.ru && S.ru[1]) ? 1 : 0);
 }
@@ -5524,8 +5524,8 @@ function officeCost(type) {
   const typeScale = (meta && meta.packBase) ? meta.packBase / 100 : 1;
   return Math.floor(OFFICES[next].cost * typeScale * shipInflation());
 }
-// v7.4: pack size reduced 5 -> 3 (engineers are 2x stronger; see GEN rates)
-const PACK_SIZE = 3;
+// v9.5: single-engineer hires. Recruiting Drive (ru[1]) adds +1.
+const PACK_SIZE = 1;
 // v7.3: pack-fit check counts ONLY the active type's roster against its own office cap
 function canFitPack() {
   const t = activeType();
@@ -5589,7 +5589,7 @@ function buyPack() {
     if (info.count === 0 && engRes(aType) < packCost()) {
       toast('Not enough ' + (ENG_TYPE_MAP[aType] ? ENG_TYPE_MAP[aType].res : 'LoC'));
     } else if (info.count < buyQty) {
-      toast('Can only fit ' + info.count + ' pack' + (info.count !== 1 ? 's' : ''));
+      toast('Can only afford ' + info.count + ' hire' + (info.count !== 1 ? 's' : ''));
     }
     return;
   }
@@ -5607,7 +5607,7 @@ function buyPack() {
   const counts = [0,0,0,0,0];
   pulls.forEach(c => counts[c.rarity]++);
   const summary = counts.map((n,i) => n ? n + RARITY_NAMES[i][0] : '').filter(Boolean).join(' ');
-  log('\u{1F4E6} Hired ' + info.count + ' pack' + (info.count > 1 ? 's' : '') + ': ' + summary);
+  log('\u{1F4E6} Hired ' + pulls.length + ' engineer' + (pulls.length !== 1 ? 's' : '') + ': ' + summary);
   showPackReveal(pulls);
 }
 function showPackReveal(pulls) {
@@ -5960,7 +5960,7 @@ function buildRosterInto(panel, isModal) {
       const empty = document.createElement('div');
       empty.style.cssText = 'text-align:center;color:var(--text-secondary);padding:20px;font-size:.75rem';
       const meta = activeTypeMeta();
-      empty.textContent = (sourceList.length > 0) ? 'No engineers match this filter.' : ('No ' + meta.name.toLowerCase() + 's yet — buy a pack!');
+      empty.textContent = (sourceList.length > 0) ? 'No engineers match this filter.' : ('No ' + meta.name.toLowerCase() + 's yet — hire someone!');
       listEl.appendChild(empty);
       return;
     }
@@ -7486,7 +7486,8 @@ function tick(now) {
       const _ps = packSize();
       const _numEng = buyQty === Infinity ? _ps : buyQty > 1 ? _ps * buyQty : _ps;
       const _qLabel = buyQty !== Infinity && buyQty > 1 ? buyQty + '\u00d7' : '';
-      _pd.textContent = _qLabel + _numEng + ' ' + _meta.name + ' engineers \u00b7 ' + _own + '/' + _cap;
+      const _engLabel = _numEng === 1 ? ' engineer' : ' engineers';
+      _pd.textContent = _qLabel + _numEng + ' ' + _meta.name + _engLabel + ' \u00b7 ' + _own + '/' + _cap;
       if (_full) {
         _pc.textContent = 'FULL';
       } else if (_info.count === 0) {
