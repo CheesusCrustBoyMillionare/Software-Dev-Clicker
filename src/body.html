@@ -1,0 +1,79 @@
+<div class="slot-screen" id="slots">
+  <div class="slot-title">Software Dev Clicker</div>
+  <div class="slot-sub">Select a career save</div>
+  <div class="slot-row" id="slotRow"></div>
+  <div class="lang-bar" id="langBar">
+    <button class="lang-btn" data-lang="en">&#x1F1EC;&#x1F1E7;</button>
+    <button class="lang-btn" data-lang="es">&#x1F1EA;&#x1F1F8;</button>
+    <button class="lang-btn" data-lang="pt">&#x1F1E7;&#x1F1F7;</button>
+    <button class="lang-btn" data-lang="fr">&#x1F1EB;&#x1F1F7;</button>
+    <button class="lang-btn" data-lang="de">&#x1F1E9;&#x1F1EA;</button>
+    <button class="lang-btn" data-lang="gz">&#x1F480;</button>
+  </div>
+</div>
+<div class="game hidden" id="G">
+  <div class="top-bar">
+    <div class="stat"><div class="stat-val" id="dYear">1980</div><div class="stat-lbl">Year</div></div>
+    <div class="stat"><div class="stat-lbl">Currently Developing</div><div class="stat-val" id="dCat">-</div></div>
+    <div class="stat"><div class="stat-val" id="dLoc">0</div><div class="stat-lbl" id="dLocLbl">Lines of Code</div></div>
+    <div class="stat"><div class="stat-val" id="dLps">0/s</div><div class="stat-lbl" id="dLpsLbl">LoC / sec</div></div>
+    <div class="stat fame"><div class="stat-val" id="dFame">0</div><div class="stat-lbl">Fame</div></div>
+  </div>
+  <div class="tab-scroll-wrap">
+    <button class="tab-arrow tab-arrow-l" id="tabArrowL" aria-label="Scroll tabs left">&#9664;</button>
+    <div class="type-tabs" id="typeTabs"></div>
+    <button class="tab-arrow tab-arrow-r" id="tabArrowR" aria-label="Scroll tabs right">&#9654;</button>
+  </div>
+  <div class="main">
+    <div class="left-log" id="logCol"></div>
+    <div class="left-panel" id="ups2"></div>
+    <div class="left">
+      <div class="desk-scene" id="deskScene">
+        <div class="monitor" id="mon">
+          <div class="computer-housing">
+            <div class="screen" id="scr"></div>
+          </div>
+          <div class="stand"></div>
+          <div class="base"></div>
+          <div class="computer-extra"></div>
+        </div>
+        <div class="desk" id="deskEl"></div>
+        <div class="office-floor" id="officeFloor"></div>
+        <div class="pet-dog" id="petDog">&#x1F415;<div class="pet-bark" id="petBark"></div></div>
+        <div class="streak-thermo" id="streakThermo" style="opacity:0">
+        <div class="thermo-label" id="streakVal">1.0x</div>
+        <div class="thermo-track">
+          <div class="thermo-fill" id="streakFill"></div>
+          <div class="thermo-tick" style="bottom:0%"></div>
+          <div class="thermo-tick" style="bottom:25%"></div>
+          <div class="thermo-tick" style="bottom:50%"></div>
+          <div class="thermo-tick" style="bottom:75%"></div>
+          <div class="thermo-tick" style="bottom:100%"></div>
+        </div>
+        <div class="thermo-bulb" id="thermoBulb"></div>
+        </div>
+      </div>
+      <div class="click-info">Click the monitor to write code</div>
+      <div class="click-power" id="dCp">+1 LoC per click</div>
+      <div class="fame-mult" id="dFm"></div>
+    </div>
+    <div class="right">
+      <div class="right-ship" id="rightShip">
+        <div class="ship-title">Next Release</div>
+        <div class="prog-wrap" id="progWrap"><div class="prog-fill" id="pFill" style="transform:scaleX(0)"></div><div class="prog-txt" id="pTxt"></div></div>
+        <div class="ship-confirm" id="shipConfirm">
+          <p id="shipWarnText">Your engineers gain experience and age!</p>
+          <div class="ship-confirm-btns">
+            <button class="ship-yes" id="shipYes">Ship It!</button>
+            <button class="ship-no" id="shipNo">Keep Working</button>
+          </div>
+        </div>
+        <div class="ship-resources" id="shipResources"></div>
+      </div>
+      <div class="right-roster" id="rosterCol"></div>
+      <div class="right-coders" id="ups"></div>
+    </div>
+  </div>
+  <div class="bot"></div>
+  <div class="toasts" id="toasts"></div>
+</div>
