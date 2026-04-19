@@ -437,6 +437,11 @@
       S.tRevenue = (S.tRevenue || 0) + rev;
     }
 
+    // Phase 4F: attach generated review quotes
+    if (window.tycoonReviews) {
+      proj.reviews = window.tycoonReviews.generateReviews(proj, 3);
+    }
+
     if (typeof markDirty === 'function') markDirty();
     if (typeof log === 'function') log('🚀 Shipped: ' + proj.name + ' (critic ' + proj.criticScore + ')');
     return proj;

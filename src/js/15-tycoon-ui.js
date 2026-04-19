@@ -1661,12 +1661,13 @@
     location.reload();
   };
 
-  // Hook: hijack shipProject to show a toast
+  // Hook: hijack shipProject to show a launch celebration modal with reviews
   const origShip = window.tycoonProjects?.ship;
   if (origShip) {
     window.tycoonProjects.ship = function(id) {
       const proj = origShip(id);
       if (proj && proj.criticScore !== null) {
+        // Short summary toast
         pushToast('🚀 ' + proj.name + ' launched! Critic ' + proj.criticScore + '/100 · ' +
           (proj.isContract ? fmtMoney(proj.payment) + ' paid' : fmtMoney(proj.launchSales) + ' sales'),
           'win');
@@ -1674,10 +1675,54 @@
         if (proj.launchNotes && proj.launchNotes.length > 0) {
           proj.launchNotes.forEach(note => pushToast(note));
         }
+        // Big celebration modal with reviews (Phase 4F)
+        openLaunchCelebration(proj);
         refreshMain();
       }
       return proj;
     };
+  }
+
+  function openLaunchCelebration(proj) {
+    // Auto-pause game
+    const prevPaused = S.paused;
+    S.paused = true;
+    refreshTopBar();
+
+    const critic = proj.criticScore;
+    const color = critic >= 90 ? '#f0883e' : critic >= 75 ? '#7ee787' : critic >= 60 ? '#58a6ff' : critic >= 40 ? '#c9d1d9' : '#f85149';
+    const bandLabel = critic >= 90 ? '🏆 MASTERPIECE' : critic >= 75 ? '✨ GREAT' : critic >= 60 ? '👍 GOOD' : critic >= 40 ? '⚠️ FLAWED' : '💀 DISMAL';
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_launch_modal' },
+      h('div', { className: 't-modal', style: { maxWidth: '560px', textAlign: 'center' } },
+        h('h2', { style: { fontSize:'1.3rem', color } }, '🚀 ' + proj.name + ' LAUNCHED'),
+        h('div', { style: { color, fontSize:'2.2rem', fontWeight:'800', margin:'12px 0' } },
+          critic + '/100'),
+        h('div', { style: { color:'#8b949e', fontSize:'0.85rem', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.06em' } },
+          bandLabel),
+        h('div', { style: { color:'#7ee787', fontSize:'1.1rem', fontWeight:'700', margin:'12px 0' } },
+          proj.isContract ? 'Paid: ' + fmtMoney(proj.payment) : 'Launch Sales: ' + fmtMoney(proj.launchSales)),
+        proj.reviews && proj.reviews.length > 0 && h('div', { style: { marginTop:'16px', textAlign:'left' } },
+          h('div', { style: { color:'#8b949e', fontSize:'0.72rem', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:'8px' } },
+            'Critics Say'),
+          ...proj.reviews.map(r => h('div', {
+            style: { padding:'10px 12px', background:'#0d1117', border:'1px solid #21262d', borderRadius:'4px', marginBottom:'6px' }
+          },
+            h('div', { style: { color:'#c9d1d9', fontSize:'0.85rem', fontStyle:'italic' } }, '"' + r.text + '"'),
+            h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginTop:'4px' } },
+              '— ' + r.outlet + ' · ' + r.score + '/100')
+          ))
+        ),
+        h('div', { className: 't-modal-actions', style: { justifyContent:'center' } },
+          h('button', { className: 't-btn', onclick: () => {
+            document.getElementById('_t_launch_modal')?.remove();
+            S.paused = prevPaused;
+            refreshTopBar();
+          }}, 'Continue')
+        )
+      )
+    );
+    document.body.appendChild(ov);
   }
 
   console.log('[tycoon-ui] module loaded. Call %cdbg.ui.enter()%c or %ctycoonUI.enter()%c to activate.',
