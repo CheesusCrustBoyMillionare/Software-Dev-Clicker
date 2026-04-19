@@ -7257,6 +7257,10 @@ function clearOfficeSprites() {
 let last = performance.now(), saveAcc = 0;
 
 function tick(now) {
+  // v2 (tycoon mode): if tycoon is active, do NOT run the clicker loop.
+  // We stop rescheduling so the requestAnimationFrame chain dies cleanly.
+  if (window.__tycoonMode) return;
+
   let dt = Math.min((now - last) / 1000, 1); // cap dt to prevent huge jumps
   last = now;
   if (window._dbgSpeed > 1) dt *= window._dbgSpeed;
@@ -9960,6 +9964,14 @@ let _clockValidated = false;
       }
       injectStyles();
       if (getRootEl()) return;
+      // Set the global tycoon-mode flag — tells clicker loop to skip its work
+      window.__tycoonMode = true;
+      // Hide all clicker UI (slot screen + main game container)
+      const slotsEl = document.getElementById('slots');
+      const gameEl = document.getElementById('G');
+      if (slotsEl) slotsEl.style.display = 'none';
+      if (gameEl) gameEl.style.display = 'none';
+      // Build tycoon overlay
       const root = h('div', { className: 'tycoon-overlay', id: 'tycoon-overlay' });
       root.append(renderTopBar(), renderMainPanels());
       document.body.appendChild(root);
@@ -9986,47 +9998,81 @@ let _clockValidated = false;
   window.tycoonUI = tycoonUI;
   if (window.dbg) window.dbg.ui = tycoonUI;
 
-  // ---------- Slot-screen entry point ----------
-  // Injects a "Try Tycoon Alpha" button on the slot screen so players can
-  // actually reach the new mode. Removed in Phase 1F when clicker UI is stripped.
-  function injectSlotScreenButton() {
+  // ---------- Slot-screen hijack (Phase 1F) ----------
+  // Intercepts slot clicks BEFORE the clicker's own handler fires.
+  // Routes to tycoon mode directly. Clicker UI never becomes visible.
+  function interceptSlotClicks() {
     const slotsEl = document.getElementById('slots');
     if (!slotsEl) return;
-    if (document.getElementById('_t_tycoon_btn')) return;
-    injectStyles();
-    const btn = document.createElement('button');
-    btn.id = '_t_tycoon_btn';
-    btn.style.cssText = 'position:relative;margin:24px auto 0;display:block;padding:14px 28px;background:linear-gradient(135deg,#1f6feb,#8957e5);color:white;border:none;border-radius:8px;font-family:-apple-system,"Segoe UI",sans-serif;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(31,111,235,.35);letter-spacing:.02em;';
-    btn.textContent = '🚀 Try Tycoon Mode (Alpha)';
-    btn.addEventListener('mouseenter', () => { btn.style.transform = 'translateY(-2px)'; btn.style.boxShadow = '0 6px 18px rgba(31,111,235,.5)'; });
-    btn.addEventListener('mouseleave', () => { btn.style.transform = ''; btn.style.boxShadow = '0 4px 14px rgba(31,111,235,.35)'; });
-    btn.addEventListener('click', (e) => {
+    if (slotsEl.__tycoonIntercepted) return;
+    slotsEl.__tycoonIntercepted = true;
+
+    slotsEl.addEventListener('click', (e) => {
+      // Allow language-bar and confirm buttons to pass through
+      if (e.target.closest('#langBar')) return;
+      if (e.target.closest('.slot-new')) return;
+      if (e.target.closest('.slot-yes')) return;
+      if (e.target.closest('.slot-no')) return;
+
+      const slotBtn = e.target.closest('.slot-btn');
+      if (!slotBtn) return;
+
+      // Capture this click — don't let clicker's handler run
       e.stopPropagation();
-      // Need a KEY set so saves work. Use slot 1 by default for tycoon alpha.
-      if (typeof KEY === 'string' && !KEY) window.KEY = 'gdc_save_1';
-      // Hide the clicker UI's slot screen so tycoon can take over
-      slotsEl.style.display = 'none';
-      tycoonUI.enter();
-    });
-    slotsEl.appendChild(btn);
+      e.preventDefault();
+
+      const n = slotBtn.dataset.slot;
+      window.KEY = 'gdc_save_' + n;
+
+      // Load existing save (will wipe v1 via SCHEMA_MIGRATIONS[1])
+      window.S = defaults();
+      load(); // mutates S if valid v2 save exists
+
+      // Route based on career state
+      if (S.careerStarted && S.founder) {
+        // Resume existing career
+        tycoonUI.enter({ skipCreator: true });
+      } else {
+        // Fresh slot — show creator
+        tycoonUI.enter();
+      }
+    }, true); // capture phase — fires before bubble-phase clicker handler
   }
 
-  // Inject now if slot screen already rendered; also after any languageapply
+  // Rebuild slots to match tycoon naming ("Start Career" instead of "New Game")
+  function relabelSlots() {
+    const slots = document.querySelectorAll('.slot-new');
+    slots.forEach(b => { if (b.textContent === 'New Game' || b.textContent === 'Nuevo Juego' || b.textContent === 'Novo Jogo' || b.textContent === 'Nouvelle Partie' || b.textContent === 'Neues Spiel' || b.textContent === 'new run') b.textContent = 'Restart Career'; });
+    // Show tycoon banner above slots
+    const slotsEl = document.getElementById('slots');
+    if (slotsEl && !document.getElementById('_t_tycoon_banner')) {
+      const banner = document.createElement('div');
+      banner.id = '_t_tycoon_banner';
+      banner.style.cssText = 'font-size:0.75rem;color:#8957e5;letter-spacing:.05em;text-transform:uppercase;text-align:center;margin:-8px 0 12px;font-weight:700;';
+      banner.textContent = '🚀 Tycoon Edition (v2 Alpha)';
+      const subtitle = slotsEl.querySelector('.slot-sub');
+      if (subtitle) subtitle.after(banner);
+    }
+  }
+
+  // Init hooks
+  function initSlotHijack() {
+    interceptSlotClicks();
+    relabelSlots();
+  }
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    injectSlotScreenButton();
+    initSlotHijack();
   } else {
-    document.addEventListener('DOMContentLoaded', injectSlotScreenButton);
+    document.addEventListener('DOMContentLoaded', initSlotHijack);
   }
-  // Retry once after a small delay in case slotRow renders async
-  setTimeout(injectSlotScreenButton, 250);
+  setTimeout(initSlotHijack, 250);
 
-  // If user exits tycoon, show slots again
+  // If user exits tycoon, reload the page (cleanest — avoids clicker-state bleed)
   const origExit = tycoonUI.exit;
   tycoonUI.exit = function() {
     origExit();
-    const slotsEl = document.getElementById('slots');
-    if (slotsEl) slotsEl.style.display = '';
-    injectSlotScreenButton();
+    // Full reload — clicker loop, stale state, timers all reset cleanly
+    location.reload();
   };
 
   // Hook: hijack shipProject to show a toast

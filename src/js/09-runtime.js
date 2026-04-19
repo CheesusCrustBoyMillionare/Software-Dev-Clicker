@@ -292,6 +292,10 @@ function clearOfficeSprites() {
 let last = performance.now(), saveAcc = 0;
 
 function tick(now) {
+  // v2 (tycoon mode): if tycoon is active, do NOT run the clicker loop.
+  // We stop rescheduling so the requestAnimationFrame chain dies cleanly.
+  if (window.__tycoonMode) return;
+
   let dt = Math.min((now - last) / 1000, 1); // cap dt to prevent huge jumps
   last = now;
   if (window._dbgSpeed > 1) dt *= window._dbgSpeed;
