@@ -229,8 +229,13 @@
       proj.phase = 'polish';
       proj.phaseStartedAtWeek = absoluteWeek();
       proj.phaseWeeksRequired = scope.phaseWeeks.polish;
+      // v3 roguelite: Perfectionist founder extends polish phase duration.
+      // Quality mult is applied in polishOneWeek (above).
+      const perf = window.tycoonTraits?.founderTraitHook?.('polishPhase');
+      if (perf?.durationMul) {
+        proj.phaseWeeksRequired = Math.ceil(proj.phaseWeeksRequired * perf.durationMul);
+      }
       // Phase 4E: fire event so UI can prompt for marketing channels.
-      // Player can still ship without picking any (mktMul = 1).
       document.dispatchEvent(new CustomEvent('tycoon:project-polish-started', { detail: { projectId: proj.id } }));
     } else if (proj.phase === 'polish') {
       // Launch — handled by shipProject()
@@ -357,26 +362,45 @@
     const researchPolish  = window.tycoonResearch?.qualityMultiplierFor?.('polish', proj.type) || 1;
     const teamMult = window.tycoonResearch?.teamProductivityMultiplier?.() || 1;
     const devSpeedMult = window.tycoonResearch?.devSpeedMultiplierForType?.(proj.type) || 1;
+    // v3 roguelite: founder-level output modifier (Night Owl, Caffeinated,
+    // Chip on Shoulder, Scrappy, Workaholic) + per-axis modifier (passions +
+    // Polish Snob). Computed once per tick since S.founder is shared.
+    const founderOut = window.tycoonTraits?.founderOutputMul?.(proj, 'development') ?? 1;
+    const founderAxisT = window.tycoonTraits?.founderAxisMul?.('tech')    ?? 1;
+    const founderAxisD = window.tycoonTraits?.founderAxisMul?.('design')  ?? 1;
+    const founderAxisP = window.tycoonTraits?.founderAxisMul?.('polish')  ?? 1;
+
     for (const c of contributors) {
       const es = effectiveStats(c);
       const mm = moraleMultiplier(c.morale);
       const specAxis = SPECIALTY_AXIS[c.specialty];
       // C1 harsher per-axis specialty: 1.5× match, 0.5× non-match.
-      // Non-specialist contributors deliver half on axes outside their wheelhouse.
       const bonus = (axis) => (axis === specAxis ? 1.5 : 0.5);
-      // C2 type-familiarity: if the contributor's specialty primary axis
-      // doesn't match the project's primary axis, apply −25% across all
-      // output. Founder takes half the penalty (−12.5%) — they're the CEO,
-      // not a line engineer, so their fit matters less.
+      // C2 type-familiarity: specialty primary ≠ project primary → −25%
+      // (founder takes half penalty).
       const specMatchesType = specAxis === projTypePrimary;
       const typeMul = specMatchesType ? 1.0 : (c.isFounder ? 0.875 : 0.75);
 
-      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * bonus('tech')   * typeMul * perProjMul * teamMult * researchTech   * devSpeedMult);
-      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * bonus('design') * typeMul * perProjMul * teamMult * researchDesign * devSpeedMult);
-      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * bonus('polish') * typeMul * perProjMul * teamMult * researchPolish * devSpeedMult);
+      // Founder-specific multipliers (apply to founder only, 1.0 for employees).
+      const fOut = c.isFounder ? founderOut : 1.0;
+      const fAxT = c.isFounder ? founderAxisT : 1.0;
+      const fAxD = c.isFounder ? founderAxisD : 1.0;
+      const fAxP = c.isFounder ? founderAxisP : 1.0;
+
+      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * bonus('tech')   * typeMul * perProjMul * teamMult * researchTech   * devSpeedMult * fOut * fAxT);
+      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * bonus('design') * typeMul * perProjMul * teamMult * researchDesign * devSpeedMult * fOut * fAxD);
+      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * bonus('polish') * typeMul * perProjMul * teamMult * researchPolish * devSpeedMult * fOut * fAxP);
       proj.bugs += (bugRisk * 0.3 * perProjMul);
       if (proj.crunching) {
         c.morale = Math.max(0, (c.morale || 70) - 3);
+      }
+    }
+
+    // Workaholic founder drains team morale by 1/week if on the team.
+    const wk = window.tycoonTraits?.founderTraitHook?.('outputTradeoff');
+    if (wk && contributors.some(c => c.isFounder)) {
+      for (const c of contributors) {
+        if (!c.isFounder) c.morale = Math.max(0, (c.morale || 70) - (wk.moraleDrain || 0));
       }
     }
   }
@@ -391,16 +415,35 @@
     const crunchMul = proj.crunching ? 1.30 : 1.0;
     const typeDef = PROJECT_TYPES[proj.type];
     const projTypePrimary = Object.entries(typeDef.weights).sort((a, b) => b[1] - a[1])[0][0];
+
+    // v3 roguelite: founder mods for polish phase. Perfectionist gives an
+    // additional quality bump on top of the normal polish gains.
+    const founderOut = window.tycoonTraits?.founderOutputMul?.(proj, 'polish') ?? 1;
+    const founderAxisP = window.tycoonTraits?.founderAxisMul?.('polish') ?? 1;
+    const perfHook = window.tycoonTraits?.founderTraitHook?.('polishPhase');
+    const perfMul = perfHook?.qualityMul || 1.0;
+
     for (const c of contributors) {
       const es = effectiveStats(c);
       const mm = moraleMultiplier(c.morale);
       const specAxis = SPECIALTY_AXIS[c.specialty];
-      // C1 harsher: 1.5× match (polish-spec), 0.5× non-polish-spec
       const specBonus = specAxis === 'polish' ? 1.5 : 0.5;
-      // C2 type-familiarity: same rule as dev phase
       const typeMul = specAxis === projTypePrimary ? 1.0 : (c.isFounder ? 0.875 : 0.75);
-      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * specBonus * typeMul * perProjMul));
-      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * specBonus * typeMul * perProjMul);
+
+      const fOut = c.isFounder ? founderOut : 1.0;
+      const fAxP = c.isFounder ? founderAxisP : 1.0;
+      const fPerf = c.isFounder ? perfMul : 1.0;
+
+      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * specBonus * typeMul * perProjMul * fOut));
+      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * specBonus * typeMul * perProjMul * fOut * fAxP * fPerf);
+    }
+
+    // Workaholic morale drain applies in polish phase too.
+    const wk = window.tycoonTraits?.founderTraitHook?.('outputTradeoff');
+    if (wk && contributors.some(c => c.isFounder)) {
+      for (const c of contributors) {
+        if (!c.isFounder) c.morale = Math.max(0, (c.morale || 70) - (wk.moraleDrain || 0));
+      }
     }
   }
 
@@ -456,6 +499,20 @@
     proj.shippedAtWeek = absoluteWeek();
     proj.phase = 'launched';
     proj.launchSales = computeLaunchSales(proj);
+
+    // v3 roguelite: ship-time founder trait hooks.
+    // Deal Maker adjusts contract payment + own-IP launch sales. Applied
+    // before the tail distribution math so later weeks reflect the scaled
+    // launch total.
+    const dealMaker = window.tycoonTraits?.founderTraitHook?.('contractTradeoff');
+    if (dealMaker) {
+      if (proj.isContract && dealMaker.contractMul && proj.payment) {
+        proj.payment = Math.round(proj.payment * dealMaker.contractMul);
+      } else if (!proj.isContract && dealMaker.ownIpMul) {
+        proj.launchSales = Math.round(proj.launchSales * dealMaker.ownIpMul);
+      }
+    }
+
     // v10.2: Tail duration doubled — Math.max(4, round(user/10) × 2), cap 24.
     // Week 0 no longer pays in a lump; the first half of the tail spreads
     // the launch distribution with front-loaded weights (see weekRevenue()).
@@ -507,6 +564,22 @@
     // Phase 4F: attach generated review quotes
     if (window.tycoonReviews) {
       proj.reviews = window.tycoonReviews.generateReviews(proj, 3);
+    }
+
+    // v3 roguelite: post-ship founder trait hooks.
+    // Prestigious founder: flat fame bonus per ship.
+    const prestige = window.tycoonTraits?.founderTraitHook?.('prestige');
+    if (prestige?.fameBonus) {
+      S.fame = (S.fame || 0) + prestige.fameBonus;
+      S.tFame = (S.tFame || 0) + prestige.fameBonus;
+    }
+    // Imposter Syndrome: low-critic ships tank team morale.
+    const imposter = window.tycoonTraits?.founderTraitHook?.('shipMoraleCritic');
+    if (imposter && proj.criticScore < (imposter.threshold || 80)) {
+      const delta = imposter.moraleDelta || -8;
+      for (const e of (S.employees || [])) {
+        e.morale = Math.max(0, (e.morale || 70) + delta);
+      }
     }
 
     if (typeof markDirty === 'function') markDirty();
@@ -777,6 +850,12 @@
     else if (trait === 'Sprinter')  S.founder.stats.speed  += 2;
     else if (trait === 'Methodical') S.founder.stats.tech  += 2;
     else if (trait === 'Creative')  S.founder.stats.design += 2;
+    // v3 roguelite: attach passions + mechanical + narrative traits.
+    // Default to rank 50 (bottom of class) per Q1b — first run starts
+    // at the bottom. Phase 6 will replace this with class-roster picker.
+    if (window.tycoonTraits?.augmentFounderWithTraits) {
+      window.tycoonTraits.augmentFounderWithTraits(S.founder, 50, 50);
+    }
     if (typeof markDirty === 'function') markDirty();
     return S.founder;
   };

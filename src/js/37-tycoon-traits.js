@@ -326,11 +326,101 @@
     return true;
   }
 
-  // ---------- Trait-effect lookup helpers (used by Phase 3, harmless now) ----------
+  // ---------- Trait-effect lookup helpers (Phase 3: wired into gameplay) ----------
   function getPassionMult(passion) { return PASSIONS[passion?.toUpperCase?.()]?.mult ?? 1.0; }
   function traitHookById(id) { return TRAITS_BY_ID[id]?.hook || null; }
   function passionForAxis(founder, axis) {
     return founder?.passions?.[axis] || 'none';
+  }
+
+  // Augment an existing founder object with rolled passions + traits.
+  // Called after the creator sets S.founder (pre-Phase-6) so the founder
+  // picks up the roguelite layer seamlessly. Idempotent — skips any
+  // field that's already populated.
+  function augmentFounderWithTraits(founder, rank, classSize) {
+    if (!founder) return founder;
+    rank = rank || 50;        // Q1b: first run starts at the bottom of class
+    classSize = classSize || 50;
+    const band = bandForRank(rank, classSize);
+    if (!founder.passions) founder.passions = rollPassions(band);
+    if (!Array.isArray(founder.mechanicalTraits)) {
+      const mechCount = traitCountForBand(band);
+      founder.mechanicalTraits = pickN(TRAITS, mechCount).map(t => t.id);
+    }
+    if (!Array.isArray(founder.narrativeTraits)) {
+      const narrCount = 1 + Math.floor(Math.random() * 3);
+      founder.narrativeTraits = pickN(NARRATIVE_TRAITS, narrCount);
+    }
+    founder.classmateRank = rank;
+    founder.classmateBand = band;
+    return founder;
+  }
+
+  // Find the first trait-hook of a given kind on the current founder.
+  function founderTraitHook(kind) {
+    const f = S.founder;
+    if (!f || !Array.isArray(f.mechanicalTraits)) return null;
+    for (const tId of f.mechanicalTraits) {
+      const hook = TRAITS_BY_ID[tId]?.hook;
+      if (hook && hook.kind === kind) return hook;
+    }
+    return null;
+  }
+
+  function weeksSinceCareerStart() {
+    const c = S.calendar;
+    if (!c) return 0;
+    return Math.max(0,
+      ((c.year || 1980) - 1980) * 48 + ((c.month || 1) - 1) * 4 + ((c.week || 1) - 1));
+  }
+
+  // Per-axis multiplier for FOUNDER contributions — combines passion mult
+  // with any axis-shifting trait (Polish Snob). Returns 1.0 for non-founder.
+  function founderAxisMul(axis) {
+    const f = S.founder;
+    if (!f) return 1.0;
+    let mul = getPassionMult(f.passions?.[axis]);
+    const shift = founderTraitHook('axisShift');
+    if (shift) {
+      if (axis === 'polish' && shift.polishMul) mul *= shift.polishMul;
+      if (axis === 'design' && shift.designMul) mul *= shift.designMul;
+    }
+    return mul;
+  }
+
+  // Global output multiplier for FOUNDER contributions (applies to all 3
+  // axes equally). Combines: speed mod (Night Owl), phase-specific speed
+  // (Caffeinated), behind-schedule boost (Chip on Shoulder), scrappy
+  // early-career boost, workaholic output. Returns 1.0 for non-founder.
+  function founderOutputMul(proj, phase) {
+    const f = S.founder;
+    if (!f) return 1.0;
+    let mul = 1.0;
+    // Night Owl — speed-dependent
+    const nightOwl = founderTraitHook('speedMod');
+    if (nightOwl) {
+      const sp = S.speed || 1;
+      if (sp >= 2) mul *= nightOwl.highSpeedMul;
+      else mul *= nightOwl.lowSpeedMul;
+    }
+    // Caffeinated — phase-specific
+    const caff = founderTraitHook('phaseSpeed');
+    if (caff && caff.phase === phase) mul *= caff.mul;
+    // Chip on Shoulder — behind-schedule
+    const chip = founderTraitHook('behindScheduleBoost');
+    if (chip && proj) {
+      const absW = window.tycoonProjects?.absoluteWeek?.() || 0;
+      const elapsed = absW - (proj.phaseStartedAtWeek || 0);
+      const threshold = (proj.phaseWeeksRequired || 1) * 0.8;
+      if (elapsed >= threshold) mul *= chip.mul;
+    }
+    // Scrappy — first N weeks of career
+    const scrappy = founderTraitHook('earlyCareer');
+    if (scrappy && weeksSinceCareerStart() < scrappy.weeks) mul *= scrappy.outputMul;
+    // Workaholic — output boost
+    const workaholic = founderTraitHook('outputTradeoff');
+    if (workaholic) mul *= workaholic.outputMul;
+    return mul;
   }
 
   // ---------- Public API ----------
@@ -345,6 +435,12 @@
     getPassionMult,
     traitHookById,
     passionForAxis,
+    // Phase 3: founder augmentation + effect helpers
+    augmentFounderWithTraits,
+    founderTraitHook,
+    founderAxisMul,
+    founderOutputMul,
+    weeksSinceCareerStart,
     // Debug
     rerollClass(size = 50) {
       ensureSchoolState();
