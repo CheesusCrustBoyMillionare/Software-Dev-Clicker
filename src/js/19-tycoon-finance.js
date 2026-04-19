@@ -145,12 +145,12 @@
 
   function fireWarning(severity, msg) {
     if (typeof log === 'function') log(msg);
-    // Auto-pause on alert/critical
+    // Previously auto-paused on alert/critical with no restore path, which
+    // silently froze the game when a runway threshold was crossed. The
+    // bankruptcy countdown in the top bar now provides the always-visible
+    // indicator we actually wanted — the toast is just a heads-up.
     if (severity === 'alert' || severity === 'critical') {
-      if (window.tycoonTime && !S.paused) {
-        S.paused = true;
-        document.dispatchEvent(new CustomEvent('tycoon:runway-warning', { detail: { severity, message: msg } }));
-      }
+      document.dispatchEvent(new CustomEvent('tycoon:runway-warning', { detail: { severity, message: msg } }));
     }
     if (typeof markDirty === 'function') markDirty();
     if (severity === 'critical') {

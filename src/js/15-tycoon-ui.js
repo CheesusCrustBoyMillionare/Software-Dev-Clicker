@@ -1847,11 +1847,9 @@
   document.addEventListener('tycoon:macro-event', (e) => {
     const ev = e.detail.event;
     pushToast(ev.title + ' — ' + ev.blurb, 'win');
-    // Auto-pause on major events
-    if (window.tycoonTime && !S.paused) {
-      S.paused = true;
-      refreshTopBar();
-    }
+    // No auto-pause: macro events are toast-notifications, not blocking
+    // modals. Previously we set S.paused=true with no restore path, which
+    // silently froze the game every 4 weeks when an event rolled.
   });
 
   // Rival research updates (for UI refresh)
