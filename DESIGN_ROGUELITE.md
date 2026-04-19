@@ -239,13 +239,50 @@ Each classmate's passions + mechanical traits + narrative traits are rolled fres
 - C) Curriculum-driven — endowment unlocks bias trait pool
 - D) Player choice — pay to endorse one trait per run
 
-### Q8 — Meta-progression currency (depends on Q3)
-What do players earn across runs that shapes future runs?
-- **A) Legacy Score** (already exists!) — converted to a shop where you spend on permanent upgrades
-- **B) "Lineage stats"** — the family's cumulative critic average, lifetime revenue, etc., unlock new starting options
-- **C) Unlocked content** — hit certain milestones in a run → unlock new scenarios, traits, or starting cities/eras
-- **D) Permanent buff tree** — skill tree that persists, each tier costs legacy points
-- **E) Combination of above**
+### Q8 — Meta-progression currency ✅ LOCKED: Combination (E)
+
+**Currency:** Endowment. Earned from run-end per Q4 (bankruptcy = small, wins = largest). Lifetime fame cashes in at run-end too (Q3b).
+
+**Structure:** organized into 4 departments, each with its own small talent tree. Most purchases need enough endowment; some big unlocks additionally require an achievement milestone from a past run.
+
+#### Department 1 — Academics (curriculum + research)
+Focus: what the school *teaches*. Carries research knowledge forward.
+- **Document Research Node** (per-node purchase) — pay endowment to permanently add a researched node to the school curriculum; every future grad starts with it. Price scales with the node's tier.
+- **Hire Visiting Professor** — permanent +5 to all future grads' stats on one chosen axis (buy up to 3, one per axis).
+- **Endow Faculty Chair** (gated: requires Professor on all 3 axes) — tier-1 research nodes become free pre-unlocked for every future grad.
+
+#### Department 2 — Facilities (hardware + lab)
+Focus: physical equipment that used to reset each run.
+- **Build Computer Lab** (tier 1) — next grad starts with baseline dev rig already installed.
+- **Upgrade Workstations** (tier 2, requires Lab) — lab-grade hardware permanently in place.
+- **Specialized Hardware** — one purchase per hardware type (SGI, CD mastering, server infra, cloud credits, etc.). Once bought, permanent.
+
+#### Department 3 — Alumni Network (hire pool + rival economy)
+Focus: the social/professional capital the school builds through its graduates.
+- **Formalize Alumni Job Board** — unlocks Q3g: past founders become hireable senior staff at premium salary.
+- **Gold-Plated Diploma** — top-5-ranked grads start with +1 client-tier reputation (open higher-tier contracts sooner).
+- **Alumni Connections** — every classmate gets one free guaranteed contract offer in their first week.
+
+#### Department 4 — School Life (flavor + soft bonuses)
+Focus: texture and morale — smaller buffs that add up.
+- **Scholarship Fund** — next grad starts with +$25k cash (stacks: 2 = +$50k, 3 = +$75k).
+- **Celebrated Rivalry** — adds a custom-named antagonistic rival studio to the persistent market roster (flavor-rich; may be tied to a past alumnus's lore).
+- **School Newsletter** — each ship in future runs generates a bonus review quote attributed to the school's own publication.
+
+#### Achievement-gated super-unlocks (cross-cutting)
+A few special purchases in each department require *both* endowment AND a past run milestone:
+- **Document the LLM Research Node** (Academics) — also requires any past alumnus to have shipped an AI project
+- **"Alumni in Every Camp"** (Alumni Network) — requires 3+ past runs that ended in Win Condition (IPO / Industry Titan / Catalog Master)
+- **"Center of Innovation" campus expansion** (Facilities) — requires a past run that reached 2020+ era
+- **"The Legend of [Founder Name] Lecture Hall"** (School Life) — requires a founder who won GOTY at least twice
+
+These exist to tie the meta-progression to actual achievements, not just endowment grinding.
+
+**Old options (for reference):**
+- A) Flat shop
+- B) Talent tree
+- C) Multi-department hybrid
+- D) Purely reactive / achievement-gated
 
 ### Q9 — Scaling across runs
 Each new founder: same game, or harder?
