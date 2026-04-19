@@ -1568,6 +1568,10 @@
         pushToast('🚀 ' + proj.name + ' launched! Critic ' + proj.criticScore + '/100 · ' +
           (proj.isContract ? fmtMoney(proj.payment) + ' paid' : fmtMoney(proj.launchSales) + ' sales'),
           'win');
+        // Launch window notes (Phase 4D)
+        if (proj.launchNotes && proj.launchNotes.length > 0) {
+          proj.launchNotes.forEach(note => pushToast(note));
+        }
         refreshMain();
       }
       return proj;

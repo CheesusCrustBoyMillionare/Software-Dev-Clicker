@@ -485,7 +485,17 @@
       proj.platformPhaseMult = pm.phaseMult;
       proj.platformRoyaltyCut = pm.royaltyCut;
     }
-    return Math.round(base * scopeMul * mktMul * platformMul);
+    // Launch window (seasonal + collision — Phase 4D)
+    let launchMul = 1;
+    if (window.tycoonLaunch) {
+      const lm = window.tycoonLaunch.totalLaunchMultiplier(proj);
+      launchMul = lm.mult;
+      proj.launchNotes = [
+        ...(lm.season.labels.map(l => '🗓 ' + l)),
+        ...lm.collision.notes
+      ];
+    }
+    return Math.round(base * scopeMul * mktMul * platformMul * launchMul);
   }
 
   // ---------- Lookup helpers ----------
