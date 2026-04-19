@@ -347,10 +347,11 @@
     const w = typeDef.weights;
     const crunchMul = proj.crunching ? 1.30 : 1.0;
     const bugRisk   = proj.crunching ? 1.50 : 1.0;
-    // With explicit team assignment, no per-project dilution — each team fully dedicated
     const perProjMul = 1;
 
-    // Research bonuses (Phase 3C): quality multipliers per axis + global team productivity
+    // v10.1 rebalance — project-type primary axis (for type-mismatch penalty)
+    const projTypePrimary = Object.entries(w).sort((a, b) => b[1] - a[1])[0][0];
+
     const researchTech    = window.tycoonResearch?.qualityMultiplierFor?.('tech', proj.type) || 1;
     const researchDesign  = window.tycoonResearch?.qualityMultiplierFor?.('design', proj.type) || 1;
     const researchPolish  = window.tycoonResearch?.qualityMultiplierFor?.('polish', proj.type) || 1;
@@ -360,10 +361,19 @@
       const es = effectiveStats(c);
       const mm = moraleMultiplier(c.morale);
       const specAxis = SPECIALTY_AXIS[c.specialty];
-      const bonus = (axis) => (axis === specAxis ? 1.3 : 1.0);
-      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * bonus('tech')   * perProjMul * teamMult * researchTech   * devSpeedMult);
-      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * bonus('design') * perProjMul * teamMult * researchDesign * devSpeedMult);
-      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * bonus('polish') * perProjMul * teamMult * researchPolish * devSpeedMult);
+      // C1 harsher per-axis specialty: 1.5× match, 0.5× non-match.
+      // Non-specialist contributors deliver half on axes outside their wheelhouse.
+      const bonus = (axis) => (axis === specAxis ? 1.5 : 0.5);
+      // C2 type-familiarity: if the contributor's specialty primary axis
+      // doesn't match the project's primary axis, apply −25% across all
+      // output. Founder takes half the penalty (−12.5%) — they're the CEO,
+      // not a line engineer, so their fit matters less.
+      const specMatchesType = specAxis === projTypePrimary;
+      const typeMul = specMatchesType ? 1.0 : (c.isFounder ? 0.875 : 0.75);
+
+      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * bonus('tech')   * typeMul * perProjMul * teamMult * researchTech   * devSpeedMult);
+      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * bonus('design') * typeMul * perProjMul * teamMult * researchDesign * devSpeedMult);
+      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * bonus('polish') * typeMul * perProjMul * teamMult * researchPolish * devSpeedMult);
       proj.bugs += (bugRisk * 0.3 * perProjMul);
       if (proj.crunching) {
         c.morale = Math.max(0, (c.morale || 70) - 3);
@@ -379,12 +389,18 @@
     if (contributors.length === 0) return;
     const perProjMul = 1;
     const crunchMul = proj.crunching ? 1.30 : 1.0;
+    const typeDef = PROJECT_TYPES[proj.type];
+    const projTypePrimary = Object.entries(typeDef.weights).sort((a, b) => b[1] - a[1])[0][0];
     for (const c of contributors) {
       const es = effectiveStats(c);
       const mm = moraleMultiplier(c.morale);
-      const specBonus = SPECIALTY_AXIS[c.specialty] === 'polish' ? 1.3 : 1.0;
-      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * specBonus * perProjMul));
-      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * specBonus * perProjMul);
+      const specAxis = SPECIALTY_AXIS[c.specialty];
+      // C1 harsher: 1.5× match (polish-spec), 0.5× non-polish-spec
+      const specBonus = specAxis === 'polish' ? 1.5 : 0.5;
+      // C2 type-familiarity: same rule as dev phase
+      const typeMul = specAxis === projTypePrimary ? 1.0 : (c.isFounder ? 0.875 : 0.75);
+      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * specBonus * typeMul * perProjMul));
+      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * specBonus * typeMul * perProjMul);
     }
   }
 
@@ -399,13 +415,19 @@
     const proj = findProject(projId);
     if (!proj) return null;
 
+    // v10.1 D: enforce minimum-bug floor BEFORE scoring. No ship is perfect —
+    // the bug penalty can never fully disappear, so critic 100 is blocked.
+    proj.bugs = Math.max(1, Math.round(proj.bugs));
+
     const ship = computeCriticScore(proj);
     proj.criticScore = ship.critic;
     proj.userScore = ship.user;
-    proj.bugs = Math.max(0, Math.round(proj.bugs));
     proj.shippedAtWeek = absoluteWeek();
     proj.phase = 'launched';
     proj.launchSales = computeLaunchSales(proj);
+    // Sales tail tracking (filled by tail ticker below until duration elapses)
+    proj.tailSales = 0;
+    proj.tailWeeksRemaining = proj.isContract ? 0 : Math.min(12, Math.round((proj.userScore || 0) / 10));
 
     // Move from active to shipped
     S.projects.active = S.projects.active.filter(p => p.id !== proj.id);
@@ -448,31 +470,82 @@
   }
 
   // ---------- Quality / review scoring ----------
-  // Aggregates the 3 axes weighted by project type, applies bug/innovation modifiers.
+  // Aggregates the 3 axes weighted by project type, applies bug/feature/luck modifiers.
+  //
+  // v10.1 rebalance — "100 should be basically impossible":
+  //  A. Type-aware harsh caps: per-axis ceiling scales with how important the
+  //     axis is for this project type. Primary axis × 80, secondary × 55,
+  //     tertiary × 35. A game's design axis is dramatically harder to max
+  //     than its polish axis.
+  //  B. Tiered feature bonus: required features no longer bonus (they're
+  //     baseline), optional features yield +3 / +2 / +1 / +0.5 / +0.5 in
+  //     the order picked — max +7. Rewards 1-2 thoughtful picks, punishes
+  //     feature-dumping.
+  //  D. Bug floor enforced in shipProject (separate): ship bugs >= 1, so
+  //     the penalty never goes to zero and 100 is blocked.
+  //
+  // Target distribution:
+  //   50-65: solo / under-staffed / wrong-type shop
+  //   65-80: solid team, right genre
+  //   80-92: specialist studio, matched type, research, polish
+  //   93-98: elite ship, every lever aligned + lucky roll
+  //   99-100: unreachable (bug floor)
   function computeCriticScore(proj) {
     const typeDef = PROJECT_TYPES[proj.type];
     const w = typeDef.weights;
-    // Normalize each axis roughly to 0-100. Empirical tuning.
-    const normalize = (v, cap) => Math.max(0, Math.min(100, v * (100/cap)));
     const scope = SCOPES[proj.scope];
-    const cap = scope.phaseWeeks.development * 2.5;
-    const tech = normalize(proj.quality.tech, cap);
-    const design = normalize(proj.quality.design, cap);
-    const polish = normalize(proj.quality.polish, cap * 1.3);
+    const devW = scope.phaseWeeks.development;
+
+    // Rank axes by weight for this type (primary, secondary, tertiary)
+    const ranked = Object.entries(w).sort((a, b) => b[1] - a[1]);
+    const primaryAxis = ranked[0][0], secondaryAxis = ranked[1][0], tertiaryAxis = ranked[2][0];
+    const multFor = (axisName) =>
+      axisName === primaryAxis   ? 80 :
+      axisName === secondaryAxis ? 55 : 35;
+
+    const capTech    = devW * multFor('tech');
+    const capDesign  = devW * multFor('design');
+    const capPolish  = devW * multFor('polish');
+
+    // Square-root normalization — linear would mean a 4-person team (which
+    // outputs 2.5× a solo founder) clamps at 100 if we tune the cap so solo
+    // scores 50. Sqrt gives diminishing returns: 40% raw → 63%, 90% raw → 95%,
+    // 100%+ → capped at 100. Solo hits ~50, team hits ~90 naturally.
+    // This also bakes in "diminishing returns per employee" for free.
+    const normalize = (v, cap) => {
+      if (v <= 0) return 0;
+      const ratio = Math.min(1, v / cap);
+      return Math.sqrt(ratio) * 100;
+    };
+    const tech    = normalize(proj.quality.tech,    capTech);
+    const design  = normalize(proj.quality.design,  capDesign);
+    const polish  = normalize(proj.quality.polish,  capPolish);
+
     let weighted = (tech * w.tech + design * w.design + polish * w.polish);
-    // Feature bonus: each feature adds its raw impact values as a small multiplier
-    const featureBonus = proj.features
-      .map(id => FEATURES_BY_ID[id])
-      .filter(Boolean)
-      .reduce((sum, f) => sum + ((f.impact.tech||0) + (f.impact.design||0) + (f.impact.polish||0)) * 0.05, 0);
-    // Bug penalty
-    const bugPenalty = Math.min(30, proj.bugs * 0.8);
+
+    // Tiered feature bonus — optional features only, diminishing per pick
+    const requiredSet = new Set(
+      (window.tycoonContracts?.CONTRACT_SPECS?.[proj.type]?.requiredFeatures?.[proj.scope]) || []
+    );
+    const optionalCount = (proj.features || []).reduce(
+      (n, id) => n + (requiredSet.has(id) ? 0 : (FEATURES_BY_ID[id] ? 1 : 0)), 0
+    );
+    const TIER_VALUES = [3, 2, 1, 0.5, 0.5];
+    let featureBonus = 0;
+    for (let i = 0; i < Math.min(optionalCount, TIER_VALUES.length); i++) {
+      featureBonus += TIER_VALUES[i];
+    }
+
+    // Bug penalty (floor enforced at ship time — bugs >= 1 always)
+    const bugPenalty = Math.min(30, proj.bugs * 1.0);
     // Random luck ±5
     const luck = (Math.random() - 0.5) * 10;
     let critic = Math.round(weighted + featureBonus - bugPenalty + luck);
     critic = Math.max(1, Math.min(100, critic));
-    // User score: slightly more sensitive to polish/bugs
-    const userRaw = (critic * 0.6) + (normalize(proj.quality.polish, cap * 1.3) * 0.4) - (proj.bugs * 0.3);
+
+    // User score: weighted toward polish + bug sensitivity. Diverges from
+    // critic enough to create the "cult hit" / "reviewer favorite" labels.
+    const userRaw = (critic * 0.55) + (polish * 0.45) - (proj.bugs * 0.4);
     const user = Math.max(1, Math.min(100, Math.round(userRaw)));
     return { critic, user };
   }
@@ -482,7 +555,14 @@
   function computeLaunchSales(proj) {
     if (proj.isContract) return 0;
     const critic = proj.criticScore || 60;
-    let base = Math.pow(Math.max(critic, 10) / 50, 2.2) * 100000;
+    // v10.1: exponent gentled from 2.2 → 2.0 (high-critic scaling less extreme),
+    // but prestige thresholds give dramatic jackpots for elite ships — hitting
+    // 95+ multiplies the base by 10×, 98+ by 25×. Since 98+ requires the
+    // perfect storm under the new scoring math, those jackpots are once-per-
+    // career events, not routine.
+    let base = Math.pow(Math.max(critic, 10) / 50, 2.0) * 100000;
+    if (critic >= 98)      base *= 25;
+    else if (critic >= 95) base *= 10;
     const scopeMul = proj.scope === 'small' ? 1 : proj.scope === 'medium' ? 2.5 : 6;
     // Marketing multiplier (Phase 4E: channel-based)
     let mktMul;
@@ -539,17 +619,36 @@
   }
 
   function onWeekTick(cal) {
-    if (!S.projects || !S.projects.active) return;
-    for (const proj of [...S.projects.active]) {
-      if (proj.phase === 'design') {
-        if (isPhaseComplete(proj)) advancePhase(proj.id);
-      } else if (proj.phase === 'development') {
-        developOneWeek(proj);
-        maybeTriggerMCQuestion(proj);
-        if (isPhaseComplete(proj) && !proj.pendingDecision) advancePhase(proj.id);
-      } else if (proj.phase === 'polish') {
-        polishOneWeek(proj);
-        if (isPhaseComplete(proj)) advancePhase(proj.id);
+    if (!S.projects) return;
+    if (Array.isArray(S.projects.active)) {
+      for (const proj of [...S.projects.active]) {
+        if (proj.phase === 'design') {
+          if (isPhaseComplete(proj)) advancePhase(proj.id);
+        } else if (proj.phase === 'development') {
+          developOneWeek(proj);
+          maybeTriggerMCQuestion(proj);
+          if (isPhaseComplete(proj) && !proj.pendingDecision) advancePhase(proj.id);
+        } else if (proj.phase === 'polish') {
+          polishOneWeek(proj);
+          if (isPhaseComplete(proj)) advancePhase(proj.id);
+        }
+      }
+    }
+    // v10.1: sales tail — for own-IP projects with tail weeks remaining,
+    // add weekly revenue = launchSales × 0.10 × (userScore / 100).
+    // High user score = longer and fatter tail; low user score = short tail.
+    // Contracts never have a tail (single paycheck on delivery).
+    if (Array.isArray(S.projects.shipped)) {
+      for (const proj of S.projects.shipped) {
+        if (proj.isContract) continue;
+        if (!proj.tailWeeksRemaining || proj.tailWeeksRemaining <= 0) continue;
+        const weekly = Math.round((proj.launchSales || 0) * 0.10 * ((proj.userScore || 0) / 100));
+        if (weekly > 0) {
+          S.cash = (S.cash || 0) + weekly;
+          S.tRevenue = (S.tRevenue || 0) + weekly;
+          proj.tailSales = (proj.tailSales || 0) + weekly;
+        }
+        proj.tailWeeksRemaining -= 1;
       }
     }
   }

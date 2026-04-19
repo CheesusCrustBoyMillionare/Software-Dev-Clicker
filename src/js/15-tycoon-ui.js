@@ -508,8 +508,26 @@
       h('span', null, 'P ', h('span', { className: 'v' }, String(Math.round(proj.quality.polish))))
     );
 
-    const criticEl = isShipped && proj.criticScore ?
-      h('div', { className: 't-proj-critic' }, 'Critic ' + proj.criticScore + '/100' + (proj.launchSales ? ' · ' + fmtMoney(proj.launchSales) : '')) : null;
+    // v10.1: show both critic and user scores, with auto-label when they
+    // diverge noticeably. Also surface sales tail if this project is still
+    // earning post-launch.
+    let criticEl = null;
+    if (isShipped && proj.criticScore) {
+      const bits = ['Critic ' + proj.criticScore + '/100'];
+      if (typeof proj.userScore === 'number') {
+        bits.push('Users ' + proj.userScore + '/100');
+      }
+      // Auto-label
+      if (typeof proj.userScore === 'number') {
+        const delta = proj.userScore - proj.criticScore;
+        if (delta >= 10) bits.push('— cult hit');
+        else if (delta <= -10) bits.push('— reviewer favorite');
+      }
+      let line = bits.slice(0, 2).join(' / ') + (bits[2] ? ' ' + bits[2] : '');
+      if (proj.launchSales) line += ' · ' + fmtMoney(proj.launchSales);
+      if (proj.tailSales) line += ' (+' + fmtMoney(proj.tailSales) + ' tail)';
+      criticEl = h('div', { className: 't-proj-critic' }, line);
+    }
 
     const typeDef = window.PROJECT_TYPES[proj.type];
     const platDef = proj.platform ? window.tycoonPlatforms?.PLATFORM_BY_ID?.[proj.platform] : null;
