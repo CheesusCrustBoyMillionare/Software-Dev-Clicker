@@ -323,10 +323,66 @@ Note: in later-era runs, rival scaling stacks normally (run 10 in 1995 = very ag
 - C) Progressive era unlock alone
 - D) Dynamic difficulty auto-scaling
 
-### Q10 — UI / onramp depth
-- **A) Subtle** — new founder spawns, carry-over shown in a quick "Inheritance" modal, then normal gameplay resumes
-- **B) Dedicated "Bloodline" tab** — tracks all past founders, their stats, what they unlocked. Separate panel in the tycoon UI
-- **C) Full "Roguelite mode" toggle** — classic tycoon mode still exists; roguelite is a separate game mode with its own slot
+### Q10 — UI / onramp depth ✅ LOCKED: Full dedicated school mode
+
+Between runs, the game enters a **school screen** — its own distinct UI layer outside the tycoon overlay. The player walks through spending endowment, reviewing alumni, and choosing the next classmate before firing up the next tycoon career.
+
+**Navigation flow per save:**
+
+```
+[Slot screen] → click save slot
+     ↓
+[School screen] ← ───────────── (default landing)
+  │
+  ├── Admissions: class roster + next classmate picker
+  ├── Departments: 4-tab endowment shop (Academics/Facilities/Alumni/School Life)
+  ├── Alumni Hall: past founders' stats, fates, famous-alumni callouts
+  ├── Lifetime Stats: cumulative data across runs
+  └── [Enroll Next Classmate] → tycoon starts
+     ↓
+[Tycoon overlay] ← same as today (with new founder pulled from class roster)
+     ↓ run ends (any Q4 trigger)
+[Run-End Retrospective] — run summary + endowment earned
+     ↓
+[School screen] (back to top)
+```
+
+**During a run (tycoon mode):** a small "🎓 View Institute" button in the top bar opens a READ-ONLY school window — browse endowment balance, alumni hall, lifetime stats — but can't spend endowment (that's a between-runs activity). Keeps the school context one click away without breaking the tycoon loop.
+
+**School screen layout sketch:**
+
+```
+┌─ Sunnyvale Tech ─────────────────── Endowment: 3,240 ── [Save] ─┐
+│  School crest / banner / flavor                                 │
+├─────────────────────────────────────────────────────────────────┤
+│ [Admissions] [Departments] [Alumni Hall] [Lifetime]             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  (tab content — varies by selection)                            │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                 [ Enroll Next Classmate → ]                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Admissions tab (default on entry):**
+- Class roster strip showing ranks #47 → #1 with portraits/icons
+- Ranks already played: grayed out with result (💀 bankrupt / 🏆 IPO'd / etc.)
+- Ranks not yet available: locked with required endowment
+- Currently-available rank: highlighted, showing rolled passions + traits
+- Click "Enroll" to commit to that classmate
+
+**Departments tab:** the 4 department talent trees from Q8. Each department is a sub-tab; nodes show price + prereqs + effect description; bought nodes show as lit-up.
+
+**Alumni Hall:** past founders' cards — portrait, name, rank, tenure years, fate icon, lifetime stats within their run, signature quote. Famous alumni (win-condition winners) get a pinned/featured position.
+
+**Lifetime tab:** aggregate stats. Total ships across all classmates, cumulative revenue, bloodline-wide critic average, win-condition count, achievement progress.
+
+**Why this shape:** committing to a full school screen lets the meta-layer breathe. It's where you PLAN and celebrate between careers. The tycoon loop stays clean and focused while the school mode carries the long-arc narrative.
+
+**Old options (for reference):**
+- A) Subtle — inheritance modal, no dedicated panel
+- B) Bloodline tab — dedicated panel inside the tycoon UI
 
 ---
 
