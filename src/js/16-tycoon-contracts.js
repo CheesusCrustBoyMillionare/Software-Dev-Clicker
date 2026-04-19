@@ -80,41 +80,56 @@
   window.CLIENT_TIERS = CLIENT_TIERS;
 
   // ---------- Contract specifications per project type ----------
+  // Era-gated: contracts for a type only appear once type is available.
   const CONTRACT_SPECS = {
     business: {
-      scopes: ['small'],                     // Phase 2 keeps small only
-      requiredFeatures: {
-        small: ['f_save', 'f_print']
-      },
-      suggestedFeatures: {
-        small: ['f_import', 'f_reports', 'f_templates', 'f_help']
-      },
+      scopes: ['small'],
+      requiredFeatures: { small: ['f_save', 'f_print'] },
+      suggestedFeatures: { small: ['f_import', 'f_reports', 'f_templates', 'f_help'] },
       paymentRange: { small: [12000, 28000] },
       deadlineMult: 1.4,
-      tierWeights: {
-        small_biz: 1.0,
-        enterprise: 1.3,
-        tech_giant: 1.5,
-        government: 2.0,
-      }
+      tierWeights: { small_biz: 1.0, enterprise: 1.3, tech_giant: 1.5, government: 2.0 }
     },
     game: {
       scopes: ['small'],
-      requiredFeatures: {
-        small: ['f_save']
-      },
-      suggestedFeatures: {
-        small: ['f_sound', 'f_diff', 'f_tutorial', 'f_ach', 'f_help']
-      },
+      requiredFeatures: { small: ['f_save'] },
+      suggestedFeatures: { small: ['f_sound', 'f_diff', 'f_tutorial', 'f_ach', 'f_help'] },
       paymentRange: { small: [8000, 22000] },
       deadlineMult: 1.5,
-      tierWeights: {
-        small_biz: 0.3,
-        enterprise: 0.4,
-        tech_giant: 0.6,
-        government: 0.2,
-      }
-    }
+      tierWeights: { small_biz: 0.3, enterprise: 0.4, tech_giant: 0.6, government: 0.2 }
+    },
+    web: {
+      scopes: ['small'],
+      requiredFeatures: { small: ['f_auth'] },
+      suggestedFeatures: { small: ['f_email', 'f_search', 'f_admin', 'f_responsive', 'f_help'] },
+      paymentRange: { small: [15000, 35000] },
+      deadlineMult: 1.3,
+      tierWeights: { small_biz: 0.7, enterprise: 1.4, tech_giant: 1.8, government: 1.5 }
+    },
+    mobile: {
+      scopes: ['small'],
+      requiredFeatures: { small: ['f_onboard'] },
+      suggestedFeatures: { small: ['f_push', 'f_iap', 'f_social', 'f_ach', 'f_camera'] },
+      paymentRange: { small: [14000, 32000] },
+      deadlineMult: 1.3,
+      tierWeights: { small_biz: 0.4, enterprise: 0.8, tech_giant: 1.5, government: 0.6 }
+    },
+    saas: {
+      scopes: ['small'],
+      requiredFeatures: { small: ['f_auth', 'f_admin'] },
+      suggestedFeatures: { small: ['f_sso', 'f_webhooks', 'f_team', 'f_analytics', 'f_audit'] },
+      paymentRange: { small: [20000, 45000] },
+      deadlineMult: 1.3,
+      tierWeights: { small_biz: 0.3, enterprise: 1.6, tech_giant: 2.0, government: 1.3 }
+    },
+    ai: {
+      scopes: ['small'],
+      requiredFeatures: { small: ['f_inference', 'f_safety'] },
+      suggestedFeatures: { small: ['f_finetune', 'f_memory', 'f_multimodal', 'f_api'] },
+      paymentRange: { small: [30000, 60000] },
+      deadlineMult: 1.4,
+      tierWeights: { small_biz: 0.2, enterprise: 1.0, tech_giant: 2.5, government: 1.8 }
+    },
   };
 
   // ---------- Generator ----------
@@ -171,10 +186,16 @@
     return tiers[0];
   }
 
-  // Weighted project type pick, scaled by the selected tier
+  // Weighted project type pick, scaled by the selected tier + era availability
   function pickProjectTypeForTier(tierId) {
-    const entries = Object.entries(CONTRACT_SPECS).map(([type, spec]) =>
-      [type, spec.tierWeights[tierId] || 0.5]);
+    const year = S.calendar?.year || 1980;
+    const entries = Object.entries(CONTRACT_SPECS)
+      .filter(([type]) => {
+        // Only include types that are era-available
+        return window.isProjectTypeAvailable ? window.isProjectTypeAvailable(type, year) : true;
+      })
+      .map(([type, spec]) => [type, spec.tierWeights[tierId] || 0.5]);
+    if (entries.length === 0) return 'business'; // safety fallback
     const total = entries.reduce((s, [,w]) => s + w, 0);
     let roll = Math.random() * total;
     for (const [type, w] of entries) {

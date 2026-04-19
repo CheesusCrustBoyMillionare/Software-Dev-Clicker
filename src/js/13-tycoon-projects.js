@@ -5,49 +5,124 @@
 (function(){
   'use strict';
 
-  // ---------- Feature Catalog (Phase 1: abbreviated to Games + Business) ----------
-  // Full catalog lives in DESIGN_V2.md; this is a starter slice for Phase 1.
+  // ---------- Feature Catalog ----------
+  // Features are gated by project type AND era. Full catalog in DESIGN_V2.md.
   const FEATURES = [
     // ------- Game features -------
     { id:'f_save',     name:'Save System',     types:['game','business'], cost:1, impact:{ polish:+8,  tech:+3 }, era:[1980,2024], desc:'Lets players save progress.' },
     { id:'f_sound',    name:'Sound Effects',   types:['game'],            cost:1, impact:{ design:+5,  polish:+3 }, era:[1980,2024], desc:'Audio feedback for gameplay.' },
     { id:'f_music',    name:'Soundtrack',      types:['game'],            cost:2, impact:{ design:+10, polish:+5 }, era:[1980,2024], desc:'Original music score.' },
     { id:'f_diff',     name:'Difficulty Levels', types:['game'],          cost:1, impact:{ design:+6 }, era:[1980,2024], desc:'Easy/Normal/Hard options.' },
-    { id:'f_tutorial', name:'Tutorial',        types:['game','business'], cost:1, impact:{ design:+4,  polish:+4 }, era:[1980,2024], desc:'Guide players/users through basics.' },
+    { id:'f_tutorial', name:'Tutorial',        types:['game','business','web','mobile'], cost:1, impact:{ design:+4, polish:+4 }, era:[1980,2024], desc:'Guide players/users through basics.' },
     { id:'f_mp',       name:'Multiplayer',     types:['game'],            cost:4, impact:{ design:+15, tech:+10 }, era:[1980,2024], desc:'Local 2-player mode.' },
     { id:'f_chars',    name:'Character Select', types:['game'],           cost:2, impact:{ design:+8 }, era:[1980,2024], desc:'Multiple playable characters.' },
     { id:'f_levels',   name:'Extra Levels',    types:['game'],            cost:3, impact:{ design:+12, polish:-2 }, era:[1980,2024], desc:'More content, more stages.' },
-    { id:'f_story',    name:'Story Mode',      types:['game'],            cost:3, impact:{ design:+14, polish:+4 }, era:[1980,2024], desc:'Narrative campaign with cutscenes.' },
-    { id:'f_ach',      name:'Achievements',    types:['game'],            cost:1, impact:{ polish:+6 }, era:[1980,2024], desc:'Collectable milestones.' },
+    { id:'f_story',    name:'Story Mode',      types:['game','web'],      cost:3, impact:{ design:+14, polish:+4 }, era:[1980,2024], desc:'Narrative campaign with cutscenes.' },
+    { id:'f_ach',      name:'Achievements',    types:['game','mobile'],   cost:1, impact:{ polish:+6 }, era:[1980,2024], desc:'Collectable milestones.' },
     // ------- Business Software features -------
     { id:'f_import',   name:'File Import/Export', types:['business'],     cost:2, impact:{ tech:+8,  polish:+3 }, era:[1980,2024], desc:'Read/write common formats.' },
     { id:'f_print',    name:'Printing Support', types:['business'],       cost:2, impact:{ tech:+6,  polish:+6 }, era:[1980,2024], desc:'Output to dot-matrix, laser, etc.' },
-    { id:'f_reports',  name:'Reports & Charts', types:['business'],       cost:3, impact:{ design:+10, tech:+5 }, era:[1980,2024], desc:'Generate visual summaries.' },
-    { id:'f_multi',    name:'Multi-User',       types:['business'],       cost:3, impact:{ tech:+12 }, era:[1980,2024], desc:'Concurrent editing / shared files.' },
+    { id:'f_reports',  name:'Reports & Charts', types:['business','saas'],cost:3, impact:{ design:+10, tech:+5 }, era:[1980,2024], desc:'Generate visual summaries.' },
+    { id:'f_multi',    name:'Multi-User',       types:['business','web','saas'], cost:3, impact:{ tech:+12 }, era:[1980,2024], desc:'Concurrent editing / shared files.' },
     { id:'f_macro',    name:'Macros / Scripting', types:['business'],     cost:3, impact:{ tech:+10, design:+5 }, era:[1980,2024], desc:'Power users can automate.' },
-    { id:'f_templates',name:'Template Library', types:['business'],       cost:1, impact:{ design:+5, polish:+5 }, era:[1980,2024], desc:'Pre-built starter documents.' },
-    { id:'f_help',     name:'Help System',      types:['business','game'],cost:1, impact:{ polish:+6 }, era:[1980,2024], desc:'Built-in documentation.' },
+    { id:'f_templates',name:'Template Library', types:['business','web','saas'], cost:1, impact:{ design:+5, polish:+5 }, era:[1980,2024], desc:'Pre-built starter documents.' },
+    { id:'f_help',     name:'Help System',      types:['business','game','web','saas'], cost:1, impact:{ polish:+6 }, era:[1980,2024], desc:'Built-in documentation.' },
+    // ------- Web App features (1995+) -------
+    { id:'f_auth',     name:'User Accounts',    types:['web','mobile','saas'], cost:2, impact:{ tech:+8, polish:+2 }, era:[1995,2024], desc:'Login, signup, password reset.' },
+    { id:'f_pay',      name:'Payment Integration', types:['web','mobile','saas'], cost:3, impact:{ tech:+10, polish:+5 }, era:[1995,2024], desc:'Accept credit cards / subscriptions.' },
+    { id:'f_email',    name:'Email Notifications', types:['web','saas'],  cost:2, impact:{ tech:+6, polish:+4 }, era:[1995,2024], desc:'Transactional + marketing emails.' },
+    { id:'f_admin',    name:'Admin Dashboard',  types:['web','saas'],     cost:2, impact:{ design:+6, tech:+6 }, era:[1995,2024], desc:'Back-office control panel.' },
+    { id:'f_api',      name:'Public API',       types:['web','saas'],     cost:3, impact:{ tech:+12 }, era:[1995,2024], desc:'Third-party integrations.' },
+    { id:'f_search',   name:'Search & Discovery', types:['web','mobile'], cost:2, impact:{ tech:+8, design:+4 }, era:[1995,2024], desc:'Find content quickly.' },
+    { id:'f_ads',      name:'Ad System',        types:['web','mobile'],   cost:2, impact:{ tech:+4, polish:-3 }, era:[1995,2024], desc:'Monetize via ads.' },
+    { id:'f_responsive',name:'Mobile Responsive', types:['web'],          cost:2, impact:{ design:+6, polish:+5 }, era:[2008,2024], desc:'Works on phones + tablets.' },
+    // ------- Mobile App features (2007+) -------
+    { id:'f_onboard',  name:'Onboarding Flow',  types:['mobile','saas'],  cost:2, impact:{ design:+8, polish:+4 }, era:[2007,2024], desc:'First-run user experience.' },
+    { id:'f_push',     name:'Push Notifications', types:['mobile'],       cost:2, impact:{ tech:+6, design:+3 }, era:[2007,2024], desc:'Re-engagement signals.' },
+    { id:'f_iap',      name:'In-App Purchases', types:['mobile'],         cost:3, impact:{ tech:+8, polish:+2 }, era:[2008,2024], desc:'Monetize via IAP.' },
+    { id:'f_social',   name:'Social Sharing',   types:['mobile','web'],   cost:2, impact:{ design:+6, tech:+3 }, era:[2007,2024], desc:'Share to Facebook, Twitter, etc.' },
+    { id:'f_offline',  name:'Offline Mode',     types:['mobile','saas'],  cost:3, impact:{ tech:+10, polish:+4 }, era:[2007,2024], desc:'Works without connectivity.' },
+    { id:'f_camera',   name:'Camera Integration', types:['mobile'],       cost:2, impact:{ design:+6, tech:+4 }, era:[2008,2024], desc:'Photo/video capture in-app.' },
+    { id:'f_location', name:'Location Services', types:['mobile'],        cost:2, impact:{ tech:+6, design:+4 }, era:[2007,2024], desc:'GPS-based features.' },
+    // ------- SaaS features (2010+) -------
+    { id:'f_webhooks', name:'Webhooks',         types:['saas'],           cost:2, impact:{ tech:+10 }, era:[2010,2024], desc:'Real-time event delivery to customers.' },
+    { id:'f_sso',      name:'SSO / Enterprise Auth', types:['saas'],      cost:3, impact:{ tech:+10, polish:+5 }, era:[2010,2024], desc:'SAML / OAuth for enterprise.' },
+    { id:'f_audit',    name:'Audit Logs',       types:['saas'],           cost:2, impact:{ tech:+6, polish:+6 }, era:[2010,2024], desc:'Compliance-ready activity history.' },
+    { id:'f_team',     name:'Team Collaboration', types:['saas'],         cost:3, impact:{ design:+10, tech:+6 }, era:[2010,2024], desc:'Shared workspaces, roles.' },
+    { id:'f_analytics',name:'Analytics Dashboard', types:['saas','web'],  cost:3, impact:{ design:+8, tech:+8 }, era:[2010,2024], desc:'Usage metrics visualizations.' },
+    // ------- AI Product features (2020+) -------
+    { id:'f_inference', name:'Inference API',   types:['ai'],             cost:3, impact:{ tech:+12 }, era:[2020,2024], desc:'Serve model predictions.' },
+    { id:'f_finetune',  name:'Fine-tuning',     types:['ai'],             cost:3, impact:{ tech:+10, design:+4 }, era:[2020,2024], desc:'Custom model training pipeline.' },
+    { id:'f_safety',    name:'Safety Filters',  types:['ai'],             cost:2, impact:{ polish:+10, tech:+4 }, era:[2020,2024], desc:'Content moderation + abuse prevention.' },
+    { id:'f_multimodal',name:'Multi-Modal Input', types:['ai'],           cost:3, impact:{ design:+10, tech:+8 }, era:[2023,2024], desc:'Text + image + audio input.' },
+    { id:'f_memory',    name:'Conversation Memory', types:['ai'],         cost:3, impact:{ design:+8, tech:+8 }, era:[2020,2024], desc:'Context-aware multi-turn.' },
   ];
   const FEATURES_BY_ID = Object.fromEntries(FEATURES.map(f => [f.id, f]));
   window.TYCOON_FEATURES = FEATURES;
   window.TYCOON_FEATURES_BY_ID = FEATURES_BY_ID;
 
   // ---------- Project Type Definitions ----------
+  // Each type has an era window — can only be created when calendar.year falls in it.
   const PROJECT_TYPES = {
     game: {
       id: 'game',
       label: 'Game',
+      icon: '🎮',
+      era: [1980, 2024],
       weights: { design: 0.5, tech: 0.3, polish: 0.2 },
       desc: 'Entertainment software. Design-heavy quality.'
     },
     business: {
       id: 'business',
       label: 'Business Software',
+      icon: '💼',
+      era: [1980, 2024],
       weights: { design: 0.25, tech: 0.45, polish: 0.3 },
       desc: 'Productivity tool. Tech-heavy quality.'
     },
+    web: {
+      id: 'web',
+      label: 'Web App',
+      icon: '🌐',
+      era: [1995, 2024],
+      weights: { design: 0.40, tech: 0.35, polish: 0.25 },
+      desc: 'Browser-based app. Reach + design balance.'
+    },
+    mobile: {
+      id: 'mobile',
+      label: 'Mobile App',
+      icon: '📱',
+      era: [2007, 2024],
+      weights: { design: 0.40, tech: 0.25, polish: 0.35 },
+      desc: 'iOS / Android app. Polish-heavy.'
+    },
+    saas: {
+      id: 'saas',
+      label: 'SaaS Product',
+      icon: '☁️',
+      era: [2010, 2024],
+      weights: { design: 0.25, tech: 0.40, polish: 0.35 },
+      desc: 'Subscription cloud service. Reliability-focused.'
+    },
+    ai: {
+      id: 'ai',
+      label: 'AI Product',
+      icon: '🤖',
+      era: [2020, 2024],
+      weights: { design: 0.30, tech: 0.45, polish: 0.25 },
+      desc: 'AI-powered app. Tech-intensive, novel UX.'
+    },
   };
   window.PROJECT_TYPES = PROJECT_TYPES;
+
+  // Era-available type helper (used by Design modal + contract generator)
+  function isTypeAvailable(typeId, year) {
+    const t = PROJECT_TYPES[typeId];
+    if (!t) return false;
+    year = year == null ? (S.calendar?.year || 1980) : year;
+    return year >= t.era[0] && year <= t.era[1];
+  }
+  window.isProjectTypeAvailable = isTypeAvailable;
 
   // ---------- Scope presets ----------
   const SCOPES = {

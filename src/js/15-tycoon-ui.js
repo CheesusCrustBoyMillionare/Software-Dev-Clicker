@@ -232,7 +232,11 @@
   // ---------- Top bar ----------
   function renderTopBar() {
     const topbar = h('div', { className: 't-topbar tycoon-topbar' });
-    const cal = h('div', { className: 't-cal' }, window.tycoonTime.formatCalendar(S.calendar));
+    const eraLabel = window.tycoonEra ? window.tycoonEra.formatDateLine(S.calendar) : '';
+    const cal = h('div', { className: 't-cal' },
+      window.tycoonTime.formatCalendar(S.calendar),
+      eraLabel ? h('div', { style:{fontSize:'0.65rem', color:'#8957e5', fontWeight:'600', marginTop:'2px'} }, eraLabel) : null
+    );
     const cash = h('div', { className: 't-stat' },
       h('div', { className: 't-stat-val' }, fmtMoney(S.cash)),
       h('div', { className: 't-stat-lbl' }, 'Cash')
@@ -335,10 +339,12 @@
     const criticEl = isShipped && proj.criticScore ?
       h('div', { className: 't-proj-critic' }, 'Critic ' + proj.criticScore + '/100' + (proj.launchSales ? ' · ' + fmtMoney(proj.launchSales) : '')) : null;
 
+    const typeDef = window.PROJECT_TYPES[proj.type];
     return h('div', { className: 't-proj-card ' + (isShipped ? 'shipped' : '') },
-      h('div', { className: 't-proj-name' }, proj.name),
+      h('div', { className: 't-proj-name' },
+        (typeDef?.icon || '') + ' ' + proj.name),
       h('div', { className: 't-proj-meta' },
-        (window.PROJECT_TYPES[proj.type]?.label || proj.type) + ' · ' +
+        (typeDef?.label || proj.type) + ' · ' +
         (window.PROJECT_SCOPES[proj.scope]?.label || proj.scope) + ' scope' +
         (proj.isContract ? ' · contract' : ' · own IP')),
       h('div', { className: 't-proj-phase ' + proj.phase }, proj.phase),
@@ -653,9 +659,12 @@
   // ---------- Design modal ----------
   function openDesignModal() {
     if (!S.founder) { alert('No founder set. Run: createFounder()'); return; }
+    // Default to first era-available type
+    const availableTypes = Object.keys(window.PROJECT_TYPES).filter(k => window.isProjectTypeAvailable(k));
+    const defaultType = availableTypes.includes('game') ? 'game' : availableTypes[0];
     const config = {
       name: 'Untitled',
-      type: 'game',
+      type: defaultType,
       scope: 'small',
       features: [],
       isContract: false
@@ -665,7 +674,11 @@
       const scope = window.PROJECT_SCOPES[config.scope];
       const usedScope = config.features.reduce((s, id) => s + (window.TYCOON_FEATURES_BY_ID[id]?.cost || 0), 0);
       const remaining = scope.scopePoints - usedScope;
-      const availableFeatures = window.TYCOON_FEATURES.filter(f => f.types.includes(config.type));
+      const curYear = S.calendar?.year || 1980;
+      const availableFeatures = window.TYCOON_FEATURES.filter(f =>
+        f.types.includes(config.type) &&
+        curYear >= f.era[0] && curYear <= f.era[1]
+      );
 
       const ov = h('div', { className: 't-modal-ov', id: '_t_modal' },
         h('div', { className: 't-modal' },
@@ -679,9 +692,11 @@
             h('select', {
               onchange: (e) => { config.type = e.target.value; config.features = []; rerender(); }
             },
-              ...Object.keys(window.PROJECT_TYPES).map(key =>
-                h('option', { value: key, selected: key === config.type ? true : null },
-                  window.PROJECT_TYPES[key].label))
+              ...Object.keys(window.PROJECT_TYPES).filter(k => window.isProjectTypeAvailable(k)).map(key => {
+                const t = window.PROJECT_TYPES[key];
+                return h('option', { value: key, selected: key === config.type ? true : null },
+                  (t.icon || '') + ' ' + t.label);
+              })
             )
           ),
           h('label', null, 'Scope',
@@ -869,6 +884,14 @@
     if (tierDef) pushToast('🔓 Unlocked ' + tierDef.icon + ' ' + tierDef.label + ' clients!', 'win');
   });
 
+  // Era change — show a big toast celebrating the new era (Phase 3B)
+  document.addEventListener('tycoon:era-change', (e) => {
+    const era = e.detail.era;
+    pushToast(era.icon + ' New era: ' + era.label + ' — ' + era.blurb, 'win');
+    refreshTopBar();
+    refreshMain();
+  });
+
   // ---------- Character creator modal ----------
   function openCharacterCreator(onConfirm) {
     injectStyles();
@@ -1004,6 +1027,7 @@
       if (window.tycoonEmployees) window.tycoonEmployees.startTick();
       if (window.tycoonHiring) window.tycoonHiring.startTick();
       if (window.tycoonFinance) window.tycoonFinance.startTick();
+      if (window.tycoonEra) window.tycoonEra.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -1015,6 +1039,7 @@
       if (window.tycoonEmployees) window.tycoonEmployees.stopTick();
       if (window.tycoonHiring) window.tycoonHiring.stopTick();
       if (window.tycoonFinance) window.tycoonFinance.stopTick();
+      if (window.tycoonEra) window.tycoonEra.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
