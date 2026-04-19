@@ -10534,10 +10534,31 @@ let _clockValidated = false;
     }
   }
 
+  // Re-render candidate cards in place without going through close/open —
+  // touching the close path would restore pause mid-interaction, and the
+  // subsequent reopen would lose _hiringPrevPaused if the hire drained the
+  // queue (empty-queue early-return skips the capture). Keeps pause state
+  // exactly as-is across interactions.
   function rerenderHiringModal() {
-    if (document.getElementById('_t_hiring_modal')) {
+    const modal = document.getElementById('_t_hiring_modal');
+    if (!modal) return;
+    const queue = S.hiring?.queue || [];
+    if (queue.length === 0) {
+      // Queue emptied (all hired/passed). Close the modal cleanly, which
+      // restores pause to the pre-fair state.
       closeHiringModal();
-      openHiringModal();
+      return;
+    }
+    const grid = modal.querySelector('.t-candidate-grid');
+    const header = modal.querySelector('.t-modal > div[style*="color"]');
+    if (grid) {
+      grid.innerHTML = '';
+      queue.forEach(c => grid.appendChild(renderCandidateCard(c)));
+    }
+    if (header) {
+      header.textContent = queue.length + ' candidate' + (queue.length === 1 ? '' : 's') +
+        ' available \u00B7 Interview $' + window.tycoonHiring.INTERVIEW_COST +
+        ' (reveals stats + hidden trait)';
     }
   }
 
