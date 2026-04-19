@@ -1645,6 +1645,12 @@
     setTimeout(() => openLegacyScreen(S.calendar?.year || 2024, 'victory'), 1500);
   });
 
+  // Achievements (Phase 5G)
+  document.addEventListener('tycoon:achievement-unlocked', (e) => {
+    const a = e.detail.achievement;
+    pushToast('🏅 ' + a.name + ' — ' + a.desc);
+  });
+
   function openVictoryModal(path) {
     // Auto-pause
     S.paused = true;
@@ -1830,6 +1836,7 @@
       if (window.tycoonAwards) window.tycoonAwards.startTick();
       if (window.tycoonSubsidiaries) window.tycoonSubsidiaries.startTick();
       if (window.tycoonWins) window.tycoonWins.startTick();
+      if (window.tycoonAchievements) window.tycoonAchievements.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -1850,6 +1857,7 @@
       if (window.tycoonAwards) window.tycoonAwards.stopTick();
       if (window.tycoonSubsidiaries) window.tycoonSubsidiaries.stopTick();
       if (window.tycoonWins) window.tycoonWins.stopTick();
+      if (window.tycoonAchievements) window.tycoonAchievements.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
