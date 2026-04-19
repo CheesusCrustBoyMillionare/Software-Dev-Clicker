@@ -1688,15 +1688,23 @@
   });
 
   // ---------- Character creator modal ----------
+  // Module-level so config persists across re-renders
+  let _creatorConfig = null;
   function openCharacterCreator(onConfirm) {
     injectStyles();
-    const config = {
-      studioName: 'Acme Software',
-      founderName: 'Alex Chen',
-      specialty: 'coder',
-      trait: 'Creative',
-      difficulty: 'normal'
-    };
+    const scenarios = window.TYCOON_SCENARIOS || [];
+    // Initialize config only on first open
+    if (!_creatorConfig) {
+      _creatorConfig = {
+        scenario: 'first_studio',
+        studioName: 'Acme Software',
+        founderName: 'Alex Chen',
+        specialty: 'coder',
+        trait: 'Creative',
+        difficulty: 'normal'
+      };
+    }
+    const config = _creatorConfig;
     const traits = ['Perfectionist', 'Sprinter', 'Methodical', 'Creative'];
     const traitEffects = {
       Perfectionist: '+2 Polish, −1 Speed (bug-free but slower)',
@@ -1722,7 +1730,34 @@
       h('div', { className: 't-modal' },
         h('h2', null, '🚀 Start Your Studio'),
         h('div', { style: { color:'#8b949e', fontSize:'0.85rem', marginBottom:'16px' } },
-          'Founding March 1980. You\'re solo in a garage. Build something.'),
+          'Pick a scenario, then customize your founder. Build something.'),
+        // Scenario selector (Phase 6A)
+        scenarios.length > 0 && h('label', null, 'Scenario',
+          h('select', {
+            onchange: e => {
+              config.scenario = e.target.value;
+              const s = scenarios.find(sc => sc.id === config.scenario);
+              if (s?.defaults) {
+                config.specialty = s.defaults.specialty;
+                config.trait = s.defaults.trait;
+                config.difficulty = s.defaults.difficulty;
+              }
+              // Rerender to refresh defaults in other selects
+              document.getElementById('_t_creator_modal')?.remove();
+              openCharacterCreator(onConfirm);
+            }
+          },
+            ...scenarios.map(s => h('option', { value: s.id, selected: s.id === config.scenario ? true : null },
+              s.label + (s.yearStart ? ' — ' + s.yearStart : '')))
+          )
+        ),
+        // Scenario blurb
+        (() => {
+          const s = scenarios.find(sc => sc.id === config.scenario);
+          if (!s) return null;
+          return h('div', { style:{color:'#8957e5', fontSize:'0.72rem', marginTop:'-8px', marginBottom:'12px', fontStyle:'italic'} },
+            s.blurb);
+        })(),
         h('label', null, 'Studio name',
           h('input', { type:'text', value: config.studioName,
             oninput: e => { config.studioName = e.target.value; } })
@@ -1759,11 +1794,14 @@
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn secondary', onclick: () => {
             document.getElementById('_t_creator_modal')?.remove();
+            _creatorConfig = null;
           } }, 'Cancel'),
           h('button', { className: 't-btn', onclick: () => {
             document.getElementById('_t_creator_modal')?.remove();
-            onConfirm(config);
-          } }, 'Begin — March 1980 →')
+            const finalConfig = { ..._creatorConfig };
+            _creatorConfig = null; // reset for next time
+            onConfirm(finalConfig);
+          } }, 'Begin →')
         )
       )
     );
@@ -1783,6 +1821,7 @@
           S.founderSpecialty = config.specialty;
           S.founderTrait = config.trait;
           S.difficulty = config.difficulty;
+          S.scenario = config.scenario;
           // Create the founder
           window.createFounder(config.founderName, config.specialty, config.trait);
           // Set starting cash per difficulty + defunct bonus
@@ -1795,6 +1834,10 @@
           }
           S.careerStarted = true;
           S.careerStartedAt = (typeof trustedNow === 'function') ? trustedNow() : Date.now();
+          // Apply scenario modifications (Phase 6A)
+          if (config.scenario && window.tycoonScenarios) {
+            window.tycoonScenarios.apply(config.scenario);
+          }
           if (typeof markDirty === 'function') markDirty();
           // Now actually enter
           tycoonUI.enter({ skipCreator: true });
