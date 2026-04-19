@@ -91,11 +91,25 @@ Original options (for reference — not picked):
 - **C) Reincarnation / "spiritual successor"**: (what we picked, reframed as alumni)
 - **D) "Meta-founder"** who is the player; each run is a career phase
 
-### Q2 — Classic mode coexistence (foundational: architecture fork)
-Is "classic tycoon with bankruptcy = game over" still available?
-- **A) Roguelite replaces bankruptcy everywhere** — no more game-over; one mode only
-- **B) New game starts ask "classic or roguelite"** — two modes coexist
-- **C) Difficulty toggle** — "Classic: bankruptcy ends run" vs "Roguelite: spawn heir"
+### Q2 — Classic mode coexistence ✅ LOCKED: Roguelite replaces classic everywhere
+
+One mode only. Bankruptcy (and every other run-terminating event) spawns the next classmate. Classic "one career, one life" is retired.
+
+**Consequences for existing end-game systems:**
+- **Bankruptcy** → always spawns next classmate (core mechanic)
+- **Sell to Megacorp** (legacy decision) → still a valid run-end, now framed as "you cashed out; your classmate takes over the school's attention + a chunk of endowment bonus"
+- **Retire early** (possible future legacy decision) → same: run ends, classmate next
+- **Win conditions** (Industry Titan, IPO Exit, Catalog Master, etc.) → currently "game over → retrospective." In roguelite these become *endorsements* — the run ends triumphantly and the next classmate inherits an outsized endowment boost, plus the founder joins the "famous alumni" roster permanently
+- **Hall of Fame retrospective** → repurposed from "per-career summary" to "school-wide alumni ledger" showing every founder who's passed through this save
+
+**What this means for achievements tuned to a single career:**
+- "Ship 50 projects in one run" — reachable only if class size is large enough or runs last long enough; may need re-tuning (e.g., class size 50+ so a late run can hit it)
+- "Reach $1B lifetime revenue" — interpret as per-save, cross-run? Probably yes, since the school endowment persists
+- Will need an achievement audit in a dedicated phase
+
+**Old options (not picked):**
+- B) Two modes at slot screen
+- C) Difficulty toggle per career
 
 ### Q3 — What carries over vs what resets (foundational: save schema)
 **Always resets:** cash, team, projects, calendar year (?)
