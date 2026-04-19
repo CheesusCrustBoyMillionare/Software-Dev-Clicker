@@ -344,6 +344,10 @@
     } catch (e) {}
     if (typeof markDirty === 'function') markDirty();
     if (typeof log === 'function') log('💀 BANKRUPTCY — studio closed. Career ended ' + S.bankruptcy.triggeredAtYear);
+    // v3 roguelite: bankruptcy is a run-end trigger — banks a small endowment
+    // contribution, adds founder to the Alumni Hall, dispatches tycoon:run-end.
+    // The existing tycoon:bankruptcy event still fires for UI continuity.
+    if (window.tycoonSchool?.endRun) window.tycoonSchool.endRun('bankruptcy');
     document.dispatchEvent(new CustomEvent('tycoon:bankruptcy', { detail: { year: S.bankruptcy.triggeredAtYear } }));
   }
 

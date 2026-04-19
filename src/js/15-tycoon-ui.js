@@ -1974,7 +1974,20 @@
       }
     }, '🏦 Take Out a Loan') : null;
 
-    return h('div', null, loansList, takeLoanBtn);
+    // v3 roguelite: voluntary "Retire & Hand Off" button — gated on Fame 50+
+    const canRetire = window.tycoonSchool?.canVoluntaryRetire?.();
+    const retireBtn = h('button', {
+      className: canRetire ? 't-btn secondary' : 't-btn secondary',
+      style: { marginTop: '16px', opacity: canRetire ? 1 : 0.5, cursor: canRetire ? 'pointer' : 'not-allowed' },
+      title: canRetire ? 'End your run voluntarily; classmate takes over.' : 'Requires Fame 50+ (current ' + (S.tFame || 0) + ')',
+      onclick: () => {
+        if (!canRetire) { pushToast('Need Fame 50+ to retire (current: ' + (S.tFame || 0) + ')'); return; }
+        document.getElementById('_t_finance_modal')?.remove();
+        window.openVoluntaryRetireModal();
+      }
+    }, '🎓 Retire & Hand Off' + (canRetire ? '' : ' (Fame ' + (S.tFame || 0) + '/50)'));
+
+    return h('div', null, loansList, takeLoanBtn, retireBtn);
   }
 
   function refreshMain() {
@@ -2373,6 +2386,53 @@
     pushToast('🏅 ' + a.name + ' — ' + a.desc);
   });
 
+  // v3 roguelite: run-end surfaces the endowment banked. This toast is the
+  // Phase 4 placeholder — Phase 5 routes post-run-end into the school screen
+  // where the full retrospective + class-roster picker live. For now the
+  // existing legacy modal (bankruptcy/win/megacorp) still opens behind this
+  // toast, keeping the retrospective summary alive while we build the
+  // school UI.
+  document.addEventListener('tycoon:run-end', (e) => {
+    const { type, endowEarned } = e.detail || {};
+    const labels = {
+      bankruptcy: '💀 Run over — studio closed',
+      age_retired: '👴 Founder retired — ran out the clock',
+      retire_voluntary: '🎓 Retired and handed off',
+      megacorp_exit: '💰 Sold to Megacorp',
+      win_condition: '🏆 Triumphant run',
+    };
+    pushToast((labels[type] || 'Run ended') +
+      '  ·  +' + (endowEarned || 0).toLocaleString() + ' endowment banked', 'win');
+  });
+
+  // v3 roguelite: voluntary retire button — opens a confirmation. Gated
+  // on Fame ≥ 50 per Q4.
+  window.openVoluntaryRetireModal = function() {
+    if (!window.tycoonSchool?.canVoluntaryRetire?.()) {
+      pushToast('⚠️ Need Fame 50+ to retire with dignity (current: ' + (S.tFame || 0) + ')');
+      return;
+    }
+    const endow = window.tycoonSchool.computeEndowment('retire_voluntary');
+    const ov = h('div', { className: 't-modal-ov', id: '_t_retire_modal',
+      onclick: (e) => { if (e.target.id === '_t_retire_modal') ov.remove(); } },
+      h('div', { className: 't-modal', style: { maxWidth: '460px' } },
+        h('h2', null, '🎓 Retire & Hand Off'),
+        h('div', { style: { fontSize: '0.85rem', color: '#c9d1d9', marginBottom: '14px', lineHeight: '1.5' } },
+          'Step down now. Your alumnus joins the Institute\u2019s Alumni Hall and the next classmate takes over.'),
+        h('div', { style: { fontSize: '0.85rem', color: '#c9d1d9', marginBottom: '14px' } },
+          'Endowment banked: ', h('span', { style: { color: '#7ee787', fontWeight: '700' } }, '+' + endow.toLocaleString())),
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn secondary', onclick: () => ov.remove() }, 'Never mind'),
+          h('button', { className: 't-btn', onclick: () => {
+            ov.remove();
+            window.tycoonSchool.voluntaryRetire();
+          } }, 'Retire now')
+        )
+      )
+    );
+    document.body.appendChild(ov);
+  };
+
   function openVictoryModal(path) {
     // Auto-pause
     S.paused = true;
@@ -2612,6 +2672,9 @@
       // v3 roguelite: ensure the class roster exists on entry. Idempotent —
       // first entry for a save seeds the roster; subsequent entries no-op.
       if (window.tycoonTraits) window.tycoonTraits.ensureRoster();
+      // v3 roguelite: school module handles yearly founder-age increment +
+      // auto-retirement. Stops with the other modules on exit().
+      if (window.tycoonSchool) window.tycoonSchool.startTick();
       window.tycoonTime.start();
       startUITick();
       startCalProgressLoop();
@@ -2635,6 +2698,7 @@
       if (window.tycoonWins) window.tycoonWins.stopTick();
       if (window.tycoonAchievements) window.tycoonAchievements.stopTick();
       if (window.tycoonHints) window.tycoonHints.stopTick();
+      if (window.tycoonSchool) window.tycoonSchool.stopTick();
       stopCalProgressLoop();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();

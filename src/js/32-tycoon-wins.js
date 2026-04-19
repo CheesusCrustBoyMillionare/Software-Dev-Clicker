@@ -83,6 +83,13 @@
         S.winsAchieved.push(path.id);
         if (typeof markDirty === 'function') markDirty();
         if (typeof log === 'function') log('🏆 ' + path.label + ' achieved!');
+        // v3 roguelite: the FIRST win in a run triggers a largest-tier
+        // endowment run-end. Subsequent wins in the same run (multiple
+        // paths hit) are still celebrated but don't double-bank endowment
+        // (endRun is idempotent via S._runEndFired).
+        if (window.tycoonSchool?.endRun) {
+          window.tycoonSchool.endRun('win_condition', { pathId: path.id, pathLabel: path.label });
+        }
         document.dispatchEvent(new CustomEvent('tycoon:win-achieved', {
           detail: { pathId: path.id, path }
         }));
