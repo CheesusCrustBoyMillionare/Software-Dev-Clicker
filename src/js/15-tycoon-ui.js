@@ -1092,12 +1092,69 @@
         // Loans section (Phase 2E)
         h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Loans'),
         renderLoansSection(),
+        // VC Cap Table (Phase 5A)
+        h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Cap Table / VC Funding'),
+        renderVCSection(),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: () => document.getElementById('_t_finance_modal')?.remove() }, 'Close')
         )
       )
     );
     document.body.appendChild(ov);
+  }
+
+  function renderVCSection() {
+    if (!window.tycoonFinance) return h('div', { className:'t-empty' }, 'VC not available.');
+    const fin = window.tycoonFinance;
+    const founderEq = fin.founderEquity();
+    const totalDil = fin.totalDilution();
+    const rounds = (S.vcRounds || []);
+
+    // Equity breakdown
+    const equityRows = [h('div', { className: 't-finance-row' },
+      h('span', { className: 'lbl' }, '👑 Founder equity'),
+      h('span', { className: 'val', style:{color: founderEq < 0.5 ? '#f85149' : '#7ee787'} },
+        (founderEq * 100).toFixed(1) + '%')
+    )];
+    for (const r of rounds) {
+      const round = fin.VC_ROUNDS[r.type] || { icon:'💼', label: r.type };
+      equityRows.push(h('div', { className: 't-finance-row' },
+        h('span', { className: 'lbl' }, '  · ' + round.icon + ' ' + round.label + ' (' + fmtMoney(r.cash) + ' invested)'),
+        h('span', { className: 'val' }, (S.capTable.vcEquity[r.storageKey] * 100).toFixed(1) + '%')
+      ));
+    }
+    if (totalDil > 0.5) {
+      equityRows.push(h('div', { style:{color:'#f0883e', fontSize:'0.7rem', marginTop:'4px'} },
+        '⚠ Investors own > 50% — board has voting control'));
+    }
+
+    // Available rounds
+    const available = [];
+    for (const [id, r] of Object.entries(fin.VC_ROUNDS)) {
+      const canRaise = r.canRaise();
+      available.push(h('div', { style:{padding:'8px 10px', background:'#0d1117', border:'1px solid #21262d', borderRadius:'4px', marginTop:'6px', display:'flex', justifyContent:'space-between', alignItems:'center'} },
+        h('div', null,
+          h('div', { style:{color:'#f0f6fc', fontWeight:'700', fontSize:'0.85rem'} },
+            r.icon + ' ' + r.label),
+          h('div', { style:{color:'#8b949e', fontSize:'0.72rem', marginTop:'2px'} },
+            fmtMoney(r.cashRange[0]) + '–' + fmtMoney(r.cashRange[1]) + ' for ' +
+            Math.round(r.equityRange[0]*100) + '–' + Math.round(r.equityRange[1]*100) + '% equity · ' + r.gateText)
+        ),
+        canRaise ?
+          h('button', { className: 't-btn', onclick: () => {
+            if (!confirm('Close ' + r.label + ' round? VCs will take equity. This cannot be undone.')) return;
+            const result = fin.takeVCRound(id);
+            if (!result.ok) { pushToast(result.error); return; }
+            pushToast(r.icon + ' ' + r.label + ' closed: ' + fmtMoney(result.cash));
+            document.getElementById('_t_finance_modal')?.remove();
+            openFinanceModal();
+            refreshTopBar();
+          }}, 'Raise') :
+          h('div', { style:{color:'#8b949e', fontSize:'0.72rem'} }, '🔒 Not eligible')
+      ));
+    }
+
+    return h('div', null, ...equityRows, ...available);
   }
 
   function renderLoansSection() {

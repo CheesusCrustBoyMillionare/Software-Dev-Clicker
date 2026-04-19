@@ -156,6 +156,121 @@
     if (_unsub) { _unsub(); _unsub = null; }
   }
 
+  // ========== VC ROUNDS (Phase 5A) ==========
+  // Three rounds: Seed → Series A → Series B/C. Equity dilution.
+  // >50% dilution risk: board takeover mid-game event (Phase 5B extension).
+
+  const VC_ROUNDS = {
+    seed: {
+      id: 'seed', label: 'Seed', icon: '🌱',
+      gateText: 'Fame 20+',
+      cashRange: [500_000, 2_000_000],
+      equityRange: [0.15, 0.25],
+      canRaise() { return (S.tFame || 0) >= 20 && !roundExists('seed'); }
+    },
+    series_a: {
+      id: 'series_a', label: 'Series A', icon: '📈',
+      gateText: 'First hit (critic 75+) + $1M revenue',
+      cashRange: [5_000_000, 20_000_000],
+      equityRange: [0.20, 0.30],
+      canRaise() {
+        if (roundExists('series_a')) return false;
+        if (!roundExists('seed')) return false; // must do seed first
+        const hasHit = (S.projects?.shipped || []).some(p => !p.isContract && (p.criticScore || 0) >= 75);
+        if (!hasHit) return false;
+        if ((S.tRevenue || 0) < 1_000_000) return false;
+        return true;
+      }
+    },
+    series_b: {
+      id: 'series_b', label: 'Series B/C', icon: '🚀',
+      gateText: '$10M+ revenue',
+      cashRange: [20_000_000, 100_000_000],
+      equityRange: [0.15, 0.25],
+      canRaise() {
+        if (!roundExists('series_a')) return false;
+        if ((S.tRevenue || 0) < 10_000_000) return false;
+        return true; // stackable
+      }
+    }
+  };
+
+  function roundExists(roundId) {
+    return (S.vcRounds || []).some(r => r.type === roundId);
+  }
+
+  function ensureCapTable() {
+    if (!S.capTable) {
+      S.capTable = {
+        founderEquity: 1.0,   // player owns 100% at start
+        vcEquity: {},         // { seed: 0.2, series_a: 0.25 }
+      };
+    }
+    if (!Array.isArray(S.vcRounds)) S.vcRounds = [];
+  }
+
+  function totalDilution() {
+    ensureCapTable();
+    return Object.values(S.capTable.vcEquity || {}).reduce((s, v) => s + v, 0);
+  }
+
+  function founderEquity() {
+    ensureCapTable();
+    return Math.max(0, 1 - totalDilution());
+  }
+
+  function takeVCRound(roundId) {
+    ensureCapTable();
+    const r = VC_ROUNDS[roundId];
+    if (!r) return { ok: false, error: 'Unknown round' };
+    if (!r.canRaise()) return { ok: false, error: 'Not eligible: ' + r.gateText };
+
+    // Randomize within ranges — fame could tilt but keep simple for now
+    const cash = Math.round(r.cashRange[0] + Math.random() * (r.cashRange[1] - r.cashRange[0]));
+    const equity = r.equityRange[0] + Math.random() * (r.equityRange[1] - r.equityRange[0]);
+
+    // Dilute existing holders proportionally (standard VC deal)
+    // After: new VC has `equity` of total; existing holders share (1 - equity)
+    const existingVCs = { ...S.capTable.vcEquity };
+    const existingTotal = Object.values(existingVCs).reduce((s, v) => s + v, 0) + S.capTable.founderEquity;
+    const scaleFactor = (1 - equity) / existingTotal;
+    S.capTable.founderEquity *= scaleFactor;
+    for (const k of Object.keys(existingVCs)) {
+      S.capTable.vcEquity[k] = existingVCs[k] * scaleFactor;
+    }
+    // Use roundId with uniqueness suffix for series_b (can stack)
+    let storageKey = roundId;
+    if (roundId === 'series_b') {
+      let n = 1;
+      while (S.capTable.vcEquity[storageKey]) {
+        n += 1;
+        storageKey = 'series_b_' + n;
+      }
+    }
+    S.capTable.vcEquity[storageKey] = equity;
+
+    // Credit cash
+    S.cash = (S.cash || 0) + cash;
+    // VC rounds don't count as revenue
+    S.vcRounds.push({
+      type: roundId,
+      storageKey,
+      cash, equity,
+      closedAtWeek: window.tycoonProjects?.absoluteWeek?.() || 0,
+    });
+
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('💼 ' + r.icon + ' ' + r.label + ' round closed: ' + cash.toLocaleString() + ' for ' + (equity*100).toFixed(1) + '% equity');
+    document.dispatchEvent(new CustomEvent('tycoon:vc-round', { detail: { roundId, cash, equity } }));
+
+    // Board takeover warning
+    if (totalDilution() > 0.5) {
+      if (typeof log === 'function') log('⚠ Investor equity exceeds 50% — board can now vote on major decisions');
+    }
+
+    return { ok: true, cash, equity, founderEquity: founderEquity() };
+  }
+
   // ---------- Public API ----------
   window.tycoonFinance = {
     canTakeLoan,
@@ -165,19 +280,28 @@
     takeLoan,
     runLoanPayments,             // debug
     currentRunwayMonths,
+    // VC / cap table (Phase 5A)
+    VC_ROUNDS,
+    takeVCRound,
+    founderEquity,
+    totalDilution,
     startTick: startFinanceTick,
     stopTick: stopFinanceTick,
     state() {
+      ensureCapTable();
       return {
         loans: S.loans || [],
         warnings: S.warnings || {},
         runway: currentRunwayMonths(),
         canLoan: canTakeLoan(),
-        maxLoan: maxLoanAmount()
+        maxLoan: maxLoanAmount(),
+        vcRounds: S.vcRounds || [],
+        founderEquity: founderEquity(),
+        capTable: S.capTable
       };
     }
   };
   if (window.dbg) window.dbg.finance = window.tycoonFinance;
 
-  console.log('[tycoon-finance] module loaded. Loans unlock at Fame 5+.');
+  console.log('[tycoon-finance] module loaded. Loans unlock at Fame 5+. 3 VC rounds available.');
 })();
