@@ -15240,6 +15240,11 @@ let _clockValidated = false;
     const year = S.calendar?.year || 1980;
     for (const rival of S.rivals) {
       if (rival.status !== 'active') continue;
+      // Defensive guard: rivals injected from outside this module (e.g.,
+      // school/famous-alumni rivals) may arrive missing optional fields.
+      // Skip gracefully rather than throw — a crash here kills the whole
+      // weekly tick for every module that runs after us.
+      if (!Array.isArray(rival.priorityNodes) || !Array.isArray(rival.completedResearch)) continue;
 
       // --- Research progress ---
       if (!rival.inProgress) {
@@ -19182,6 +19187,34 @@ let _clockValidated = false;
     // here.
   }
 
+  // Default fields required by tycoonRivals.onWeekTick (see 23-tycoon-rivals.js).
+  // School rivals are narrative/fame-focused — they occupy a seat in the
+  // competitive landscape but don't actively research or ship. Empty priorityNodes
+  // + rpPerWeek=0 means the research branch is a no-op; empty focus means
+  // scheduleNextProject exits early. annualRevHistory is seeded so quarterlyUpdate
+  // can push without crashing.
+  function schoolRivalDefaults() {
+    return {
+      priorityNodes: [],
+      completedResearch: [],
+      inProgress: null,
+      focus: [],
+      rpPerWeek: 0,
+      tier: 2,
+      revenue: 500_000,
+      annualRevHistory: [],
+      teamSize: 10,
+      quality: 65,
+      trajectory: 0,
+      marketShare: 0,
+      nextProject: null,
+      shippedCount: 0,
+      nextWeekToSchedule: 0,
+      weeksOfDecline: 0,
+      spawnedWithOffset: 0,
+    };
+  }
+
   // Seed S.rivals with any school-level rival entries (Celebrated Rivalry
   // node + famous alumni bleed-in). Idempotent — skips entries already
   // represented by name.
@@ -19191,7 +19224,7 @@ let _clockValidated = false;
     // 1. Named rivals from the rivalAlumni list
     for (const ra of (S.school?.rivalAlumni || [])) {
       if (alreadyThere.has(ra.name)) continue;
-      S.rivals.push({
+      S.rivals.push(Object.assign(schoolRivalDefaults(), {
         id: 'r_school_' + (ra.source || 'x') + '_' + (ra.name || '').replace(/\s+/g, '_'),
         name: ra.name,
         founderName: ra.founderName || ra.name,
@@ -19201,13 +19234,13 @@ let _clockValidated = false;
         founded: 1980,
         aggressiveness: ra.strength === 'aggressive' ? 0.9 : 0.7,
         schoolRival: true,
-      });
+      }));
     }
     // 2. Famous alumni (win_condition / megacorp_exit) become rival studios
     for (const a of (S.school?.famousAlumni || [])) {
       const rivalName = a.name + '\u2019s Studio';
       if (alreadyThere.has(rivalName)) continue;
-      S.rivals.push({
+      S.rivals.push(Object.assign(schoolRivalDefaults(), {
         id: 'r_famous_' + a.name.replace(/\s+/g, '_') + '_' + (a.year || 1980),
         name: rivalName,
         founderName: a.name,
@@ -19218,7 +19251,11 @@ let _clockValidated = false;
         aggressiveness: 0.85,
         schoolRival: true,
         fromAlumnusFate: a.fate,
-      });
+        // Famous alumni get a slight tier/quality bump to reflect their pedigree
+        tier: 3,
+        quality: 72,
+        revenue: 2_000_000,
+      }));
     }
   }
 

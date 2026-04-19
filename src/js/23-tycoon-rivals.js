@@ -232,6 +232,11 @@
     const year = S.calendar?.year || 1980;
     for (const rival of S.rivals) {
       if (rival.status !== 'active') continue;
+      // Defensive guard: rivals injected from outside this module (e.g.,
+      // school/famous-alumni rivals) may arrive missing optional fields.
+      // Skip gracefully rather than throw — a crash here kills the whole
+      // weekly tick for every module that runs after us.
+      if (!Array.isArray(rival.priorityNodes) || !Array.isArray(rival.completedResearch)) continue;
 
       // --- Research progress ---
       if (!rival.inProgress) {
