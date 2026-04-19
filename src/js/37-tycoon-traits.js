@@ -1,0 +1,370 @@
+// ========== TYCOON TRAITS + PASSIONS (v3 roguelite) ==========
+// Phase 2 of the roguelite layer: data model only — no gameplay effects
+// wired in yet (that's Phase 3). Defines the three-layer founder model
+// locked in Q6:
+//   1. Passions (one per quality axis: tech/design/polish)
+//        Burning / Interested / None / Aversion
+//   2. Mechanical traits (concrete gameplay effects; count varies by rank)
+//   3. Narrative traits (pure flavor, no effect)
+//
+// Also owns the class-roster generator that populates S.school.classRoster
+// on first save entry (Q1b: one class per save, climbed from the bottom).
+//
+// No effect on current gameplay. Phase 3 wires trait effects into
+// developOneWeek/polishOneWeek/hire costs/etc.
+(function(){
+  'use strict';
+
+  // ---------- Passions ----------
+  const PASSIONS = {
+    BURNING:    { id: 'burning',    label: 'Burning',    icon: '\uD83D\uDD25\uD83D\uDD25', mult: 1.40 },
+    INTERESTED: { id: 'interested', label: 'Interested', icon: '\uD83D\uDD25',              mult: 1.15 },
+    NONE:       { id: 'none',       label: 'Unaligned',  icon: '\u25A1',                    mult: 1.00 },
+    AVERSION:   { id: 'aversion',   label: 'Aversion',   icon: '\u{1F6AB}',                 mult: 0.75 },
+  };
+  const AXES = ['tech', 'design', 'polish'];
+
+  // ---------- Mechanical traits catalog (~15 exemplars for Phase 2) ----------
+  // Each trait has an id, name, desc, and a short `hook` object that Phase 3
+  // will read to apply effects. The hooks are declarative so Phase 3 can
+  // dispatch them without pattern-matching on ids.
+  const TRAITS = [
+    { id: 't_night_owl',         name: 'Night Owl',          desc: '+20% output at speed 2\u00D7+, \u221220% at speed 1\u00D7',
+      hook: { kind: 'speedMod', highSpeedMul: 1.2, lowSpeedMul: 0.8 } },
+    { id: 't_perfectionist',     name: 'Perfectionist',      desc: 'Polish phase: +15% quality, +50% longer duration',
+      hook: { kind: 'polishPhase', qualityMul: 1.15, durationMul: 1.5 } },
+    { id: 't_networker',         name: 'Networker',          desc: '\u221220% hire cost, interviews reveal extra info',
+      hook: { kind: 'hireDiscount', mul: 0.8, interviewBoost: true } },
+    { id: 't_workaholic',        name: 'Workaholic',         desc: '+15% output, \u22121 morale/week to team',
+      hook: { kind: 'outputTradeoff', outputMul: 1.15, moraleDrain: 1 } },
+    { id: 't_eccentric',         name: 'Eccentric',          desc: '25% of MC decisions surface a 4th unorthodox option',
+      hook: { kind: 'mcExtraOption', chance: 0.25 } },
+    { id: 't_imposter',          name: 'Imposter Syndrome',  desc: '\u2212morale penalty after shipping with critic < 80',
+      hook: { kind: 'shipMoraleCritic', threshold: 80, moraleDelta: -8 } },
+    { id: 't_caffeinated',       name: 'Caffeinated',        desc: '+10% speed during development phase only',
+      hook: { kind: 'phaseSpeed', phase: 'development', mul: 1.10 } },
+    { id: 't_chip_on_shoulder',  name: 'Chip on Shoulder',   desc: '+10% output when a project is behind schedule',
+      hook: { kind: 'behindScheduleBoost', mul: 1.10 } },
+    { id: 't_visionary',         name: 'Visionary',          desc: 'Feature-picking surfaces 1 extra suggested feature',
+      hook: { kind: 'featureSuggest', extra: 1 } },
+    { id: 't_recluse',           name: 'Recluse',            desc: '\u221240% hire cost; marketing channels locked',
+      hook: { kind: 'recluse', hireMul: 0.6, marketingLocked: true } },
+    { id: 't_deal_maker',        name: 'Deal Maker',         desc: 'Contracts pay +25%; own-IP launch sales \u221210%',
+      hook: { kind: 'contractTradeoff', contractMul: 1.25, ownIpMul: 0.9 } },
+    { id: 't_mentor',            name: 'Mentor',             desc: 'Team members gain stats 30% faster',
+      hook: { kind: 'teamXpBoost', mul: 1.30 } },
+    { id: 't_polish_snob',       name: 'Polish Snob',        desc: '+15% polish output, \u22125% design output',
+      hook: { kind: 'axisShift', polishMul: 1.15, designMul: 0.95 } },
+    { id: 't_scrappy',           name: 'Scrappy',            desc: 'First 12 weeks: +30% output, then baseline',
+      hook: { kind: 'earlyCareer', weeks: 12, outputMul: 1.30 } },
+    { id: 't_prestigious',       name: 'Prestigious',        desc: '+20 Fame per ship; all costs +10%',
+      hook: { kind: 'prestige', fameBonus: 20, costMul: 1.10 } },
+  ];
+  const TRAITS_BY_ID = Object.fromEntries(TRAITS.map(t => [t.id, t]));
+
+  // ---------- Narrative flavor catalog ----------
+  // No mechanical effect. Seeds the founder bio / Alumni Hall quotes /
+  // flavor log entries in later phases. Aim for ~70 entries with variety
+  // across hobbies, physical traits, quirks, and background.
+  const NARRATIVE_TRAITS = [
+    // Hobbies
+    'Avid chess player', 'Serial yogi', 'Collects vintage calculators',
+    'Marathon runner', 'Amateur radio operator', 'Keeps a bee hive',
+    'Rock climber', 'Obsessed with latte art', 'Birdwatcher',
+    'Homebrews beer', 'Sommelier in training', 'Board-game night regular',
+    // Physical traits / quirks
+    'Left-handed', 'Wears a beret indoors', 'Stutters when nervous',
+    'Can\u2019t stand fluorescent light', 'Tall enough to duck through doorways',
+    'Colorblind (red/green)', 'Wakes at 5am every day', 'Incurable night-owl',
+    // Interests
+    'Film buff, specializes in noir', 'Opera season-ticket holder',
+    'Writes bad poetry', 'Watches pro wrestling religiously',
+    'Reads 3 books a month', 'Knows every Star Trek episode',
+    'Collects fountain pens', 'Plays jazz piano',
+    // Pets + home
+    'Rescue dog named after a physicist', 'Three indoor cats',
+    'Saltwater aquarium hobbyist', 'Adopted a retired racing greyhound',
+    'Lives with a parrot that mocks them', 'Keeps a lizard', 'No pets, allergic to everything',
+    // Food / drink
+    'Iced coffee year-round', 'Strict vegetarian', 'Can\u2019t cook to save their life',
+    'Trained as a pastry chef', 'Hates the taste of cilantro',
+    'Hot sauce on literally everything', 'Sober, decade running',
+    // Pre-tech background
+    'Philosophy major before switching', 'Dropped out of music school',
+    'Former competitive gymnast', 'Ex-army, tight-lipped about it',
+    'Self-taught, no formal CS education', 'Second career after law school',
+    'Worked as a barista for six years', 'Grew up on a farm',
+    // Quirks + pet peeves
+    'Hates the Oxford comma', 'Known for loud shirts', 'Always wears the same watch',
+    'Can\u2019t sit still in meetings', 'Never uses emoji',
+    'Speaks three languages, badly', 'Twitches when people chew loudly',
+    'Keeps a notebook for every project', 'Refuses to eat in the office',
+    // Family + background
+    'Only child', 'Eldest of five siblings', 'Has an identical twin',
+    'Adopted', 'First in family to go to college',
+    // Unusual backgrounds
+    'Former stage magician', 'Retired competitive dancer', 'Once hiked the Appalachian Trail solo',
+    'Part-time standup comedian', 'Survived a lightning strike',
+    'Owns a vintage motorcycle they never rides', 'Licensed pilot',
+    'Competed in a robotics championship in high school', 'Once met a US president',
+  ];
+
+  // ---------- Name pools ----------
+  // Separate from the employees module — classmates come from a fictional
+  // international tech school, so broader surname variety feels right.
+  const FIRST_NAMES = [
+    'Alex','Jordan','Taylor','Morgan','Casey','Riley','Sam','Jamie','Quinn','Avery',
+    'Blake','Drew','Reese','Skyler','Rowan','Sage','Finley','Hayden','Kai','Logan',
+    'Parker','Emerson','Dakota','Harper','Robin','Eden','Nico','Remy','Tatum','Marlowe',
+    'Arden','Bailey','Carson','Devon','Ellis','Frankie','Gray','Indigo','Jesse','Kendall',
+    'Saanvi','Aarav','Yuki','Ibrahim','Amara','Omar','Chen','Mei','Priya','Ravi',
+    'Ingrid','Klaus','Sofia','Matteo','Diego','Lucia','Hiro','Nia','Zainab','Raj'
+  ];
+  const LAST_NAMES = [
+    'Smith','Chen','Patel','Garcia','Kim','Nguyen','Johnson','Rivera','Lee','Khan',
+    'Brown','Park','Singh','Lopez','Ivanov','Fischer','Nakamura','O\u2019Brien','Dubois','Costa',
+    'Ng','Rossi','Yamamoto','Kowalski','Andersen','Tanaka','Silva','Hassan','Novak','Berg',
+    'Ruiz','Walsh','Morozov','Vega','Suzuki','Hoffmann','Mbeki','Liu','Rahman','Volkov',
+    'Abiola','Cardoso','Eriksen','Haider','Lindqvist','Nakamoto','Okonkwo','Papadopoulos','Shah','Thorne'
+  ];
+
+  function rollName() {
+    const fn = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+    const ln = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
+    return fn + ' ' + ln;
+  }
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  function pickN(pool, n) {
+    if (pool.length <= n) return pool.slice();
+    return shuffle(pool).slice(0, n);
+  }
+
+  // ---------- Band classification by rank ----------
+  // Q1a bell curve: top 5 + bottom 5 are extremes (more traits, more stat
+  // extremes); top 25% / bottom 25% are lighter versions; middle is vanilla.
+  function bandForRank(rank, classSize) {
+    if (rank <= 5) return 'top_extreme';
+    if (rank <= Math.floor(classSize * 0.25)) return 'top_normal';
+    if (rank > classSize - 5) return 'bottom_extreme';
+    if (rank > Math.floor(classSize * 0.75)) return 'bottom_normal';
+    return 'middle';
+  }
+
+  // Stat sum by band. Individual axis stats distributed around this sum,
+  // with the high-passion axis getting more weight (see rollStats).
+  function statSumForBand(band) {
+    switch (band) {
+      case 'top_extreme':    return 50 + Math.floor(Math.random() * 6);   // 50-55
+      case 'top_normal':     return 45 + Math.floor(Math.random() * 5);   // 45-49
+      case 'middle':         return 40 + Math.floor(Math.random() * 5);   // 40-44
+      case 'bottom_normal':  return 35 + Math.floor(Math.random() * 5);   // 35-39
+      case 'bottom_extreme': return 30 + Math.floor(Math.random() * 6);   // 30-35
+      default: return 42;
+    }
+  }
+
+  // Mechanical trait count by band (Q1a bell curve)
+  function traitCountForBand(band) {
+    switch (band) {
+      case 'top_extreme':    return 3 + Math.floor(Math.random() * 2);    // 3-4
+      case 'top_normal':     return 1 + Math.floor(Math.random() * 2);    // 1-2
+      case 'middle':         return Math.random() < 0.5 ? 0 : 1;          // 0-1
+      case 'bottom_normal':  return 1 + Math.floor(Math.random() * 2);    // 1-2
+      case 'bottom_extreme': return 3 + Math.floor(Math.random() * 2);    // 3-4
+      default: return 1;
+    }
+  }
+
+  // ---------- Passion distribution ----------
+  // Q6 rule: every founder gets one high, one mid, one low across 3 axes.
+  // Band skews:
+  //   top_extreme     → two Burning possible, weak 3rd axis
+  //   top_normal      → one Burning likely, two Interested
+  //   middle          → three Interested/None (generalist)
+  //   bottom_normal   → one Burning or Interested, one None, one None/Aversion
+  //   bottom_extreme  → one Burning + one None + one Aversion (specialist)
+  function rollPassions(band) {
+    const axesShuffled = shuffle(AXES);
+    let levels;
+    switch (band) {
+      case 'top_extreme':
+        levels = [
+          Math.random() < 0.5 ? 'burning' : 'interested',
+          Math.random() < 0.5 ? 'burning' : 'interested',
+          Math.random() < 0.6 ? 'interested' : 'none',
+        ];
+        break;
+      case 'top_normal':
+        levels = [
+          Math.random() < 0.6 ? 'burning' : 'interested',
+          'interested',
+          Math.random() < 0.5 ? 'interested' : 'none',
+        ];
+        break;
+      case 'middle':
+        levels = [
+          Math.random() < 0.2 ? 'burning' : 'interested',
+          'interested',
+          Math.random() < 0.5 ? 'none' : 'interested',
+        ];
+        break;
+      case 'bottom_normal':
+        levels = [
+          Math.random() < 0.3 ? 'burning' : 'interested',
+          Math.random() < 0.5 ? 'none' : 'interested',
+          Math.random() < 0.6 ? 'none' : 'aversion',
+        ];
+        break;
+      case 'bottom_extreme':
+        // Specialist character: one Burning + one None + one Aversion.
+        levels = ['burning', 'none', 'aversion'];
+        break;
+      default:
+        levels = ['interested', 'interested', 'interested'];
+    }
+    return {
+      [axesShuffled[0]]: levels[0],
+      [axesShuffled[1]]: levels[1],
+      [axesShuffled[2]]: levels[2],
+    };
+  }
+
+  // ---------- Stat distribution ----------
+  // Weighted toward the passion-high axis so a burning-design classmate
+  // also has higher design stat. Total stats always match band sum.
+  function rollStats(statSum, passions) {
+    // Weight per axis based on passion
+    const weightFor = (axis) => {
+      const p = passions[axis];
+      if (p === 'burning')    return 3;
+      if (p === 'interested') return 2;
+      if (p === 'none')       return 1.2;
+      if (p === 'aversion')   return 0.6;
+      return 1.5;
+    };
+    const weights = AXES.map(weightFor);
+    const total = weights.reduce((a, b) => a + b, 0);
+    // Distribute statSum proportionally, then nudge with ±2 jitter.
+    const stats = {};
+    let assigned = 0;
+    AXES.forEach((axis, i) => {
+      if (i === AXES.length - 1) {
+        stats[axis] = Math.max(5, statSum - assigned);
+      } else {
+        const v = Math.round((weights[i] / total) * statSum + (Math.random() * 4 - 2));
+        stats[axis] = Math.max(5, v);
+        assigned += stats[axis];
+      }
+    });
+    return stats;
+  }
+
+  // ---------- Generate one classmate ----------
+  function generateClassmate(rank, classSize) {
+    const band = bandForRank(rank, classSize);
+    const passions = rollPassions(band);
+    const stats = rollStats(statSumForBand(band), passions);
+    const mechCount = traitCountForBand(band);
+    const mechanicalTraits = pickN(TRAITS, mechCount).map(t => t.id);
+    // 1-3 narrative traits regardless of band — flavor is universal
+    const narrativeCount = 1 + Math.floor(Math.random() * 3);
+    const narrativeTraits = pickN(NARRATIVE_TRAITS, narrativeCount);
+    return {
+      rank,
+      band,
+      name: rollName(),
+      age: 22 + Math.floor(Math.random() * 4), // 22-25 fresh grad
+      stats,
+      passions,
+      mechanicalTraits,
+      narrativeTraits,
+      // Run state (populated when this classmate is enrolled)
+      enrolled: false,
+      enrolledAtYear: null,
+      fate: null,     // 'bankrupt' | 'retired' | 'megacorp' | 'won' | null
+    };
+  }
+
+  // ---------- Generate a full class (default 50) ----------
+  function generateClass(size = 50) {
+    const roster = [];
+    for (let r = 1; r <= size; r++) roster.push(generateClassmate(r, size));
+    return roster;
+  }
+
+  // ---------- Lazy state init ----------
+  function ensureSchoolState() {
+    if (!S.school) S.school = {};
+    // Fill any missing fields from the canonical defaultSchool(). Lets old
+    // saves adopt new fields added in later phases without explicit migration.
+    const blank = (typeof defaultSchool === 'function') ? defaultSchool() : {};
+    for (const k of Object.keys(blank)) {
+      if (S.school[k] === undefined) S.school[k] = blank[k];
+    }
+  }
+
+  // Ensure the class roster exists. Idempotent — only rolls a class if the
+  // roster is empty. Should be called on every tycoon-mode entry; the first
+  // time it runs for a save, it seeds the class; subsequent calls are no-ops.
+  function ensureRoster() {
+    ensureSchoolState();
+    if (Array.isArray(S.school.classRoster) && S.school.classRoster.length > 0) return false;
+    const CLASS_SIZE = 50;
+    S.school.classRoster = generateClass(CLASS_SIZE);
+    // Default school name if none set — player can rename later (Phase 5 UI).
+    if (!S.school.name) S.school.name = 'The Institute';
+    if (!S.school.foundedYear) S.school.foundedYear = 1980;
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('\uD83C\uDF93 Class roster generated (' + CLASS_SIZE + ' alumni candidates)');
+    return true;
+  }
+
+  // ---------- Trait-effect lookup helpers (used by Phase 3, harmless now) ----------
+  function getPassionMult(passion) { return PASSIONS[passion?.toUpperCase?.()]?.mult ?? 1.0; }
+  function traitHookById(id) { return TRAITS_BY_ID[id]?.hook || null; }
+  function passionForAxis(founder, axis) {
+    return founder?.passions?.[axis] || 'none';
+  }
+
+  // ---------- Public API ----------
+  window.tycoonTraits = {
+    PASSIONS, TRAITS, TRAITS_BY_ID, NARRATIVE_TRAITS, AXES,
+    // Generation
+    generateClass,
+    generateClassmate,
+    ensureRoster,
+    // Lookups
+    bandForRank,
+    getPassionMult,
+    traitHookById,
+    passionForAxis,
+    // Debug
+    rerollClass(size = 50) {
+      ensureSchoolState();
+      S.school.classRoster = generateClass(size);
+      if (typeof markDirty === 'function') markDirty();
+      return S.school.classRoster;
+    },
+    state() {
+      ensureSchoolState();
+      return {
+        classSize: S.school.classRoster.length,
+        currentRank: S.school.currentClassmateRank,
+        runNumber: S.school.currentRunNumber,
+        endowment: S.school.endowment,
+      };
+    },
+  };
+  if (window.dbg) window.dbg.traits = window.tycoonTraits;
+
+  console.log('[tycoon-traits] module loaded. '
+    + TRAITS.length + ' mechanical traits, '
+    + NARRATIVE_TRAITS.length + ' narrative traits.');
+})();

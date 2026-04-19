@@ -2609,6 +2609,9 @@
       if (window.tycoonWins) window.tycoonWins.startTick();
       if (window.tycoonAchievements) window.tycoonAchievements.startTick();
       if (window.tycoonHints) window.tycoonHints.startTick();
+      // v3 roguelite: ensure the class roster exists on entry. Idempotent —
+      // first entry for a save seeds the roster; subsequent entries no-op.
+      if (window.tycoonTraits) window.tycoonTraits.ensureRoster();
       window.tycoonTime.start();
       startUITick();
       startCalProgressLoop();
