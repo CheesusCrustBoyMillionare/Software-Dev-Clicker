@@ -2114,6 +2114,12 @@
       if (!S.cash || S.cash === 0) {
         S.cash = (S.difficulty === 'easy') ? 100000 : (S.difficulty === 'hard') ? 25000 : 50000;
       }
+      // If the save was persisted at speed 0 (paused via the speed button),
+      // resume at 1× so the loaded game isn't indistinguishable from frozen.
+      // Same for S.paused — always un-pause on entry; the player can pause
+      // again with the top-bar button or spacebar if they want.
+      if (!S.speed || S.speed === 0) S.speed = 1;
+      S.paused = false;
       injectStyles();
       if (getRootEl()) return;
       // Set the global tycoon-mode flag — tells clicker loop to skip its work
