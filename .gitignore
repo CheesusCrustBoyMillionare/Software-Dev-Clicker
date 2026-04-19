@@ -1,1 +1,11 @@
 .claude/
+__pycache__/
+*.pyc
+
+# Build artifacts (game is built from src/)
+gamedev-clicker.html.original
+gamedev-clicker.html.built
+gamedev-clicker-v9-backup.html
+
+# extract.py is one-time — delete after successful extraction
+# Keep build.py (needed for ongoing rebuilds from src/)
