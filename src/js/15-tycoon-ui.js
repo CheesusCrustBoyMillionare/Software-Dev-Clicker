@@ -1150,6 +1150,9 @@
         // VC Cap Table (Phase 5A)
         h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Cap Table / VC Funding'),
         renderVCSection(),
+        // Legacy Decisions (Phase 5E) — only show if unlocked year
+        window.tycoonLegacy?.isAvailable?.() && h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Legacy Decisions'),
+        window.tycoonLegacy?.isAvailable?.() && renderLegacyDecisionsSection(),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: () => document.getElementById('_t_finance_modal')?.remove() }, 'Close')
         )
@@ -1246,6 +1249,47 @@
     }
 
     return h('div', null, ...equityRows, ...available, ...ipoRows);
+  }
+
+  function renderLegacyDecisionsSection() {
+    const L = window.tycoonLegacy;
+    if (!L) return h('div', { className:'t-empty' }, 'Legacy module not available.');
+    const taken = L.takenDecisions();
+    const rows = L.DECISIONS.map(d => {
+      const isTaken = taken.includes(d.id);
+      const canTake = d.canTake();
+      return h('div', { style:{padding:'10px 12px', background:'#0d1117', border:'1px solid #21262d', borderRadius:'4px', marginTop:'6px'} },
+        h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'start', gap:'10px'} },
+          h('div', null,
+            h('div', { style:{color:'#f0f6fc', fontWeight:'700'} }, d.label),
+            h('div', { style:{color:'#8b949e', fontSize:'0.72rem', marginTop:'2px'} }, d.blurb)
+          ),
+          isTaken ?
+            h('div', { style:{color:'#7ee787', fontSize:'0.8rem', fontWeight:'700'} }, '✓ Taken') :
+            canTake ?
+              h('button', { className:'t-btn', onclick: () => {
+                if (!confirm('Take this decision? This is PERMANENT.\n\n' + d.blurb)) return;
+                const r = L.takeDecision(d.id);
+                if (!r.ok) { pushToast(r.error); return; }
+                pushToast('📜 ' + r.msg);
+                document.getElementById('_t_finance_modal')?.remove();
+                if (r.endGame) {
+                  openLegacyScreen(S.calendar?.year || 2024, 'victory');
+                } else {
+                  openFinanceModal();
+                  refreshTopBar();
+                }
+              }}, 'Take') :
+              h('div', { style:{color:'#8b949e', fontSize:'0.72rem'} }, '🔒')
+        )
+      );
+    });
+    const legacy = L.state().legacyScore;
+    return h('div', null,
+      h('div', { style:{color:'#8b949e', fontSize:'0.72rem', marginBottom:'6px'} },
+        'Legacy Score: ' + legacy),
+      ...rows
+    );
   }
 
   function renderLoansSection() {
@@ -1592,6 +1636,12 @@
   // Win conditions (Phase 5H)
   document.addEventListener('tycoon:win-achieved', (e) => {
     openVictoryModal(e.detail.path);
+  });
+
+  // Megacorp exit (Phase 5E) — immediate retrospective
+  document.addEventListener('tycoon:megacorp-exit', (e) => {
+    pushToast('💰 Sold to Megacorp for ' + fmtMoney(e.detail.price) + '! You\'re retired in splendor.', 'win');
+    setTimeout(() => openLegacyScreen(S.calendar?.year || 2024, 'victory'), 1500);
   });
 
   function openVictoryModal(path) {
