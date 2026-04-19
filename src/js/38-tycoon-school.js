@@ -387,6 +387,67 @@
 }
 .ss-dept-buy:hover:not(:disabled) { background: #2ea043; }
 .ss-dept-buy:disabled { background: #30363d; border-color: #30363d; color: #6e7681; cursor: not-allowed; }
+
+/* Alumni Hall tab — Phase 8 */
+.ss-alumni-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.ss-alumnus {
+  position: relative;
+  padding: 14px 16px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 6px;
+}
+.ss-alumnus.famous {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.04), #161b22);
+  border-color: rgba(255, 215, 0, 0.4);
+  box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.15);
+}
+.ss-alumnus-famous-tag {
+  position: absolute; top: 8px; right: 10px;
+  font-size: 0.65rem; color: #f1e05a; letter-spacing: 0.05em; font-weight: 700;
+}
+.ss-alumnus-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+  margin-bottom: 10px;
+}
+.ss-alumnus-name { font-size: 1rem; font-weight: 700; color: #f0f6fc; }
+.ss-alumnus-meta { font-size: 0.7rem; color: #8b949e; margin-top: 2px; }
+.ss-alumnus-fate { font-size: 0.75rem; font-weight: 700; white-space: nowrap; text-align: right; }
+.ss-alumnus-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 10px;
+  margin-bottom: 8px;
+}
+.ss-al-stat { font-size: 0.75rem; display: flex; flex-direction: column; }
+.ss-al-stat .k { color: #8b949e; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.ss-al-stat .v { color: #f0f6fc; font-weight: 700; margin-top: 2px; }
+.ss-alumnus-traits { margin: 6px 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.ss-alumnus-quote {
+  padding: 8px 10px; background: #0d1117; border-left: 3px solid #30363d;
+  border-radius: 3px; font-size: 0.75rem; font-style: italic; color: #c9d1d9;
+  margin-top: 6px;
+}
+.ss-al-quote-src { font-style: normal; color: #6e7681; }
+
+/* Lifetime tab — Phase 8 */
+.ss-stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px; margin-bottom: 24px;
+}
+.ss-stat-card {
+  padding: 16px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 6px; text-align: center;
+}
+.ss-stat-card-val { font-size: 1.4rem; font-weight: 700; line-height: 1; }
+.ss-stat-card-lbl { font-size: 0.7rem; color: #8b949e; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+.ss-records {
+  padding: 16px; background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+}
+.ss-record { display: flex; gap: 12px; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid #21262d; }
+.ss-record:last-child { border-bottom: none; }
+.ss-record .k { color: #8b949e; width: 180px; }
+.ss-record .v { color: #f0f6fc; font-weight: 600; flex: 1; }
 `;
     document.head.appendChild(s);
   }
@@ -632,14 +693,80 @@
             S.fame = (S.fame || 0) + (eff.amount || 0);
             S.tFame = (S.tFame || 0) + (eff.amount || 0);
             break;
-          // hireAlumni / clientRepBonus / freeContract / spawnRival /
-          // extraReview / contractBonusMul are flag-only effects — the
-          // downstream systems check for their nodes on S.school.departments
-          // when they need to. Phase 8 wires those consumers.
+          case 'spawnRival':
+            // Phase 8: Celebrated Rivalry adds a persistent named rival to
+            // S.school.rivalAlumni. On enroll, these get injected into the
+            // run's rival roster (see injectSchoolRivals below).
+            if (!S.school.rivalAlumni.some(r => r.source === 'rivalry_node')) {
+              S.school.rivalAlumni.push({
+                source: 'rivalry_node',
+                name: 'Crosstown Dynamics',
+                founderName: 'The Rival',
+                icon: '\uD83D\uDC65',
+                strength: 'aggressive',
+                seededByNodeId: nodeId,
+              });
+            }
+            break;
+          case 'startingFame':
+            S.fame = (S.fame || 0) + (eff.amount || 0);
+            S.tFame = (S.tFame || 0) + (eff.amount || 0);
+            break;
+          // hireAlumni / clientRepBonus / freeContract / extraReview /
+          // contractBonusMul: flag-only effects. Their consumers check
+          // S.school.departments for the node id at the relevant moment
+          // (hire UI, contract offer, ship time, etc.). Phase 8 wires the
+          // extraReview consumer in shipProject (see reviews module hook
+          // above). clientRepBonus is checked at contract generation.
+          // hireAlumni is used by Alumni Hall's hire button.
           default:
             break;
         }
       }
+    }
+    // Famous alumni bleed-in (Q3h): past winning runs become persistent
+    // rival studios in future runs. Inject them into S.rivals if not
+    // already present. Runs once per enroll.
+    injectSchoolRivals();
+  }
+
+  // Seed S.rivals with any school-level rival entries (Celebrated Rivalry
+  // node + famous alumni bleed-in). Idempotent — skips entries already
+  // represented by name.
+  function injectSchoolRivals() {
+    if (!Array.isArray(S.rivals)) S.rivals = [];
+    const alreadyThere = new Set(S.rivals.map(r => r.name));
+    // 1. Named rivals from the rivalAlumni list
+    for (const ra of (S.school?.rivalAlumni || [])) {
+      if (alreadyThere.has(ra.name)) continue;
+      S.rivals.push({
+        id: 'r_school_' + (ra.source || 'x') + '_' + (ra.name || '').replace(/\s+/g, '_'),
+        name: ra.name,
+        founderName: ra.founderName || ra.name,
+        icon: ra.icon || '\uD83C\uDFEB',
+        status: 'active',
+        fame: 60,
+        founded: 1980,
+        aggressiveness: ra.strength === 'aggressive' ? 0.9 : 0.7,
+        schoolRival: true,
+      });
+    }
+    // 2. Famous alumni (win_condition / megacorp_exit) become rival studios
+    for (const a of (S.school?.famousAlumni || [])) {
+      const rivalName = a.name + '\u2019s Studio';
+      if (alreadyThere.has(rivalName)) continue;
+      S.rivals.push({
+        id: 'r_famous_' + a.name.replace(/\s+/g, '_') + '_' + (a.year || 1980),
+        name: rivalName,
+        founderName: a.name,
+        icon: '\u2B50',
+        status: 'active',
+        fame: Math.max(80, Math.min(250, a.finalFame || 80)),
+        founded: a.foundedAt || 1980,
+        aggressiveness: 0.85,
+        schoolRival: true,
+        fromAlumnusFate: a.fate,
+      });
     }
   }
 
@@ -1095,6 +1222,175 @@
     );
   }
 
+  // ---------- Alumni Hall tab (Phase 8) ----------
+  function renderAlumniHallTab() {
+    const alumni = S.school?.alumniHall || [];
+    const famous = S.school?.famousAlumni || [];
+    const jobBoardUnlocked = (S.school?.departments?.alumniNetwork || []).includes('n_job_board');
+
+    if (alumni.length === 0) {
+      return hEl('div', null,
+        hEl('h2', null, '\uD83C\uDF93 Alumni Hall'),
+        renderPlaceholderTab('\uD83D\uDCDC', 'No alumni yet',
+          'When your classmates finish their careers — win, lose, retire, or sell out — they\u2019ll appear here with their stats, final fate, and signature quotes.')
+      );
+    }
+
+    // Sort famous first, then by year desc (most recent first)
+    const sorted = alumni.slice().sort((a, b) => {
+      const af = famous.some(f => f.name === a.name && f.year === a.year) ? 1 : 0;
+      const bf = famous.some(f => f.name === b.name && f.year === b.year) ? 1 : 0;
+      if (af !== bf) return bf - af;
+      return (b.year || 0) - (a.year || 0);
+    });
+
+    const cards = sorted.map(a => renderAlumnusCard(a, jobBoardUnlocked));
+
+    return hEl('div', null,
+      hEl('h2', null, '\uD83C\uDF93 Alumni Hall'),
+      hEl('div', { style: { fontSize: '0.85rem', color: '#8b949e', marginBottom: '14px' } },
+        alumni.length + ' alumni \u00B7 ' + famous.length + ' famous' +
+        (jobBoardUnlocked ? ' \u00B7 Job Board active' : '')),
+      hEl('div', { className: 'ss-alumni-grid' }, ...cards)
+    );
+  }
+
+  function renderAlumnusCard(a, jobBoardUnlocked) {
+    const isFamous = (S.school?.famousAlumni || []).some(f => f.name === a.name && f.year === a.year);
+    const fateLabels = {
+      bankruptcy: { icon: '\uD83D\uDC80', label: 'Went bankrupt', color: '#ff7b72' },
+      age_retired: { icon: '\uD83D\uDC74', label: 'Retired at age-out', color: '#8b949e' },
+      retire_voluntary: { icon: '\uD83C\uDF93', label: 'Retired voluntarily', color: '#8b949e' },
+      megacorp_exit: { icon: '\uD83D\uDCB0', label: 'Sold to Megacorp', color: '#f0883e' },
+      win_condition: { icon: '\uD83C\uDFC6', label: 'Triumphant win', color: '#7ee787' },
+    };
+    const fate = fateLabels[a.fate] || { icon: '\u2014', label: 'played', color: '#8b949e' };
+
+    const traitTags = (a.mechanicalTraits || []).slice(0, 3).map(tId => {
+      const t = window.tycoonTraits?.TRAITS_BY_ID?.[tId];
+      return hEl('span', { className: 'ss-cc-trait', title: t?.desc || '' }, t?.name || tId);
+    });
+
+    // Hire-as-alumnus button (Phase 8 — requires Alumni Job Board)
+    let hireBtn = null;
+    if (jobBoardUnlocked && S._runEndFired === undefined) {
+      // Only enable when we're IN a run (between runs, no founder to hire into)
+      hireBtn = null;
+    } else if (jobBoardUnlocked) {
+      // Show as informational; hiring alumni actually happens in-run via
+      // Hiring panel (wired in Phase 10). For now surface availability.
+      hireBtn = hEl('div', { style: { fontSize: '0.7rem', color: '#7ee787', marginTop: '6px', fontStyle: 'italic' } },
+        '\u2014 available via Alumni Job Board');
+    }
+
+    return hEl('div', { className: 'ss-alumnus' + (isFamous ? ' famous' : '') },
+      isFamous ? hEl('div', { className: 'ss-alumnus-famous-tag' }, '\u2B50 Famous') : null,
+      hEl('div', { className: 'ss-alumnus-head' },
+        hEl('div', null,
+          hEl('div', { className: 'ss-alumnus-name' }, a.name),
+          hEl('div', { className: 'ss-alumnus-meta' },
+            'Rank #' + a.rank + ' \u00B7 ' + rankLabel(a.rank) +
+            ' \u00B7 Class of ' + (a.foundedAt || 1980))
+        ),
+        hEl('div', { className: 'ss-alumnus-fate', style: { color: fate.color } },
+          fate.icon + ' ' + fate.label)
+      ),
+      hEl('div', { className: 'ss-alumnus-stats' },
+        hEl('div', { className: 'ss-al-stat' },
+          hEl('span', { className: 'k' }, 'Tenure'),
+          hEl('span', { className: 'v' }, (a.tenureYears || 0) + 'y')),
+        hEl('div', { className: 'ss-al-stat' },
+          hEl('span', { className: 'k' }, 'Ships'),
+          hEl('span', { className: 'v' }, String(a.shippedCount || 0))),
+        hEl('div', { className: 'ss-al-stat' },
+          hEl('span', { className: 'k' }, 'Avg critic'),
+          hEl('span', { className: 'v' }, a.criticAvg != null ? String(a.criticAvg) : '\u2014')),
+        hEl('div', { className: 'ss-al-stat' },
+          hEl('span', { className: 'k' }, 'Fame'),
+          hEl('span', { className: 'v' }, String(a.finalFame || 0))),
+        hEl('div', { className: 'ss-al-stat' },
+          hEl('span', { className: 'k' }, 'Revenue'),
+          hEl('span', { className: 'v' }, fmtSchoolMoney(a.finalRevenue || 0))),
+        hEl('div', { className: 'ss-al-stat' },
+          hEl('span', { className: 'k' }, 'Endowment'),
+          hEl('span', { className: 'v', style: { color: '#7ee787' } }, '+' + (a.endowmentContribution || 0).toLocaleString()))
+      ),
+      traitTags.length ? hEl('div', { className: 'ss-alumnus-traits' }, ...traitTags) : null,
+      a.signatureQuote ? hEl('div', { className: 'ss-alumnus-quote' },
+        '\u201C' + (a.signatureQuote.quote || '\u2014') + '\u201D',
+        hEl('span', { className: 'ss-al-quote-src' }, ' \u2014 ' + (a.signatureQuote.source || 'Alumni Office'))
+      ) : null,
+      hireBtn
+    );
+  }
+
+  // ---------- Lifetime Stats tab (Phase 8) ----------
+  function renderLifetimeTab() {
+    const ls = S.school?.lifetimeStats || {};
+    const alumni = S.school?.alumniHall || [];
+    const bestShip = alumni.reduce((best, a) => {
+      if (a.criticAvg != null && (best == null || a.criticAvg > best.criticAvg)) return a;
+      return best;
+    }, null);
+    const longestTenure = alumni.reduce((best, a) => {
+      if (best == null || (a.tenureYears || 0) > (best.tenureYears || 0)) return a;
+      return best;
+    }, null);
+    const richestAlumnus = alumni.reduce((best, a) => {
+      if (best == null || (a.finalRevenue || 0) > (best.finalRevenue || 0)) return a;
+      return best;
+    }, null);
+
+    const cards = [
+      { label: 'Classmates enrolled', value: ls.runsCompleted || 0 },
+      { label: 'Total revenue', value: fmtSchoolMoney(ls.totalRevenue || 0), color: '#7ee787' },
+      { label: 'Total ships', value: ls.totalShipped || 0 },
+      { label: 'Total hires', value: ls.totalHires || 0 },
+      { label: 'Win-condition runs', value: ls.winConditionRuns || 0, color: '#f1e05a' },
+      { label: 'Megacorp exits', value: ls.megacorpExits || 0, color: '#f0883e' },
+      { label: 'Bankruptcies', value: ls.bankruptcies || 0, color: '#ff7b72' },
+      { label: 'Endowment earned (lifetime)', value: '+' + (S.school?.lifetimeEndowmentEarned || 0).toLocaleString(), color: '#7ee787' },
+      { label: 'Endowment spent', value: ((S.school?.lifetimeEndowmentEarned || 0) - (S.school?.endowment || 0)).toLocaleString() },
+      { label: 'Famous alumni', value: (S.school?.famousAlumni || []).length, color: '#ffd700' },
+    ];
+
+    const recordsBlock = alumni.length === 0 ? null : hEl('div', { className: 'ss-records' },
+      hEl('h3', null, 'Institute Records'),
+      bestShip ? hEl('div', { className: 'ss-record' },
+        hEl('span', { className: 'k' }, '\uD83C\uDFC6 Best average critic'),
+        hEl('span', { className: 'v' }, bestShip.name + ' \u00B7 critic ' + bestShip.criticAvg + ' (rank #' + bestShip.rank + ')')
+      ) : null,
+      longestTenure ? hEl('div', { className: 'ss-record' },
+        hEl('span', { className: 'k' }, '\u231B Longest tenure'),
+        hEl('span', { className: 'v' }, longestTenure.name + ' \u00B7 ' + (longestTenure.tenureYears || 0) + ' years')
+      ) : null,
+      richestAlumnus ? hEl('div', { className: 'ss-record' },
+        hEl('span', { className: 'k' }, '\uD83D\uDCB0 Highest lifetime revenue'),
+        hEl('span', { className: 'v' }, richestAlumnus.name + ' \u00B7 ' + fmtSchoolMoney(richestAlumnus.finalRevenue || 0))
+      ) : null
+    );
+
+    return hEl('div', null,
+      hEl('h2', null, '\uD83D\uDCCA Lifetime Stats'),
+      hEl('div', { style: { fontSize: '0.85rem', color: '#8b949e', marginBottom: '14px' } },
+        'Cumulative totals across every classmate who\u2019s passed through the Institute.'),
+      hEl('div', { className: 'ss-stats-grid' },
+        ...cards.map(c => hEl('div', { className: 'ss-stat-card' },
+          hEl('div', { className: 'ss-stat-card-val', style: { color: c.color || '#f0f6fc' } }, String(c.value)),
+          hEl('div', { className: 'ss-stat-card-lbl' }, c.label)
+        ))
+      ),
+      recordsBlock
+    );
+  }
+
+  function fmtSchoolMoney(v) {
+    if (Math.abs(v) >= 1e9) return '$' + (v/1e9).toFixed(1) + 'B';
+    if (Math.abs(v) >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
+    if (Math.abs(v) >= 1e3) return '$' + (v/1e3).toFixed(0) + 'K';
+    return '$' + Math.round(v);
+  }
+
   function renderPlaceholderTab(icon, title, body) {
     return hEl('div', { className: 'ss-placeholder' },
       hEl('div', { className: 'ss-placeholder-icon' }, icon),
@@ -1123,14 +1419,8 @@
     let content;
     if (_activeTab === 'admissions') content = renderAdmissionsTab();
     else if (_activeTab === 'departments') content = renderDepartmentsTab();
-    else if (_activeTab === 'alumni') content = renderPlaceholderTab(
-      '\uD83C\uDF93', 'Alumni Hall (Phase 8)',
-      'Cards for every past founder with their stats, fate, signature quotes, and famous-alumni callouts. ' +
-      'Currently tracking ' + (school.alumniHall?.length || 0) + ' alumni behind the scenes.');
-    else content = renderPlaceholderTab(
-      '\uD83D\uDCCA', 'Lifetime Stats (Phase 8)',
-      'Cumulative totals across all runs: revenue, ships, hires, win-condition runs, etc. ' +
-      'Current run count: ' + (school.lifetimeStats?.runsCompleted || 0) + '.');
+    else if (_activeTab === 'alumni') content = renderAlumniHallTab();
+    else content = renderLifetimeTab();
 
     const nextRank = nextUpRank();
     const nextClassmate = S.school?.classRoster?.find(c => c.rank === nextRank);
@@ -1244,6 +1534,8 @@
     purchaseCount,
     achievementGateMet,
     applyDepartmentEffects,
+    // Phase 8: alumni + rival injection
+    injectSchoolRivals,
     // Debug access
     resetRunEndFlag() { delete S._runEndFired; _lastYearSeen = null; },
     state() {

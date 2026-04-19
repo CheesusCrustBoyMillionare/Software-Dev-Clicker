@@ -566,6 +566,25 @@
       proj.reviews = window.tycoonReviews.generateReviews(proj, 3);
     }
 
+    // v3 Phase 8: Newsletter endowment node adds a school-attributed bonus
+    // review on every ship. Appended after normal reviews so it reads as a
+    // separate voice.
+    if ((S.school?.departments?.schoolLife || []).includes('sl_newsletter')) {
+      const schoolName = S.school?.name || 'The Institute';
+      const quote = proj.criticScore >= 85
+        ? 'An alumnus making us all proud.'
+        : proj.criticScore >= 60
+        ? 'A solid contribution to the school\u2019s legacy.'
+        : 'Everyone has a rough semester now and then.';
+      if (!Array.isArray(proj.reviews)) proj.reviews = [];
+      proj.reviews.push({
+        stars: Math.max(1, Math.min(5, Math.round(proj.criticScore / 20))),
+        quote: quote,
+        source: schoolName + ' Alumni Newsletter',
+        schoolSourced: true,
+      });
+    }
+
     // v3 roguelite: post-ship founder trait hooks.
     // Prestigious founder: flat fame bonus per ship.
     const prestige = window.tycoonTraits?.founderTraitHook?.('prestige');
