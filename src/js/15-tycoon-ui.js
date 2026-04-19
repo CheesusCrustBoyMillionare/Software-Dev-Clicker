@@ -27,8 +27,9 @@
   background: #21262d; border-radius: 2px; overflow: hidden;
 }
 .tycoon-topbar .t-cal-progress-fill {
-  height: 100%; background: linear-gradient(90deg, #1f6feb, #58a6ff);
-  border-radius: 2px; transition: width 0.4s ease-out;
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #1f6feb, #58a6ff);
+  border-radius: 2px;
 }
 .tycoon-topbar .t-speed { margin-left: auto; display: flex; gap: 4px; }
 .tycoon-topbar .t-speed button {
@@ -280,14 +281,12 @@
   function renderTopBar() {
     const topbar = h('div', { className: 't-topbar tycoon-topbar' });
     const eraLabel = window.tycoonEra ? window.tycoonEra.formatDateLine(S.calendar) : '';
-    // Year progress: 4 weeks × 12 months = 48 weeks/year
-    const wkOfYear = ((S.calendar?.month || 1) - 1) * 4 + (S.calendar?.week || 1);
-    const yearPct = Math.max(0, Math.min(100, (wkOfYear / 48) * 100));
     const cal = h('div', { className: 't-cal' },
       window.tycoonTime.formatCalendar(S.calendar),
       eraLabel ? h('div', { style:{fontSize:'0.65rem', color:'#8957e5', fontWeight:'600', marginTop:'2px'} }, eraLabel) : null,
-      h('div', { className: 't-cal-progress', title: 'Week ' + wkOfYear + ' of 48' },
-        h('div', { className: 't-cal-progress-fill', style: { width: yearPct + '%' } })
+      h('div', { className: 't-cal-progress', title: 'Time to next week tick' },
+        // Width is driven by the rAF loop in _startCalProgressLoop — starts at 0%
+        h('div', { className: 't-cal-progress-fill' })
       )
     );
     const cash = h('div', { className: 't-stat' },
@@ -1640,6 +1639,58 @@
     });
   }
 
+  // ---------- Week progress bar rAF loop ----------
+  // Fills the bar under the week label from 0% → 100% over the duration of
+  // one game week at the current speed, resets on each week tick. Pauses
+  // cleanly and restarts on speed change (setSpeed reschedules the tick
+  // timer from now, so our local clock needs to reset to stay in sync).
+  const _WEEK_BASE_MS = 12500;
+  let _weekElapsedMs = 0;
+  let _weekLastFrameMs = 0;
+  let _weekRafHandle = null;
+  let _weekTickResetUnsub = null;
+  let _weekLastSpeedSeen = null;
+
+  function startCalProgressLoop() {
+    if (_weekRafHandle != null) return;
+    _weekElapsedMs = 0;
+    _weekLastFrameMs = performance.now();
+    _weekLastSpeedSeen = S.speed;
+    _weekTickResetUnsub = window.tycoonTime.onTick(() => { _weekElapsedMs = 0; });
+
+    const loop = () => {
+      const now = performance.now();
+      const dt = now - _weekLastFrameMs;
+      _weekLastFrameMs = now;
+
+      // Speed change mid-week: the underlying setTimeout resets to a fresh
+      // tickMs from "now", so our elapsed counter should reset too.
+      if (S.speed !== _weekLastSpeedSeen) {
+        _weekElapsedMs = 0;
+        _weekLastSpeedSeen = S.speed;
+      }
+
+      const paused = S.paused === true || S.speed === 0;
+      if (!paused) _weekElapsedMs += dt;
+
+      const tickMs = _WEEK_BASE_MS / Math.max(1, S.speed || 1);
+      const pct = Math.min(100, (_weekElapsedMs / tickMs) * 100);
+
+      const fill = document.querySelector('.t-cal-progress-fill');
+      if (fill) fill.style.width = pct.toFixed(1) + '%';
+
+      _weekRafHandle = requestAnimationFrame(loop);
+    };
+    _weekRafHandle = requestAnimationFrame(loop);
+  }
+
+  function stopCalProgressLoop() {
+    if (_weekRafHandle != null) { cancelAnimationFrame(_weekRafHandle); _weekRafHandle = null; }
+    if (_weekTickResetUnsub) { _weekTickResetUnsub(); _weekTickResetUnsub = null; }
+    _weekElapsedMs = 0;
+    _weekLastSpeedSeen = null;
+  }
+
   // Listen for MC pending events (fired by 14-tycoon-mc.js)
   document.addEventListener('tycoon:mc-pending', (e) => {
     const proj = window.tycoonProjects.find(e.detail.projectId);
@@ -1983,6 +2034,7 @@
       if (window.tycoonHints) window.tycoonHints.startTick();
       window.tycoonTime.start();
       startUITick();
+      startCalProgressLoop();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
     },
     exit() {
@@ -2003,6 +2055,7 @@
       if (window.tycoonWins) window.tycoonWins.stopTick();
       if (window.tycoonAchievements) window.tycoonAchievements.stopTick();
       if (window.tycoonHints) window.tycoonHints.stopTick();
+      stopCalProgressLoop();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
