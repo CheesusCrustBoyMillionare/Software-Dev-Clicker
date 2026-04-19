@@ -183,8 +183,13 @@
       questionsAsked: [], // question IDs already fired
       pendingDecision: null, // fills while waiting for player to answer
 
-      // Team
-      team: [], // engineer IDs; founder auto-assigned in Phase 1 since solo
+      // Team — engineer IDs assigned to this project. 'founder' is a sentinel.
+      // Phase 3F: auto-assign founder + all bench engineers by default; player
+      // can reassign via the Teams panel.
+      team: (() => {
+        const bench = window.tycoonTeams ? window.tycoonTeams.getBench() : [];
+        return bench.map(e => e.isFounder ? 'founder' : e.id);
+      })(),
       lead: null,
 
       // Polish phase choices
@@ -232,16 +237,71 @@
     return proj;
   }
 
-  // ---------- Team contributors ----------
-  // Phase 2C: founder + all hired employees contribute. No manual team assignment
-  // yet (that's the Phase 3 Teams panel) — everyone works on all active projects,
-  // split evenly across them.
-  function getContributors() {
+  // ---------- Team contributors (Phase 3F) ----------
+  // Engineers can be assigned to a specific project via proj.team[] (array of IDs).
+  // 'founder' is a sentinel for the founder; other strings are employee IDs.
+  // Contributors for a project = its assigned team, or fallback (unassigned pool)
+  // if team empty.
+  function getContributorsFor(proj) {
+    if (!Array.isArray(proj.team) || proj.team.length === 0) {
+      // Fallback: if no explicit team, use all bench engineers + founder
+      const bench = getBenchEngineers();
+      return bench;
+    }
     const list = [];
-    if (S.founder) list.push(S.founder);
-    if (Array.isArray(S.employees)) list.push(...S.employees);
+    for (const id of proj.team) {
+      if (id === 'founder' && S.founder) list.push(S.founder);
+      else {
+        const emp = (S.employees || []).find(e => e.id === id);
+        if (emp) list.push(emp);
+      }
+    }
     return list;
   }
+
+  // Engineers with no current project assignment
+  function getBenchEngineers() {
+    const assigned = new Set();
+    for (const p of (S.projects?.active || [])) {
+      for (const id of (p.team || [])) assigned.add(id);
+    }
+    const list = [];
+    if (S.founder && !assigned.has('founder')) list.push(S.founder);
+    for (const e of (S.employees || [])) {
+      if (!assigned.has(e.id)) list.push(e);
+    }
+    return list;
+  }
+
+  // Move an engineer to a project (removing from current assignment)
+  function assignEngineerToProject(engineerId, projectId) {
+    for (const p of (S.projects?.active || [])) {
+      if (Array.isArray(p.team)) p.team = p.team.filter(id => id !== engineerId);
+    }
+    const proj = S.projects.active.find(p => p.id === projectId);
+    if (!proj) return { ok: false, error: 'Project not found' };
+    if (!Array.isArray(proj.team)) proj.team = [];
+    if (!proj.team.includes(engineerId)) proj.team.push(engineerId);
+    if (typeof markDirty === 'function') markDirty();
+    document.dispatchEvent(new CustomEvent('tycoon:team-changed', { detail: { projectId } }));
+    return { ok: true };
+  }
+
+  function unassignEngineer(engineerId) {
+    for (const p of (S.projects?.active || [])) {
+      if (Array.isArray(p.team)) p.team = p.team.filter(id => id !== engineerId);
+    }
+    if (typeof markDirty === 'function') markDirty();
+    document.dispatchEvent(new CustomEvent('tycoon:team-changed', { detail: {} }));
+  }
+
+  window.tycoonTeams = {
+    getContributorsFor,
+    getBench: getBenchEngineers,
+    assign: assignEngineerToProject,
+    unassign: unassignEngineer,
+  };
+  if (window.dbg) window.dbg.teams = window.tycoonTeams;
 
   // Specialty → primary quality axis (used for specialty match bonus)
   const SPECIALTY_AXIS = {
@@ -277,15 +337,14 @@
   function developOneWeek(proj) {
     if (proj.phase !== 'development') return;
     if (proj.pendingDecision) return;
-    const contributors = getContributors();
+    const contributors = getContributorsFor(proj);
     if (contributors.length === 0) return;
     const typeDef = PROJECT_TYPES[proj.type];
     const w = typeDef.weights;
     const crunchMul = proj.crunching ? 1.30 : 1.0;
     const bugRisk   = proj.crunching ? 1.50 : 1.0;
-    // Dilute contribution if multiple active projects running (everyone splits time)
-    const activeCount = Math.max(1, (S.projects?.active || []).length);
-    const perProjMul = 1 / activeCount;
+    // With explicit team assignment, no per-project dilution — each team fully dedicated
+    const perProjMul = 1;
 
     // Research bonuses (Phase 3C): quality multipliers per axis + global team productivity
     const researchTech    = window.tycoonResearch?.qualityMultiplierFor?.('tech', proj.type) || 1;
@@ -312,10 +371,9 @@
   function polishOneWeek(proj) {
     if (proj.phase !== 'polish') return;
     if (proj.pendingDecision) return;
-    const contributors = getContributors();
+    const contributors = getContributorsFor(proj);
     if (contributors.length === 0) return;
-    const activeCount = Math.max(1, (S.projects?.active || []).length);
-    const perProjMul = 1 / activeCount;
+    const perProjMul = 1;
     const crunchMul = proj.crunching ? 1.30 : 1.0;
     for (const c of contributors) {
       const es = effectiveStats(c);

@@ -371,6 +371,87 @@
     );
   }
 
+  // ---------- Teams modal (Phase 3F) ----------
+  function openTeamsModal() {
+    closeTeamsModal();
+    const active = S.projects?.active || [];
+    const bench = window.tycoonTeams?.getBench?.() || [];
+
+    const renderEngineerPill = (eng, projId) => {
+      const label = (eng.isFounder ? '👑 ' : '') + eng.name +
+        ' · ' + (eng.tierName || 'T?') + ' ' + (eng.specialty || '');
+      const id = eng.isFounder ? 'founder' : eng.id;
+      return h('div', { style: { display:'flex', alignItems:'center', gap:'8px', padding:'6px 8px', background:'#0d1117', border:'1px solid #21262d', borderRadius:'4px', marginBottom:'4px', fontSize:'0.8rem' } },
+        h('span', { style: { flex:1, color:'#c9d1d9' } }, label),
+        projId ?
+          h('button', { className: 't-btn secondary', style: { padding:'3px 8px', fontSize:'0.7rem' }, onclick: () => {
+            window.tycoonTeams.unassign(id);
+            rerenderTeamsModal();
+          }}, 'Remove') :
+          active.length > 0 ? h('select', {
+            style: { padding:'3px 6px', fontSize:'0.7rem', background:'#161b22', color:'#c9d1d9', border:'1px solid #30363d', borderRadius:'3px' },
+            onchange: (e) => {
+              const targetProjId = e.target.value;
+              if (!targetProjId) return;
+              window.tycoonTeams.assign(id, targetProjId);
+              rerenderTeamsModal();
+            }
+          },
+            h('option', { value: '' }, 'Assign to…'),
+            ...active.map(p => h('option', { value: p.id }, p.name))
+          ) : null
+      );
+    };
+
+    const renderProjectSection = (proj) => {
+      const team = (proj.team || []).map(id => {
+        if (id === 'founder') return S.founder;
+        return (S.employees || []).find(e => e.id === id);
+      }).filter(Boolean);
+      const typeDef = window.PROJECT_TYPES[proj.type];
+      return h('div', { style: { marginBottom:'18px' } },
+        h('div', { style: { fontSize:'0.85rem', fontWeight:'700', color:'#f0f6fc', marginBottom:'4px' } },
+          (typeDef?.icon || '') + ' ' + proj.name + ' (' + proj.phase + ')'),
+        team.length === 0 ?
+          h('div', { className: 't-empty', style: { padding:'8px 0', fontSize:'0.8rem' } }, 'No team assigned — will use bench fallback.') :
+          h('div', null, ...team.map(eng => renderEngineerPill(eng, proj.id)))
+      );
+    };
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_teams_modal' },
+      h('div', { className: 't-modal', style: { maxWidth: '620px' } },
+        h('h2', null, '👥 Teams'),
+        h('div', { style: { color:'#8b949e', fontSize:'0.8rem', marginBottom:'12px' } },
+          active.length + ' active project' + (active.length === 1 ? '' : 's') + ' · ' +
+          bench.length + ' on bench'),
+        active.length === 0 ?
+          h('div', { className: 't-empty' }, 'No active projects. Create one from the Studio panel.') :
+          h('div', null, ...active.map(renderProjectSection)),
+        h('h2', { style: { marginTop:'8px', fontSize:'0.85rem' } },
+          'Bench (' + bench.length + ')'),
+        bench.length === 0 ?
+          h('div', { className: 't-empty', style: { padding:'8px 0' } }, 'Everyone is assigned.') :
+          h('div', null, ...bench.map(eng => renderEngineerPill(eng, null))),
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn', onclick: closeTeamsModal }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
+  }
+
+  function closeTeamsModal() {
+    const ov = document.getElementById('_t_teams_modal');
+    if (ov) ov.remove();
+  }
+
+  function rerenderTeamsModal() {
+    if (document.getElementById('_t_teams_modal')) {
+      closeTeamsModal();
+      openTeamsModal();
+    }
+  }
+
   // ---------- Research panel modal ----------
   function openResearchModal() {
     if (!window.tycoonResearch) return;
@@ -655,6 +736,7 @@
         h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project'),
         h('button', { className: 't-btn secondary', onclick: () => openHiringModal() },
           '🎪 Hiring' + (queueSize > 0 ? ' (' + queueSize + ' available)' : '')),
+        employees.length > 0 && h('button', { className: 't-btn secondary', onclick: () => openTeamsModal() }, '👥 Teams'),
         h('button', { className: 't-btn secondary', onclick: () => openResearchModal() }, (() => {
           const st = window.tycoonResearch?.state?.();
           const ip = st?.inProgress;
