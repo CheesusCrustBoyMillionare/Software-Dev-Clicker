@@ -119,10 +119,13 @@
         return { ok: false, reason: 'Requires: ' + pname };
       }
     }
-    // Hardware check (enforced in Phase 3D)
+    // Hardware check (Phase 3D)
     if (node.hardware) {
-      const hasHW = (S.hardware || []).includes(node.hardware);
-      if (!hasHW) return { ok: false, reason: 'Hardware needed: ' + node.hardware };
+      const hasHW = window.tycoonHardware?.isOwned?.(node.hardware);
+      if (!hasHW) {
+        const hw = window.tycoonHardware?.BY_ID?.[node.hardware];
+        return { ok: false, reason: 'Requires ' + (hw ? hw.icon + ' ' + hw.name : node.hardware) };
+      }
     }
     return { ok: true };
   }

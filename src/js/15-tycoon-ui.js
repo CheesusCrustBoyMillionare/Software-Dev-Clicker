@@ -400,12 +400,49 @@
             ...group.nodes.map(n => renderResearchRow(n))
           );
         }),
+        // Hardware section (Phase 3D)
+        window.tycoonHardware && h('div', { style: { marginTop:'16px' } },
+          h('h2', { style: { marginTop:'0', fontSize:'0.85rem' } }, '⚙ Hardware'),
+          ...window.tycoonHardware.ITEMS.map(hw => renderHardwareRow(hw))
+        ),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: closeResearchModal }, 'Close')
         )
       )
     );
     document.body.appendChild(ov);
+  }
+
+  function renderHardwareRow(hw) {
+    const HW = window.tycoonHardware;
+    const isOwned = HW.isOwned(hw.id);
+    const avail = HW.isAvailableToBuy(hw.id);
+    let rightSide;
+    if (isOwned) {
+      rightSide = h('div', { className: 'r-status' }, '✓ Owned');
+    } else if (avail.ok) {
+      rightSide = h('button', { className: 't-btn', onclick: () => {
+        const r = HW.purchase(hw.id);
+        if (!r.ok) pushToast(r.error);
+        else pushToast('Purchased: ' + hw.name);
+        rerenderResearchModal();
+        refreshTopBar();
+      }}, 'Buy ' + fmtMoney(hw.upfront));
+    } else {
+      rightSide = h('div', { className: 'r-status' }, '🔒 ' + avail.reason);
+    }
+    return h('div', { className: 't-research-row ' + (isOwned ? 'completed' : !avail.ok ? 'locked' : '') },
+      h('div', { style: { flex:1, minWidth:0 } },
+        h('div', { className: 'r-name' }, hw.icon + ' ' + hw.name),
+        h('div', { className: 'r-meta' },
+          fmtMoney(hw.upfront) + ' upfront' +
+          (hw.monthly ? ' + ' + fmtMoney(hw.monthly) + '/mo' : '') +
+          (hw.era > 1980 ? ' · ' + hw.era + '+' : '') +
+          (hw.unlocks.length ? ' · unlocks ' + hw.unlocks.length + ' node' + (hw.unlocks.length>1?'s':'') : '') +
+          ' — ' + hw.desc)
+      ),
+      rightSide
+    );
   }
 
   function closeResearchModal() {
@@ -1151,6 +1188,7 @@
       if (window.tycoonFinance) window.tycoonFinance.startTick();
       if (window.tycoonEra) window.tycoonEra.startTick();
       if (window.tycoonResearch) window.tycoonResearch.startTick();
+      if (window.tycoonHardware) window.tycoonHardware.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -1164,6 +1202,7 @@
       if (window.tycoonFinance) window.tycoonFinance.stopTick();
       if (window.tycoonEra) window.tycoonEra.stopTick();
       if (window.tycoonResearch) window.tycoonResearch.stopTick();
+      if (window.tycoonHardware) window.tycoonHardware.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
