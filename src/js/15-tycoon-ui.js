@@ -1880,6 +1880,7 @@
       if (window.tycoonSubsidiaries) window.tycoonSubsidiaries.startTick();
       if (window.tycoonWins) window.tycoonWins.startTick();
       if (window.tycoonAchievements) window.tycoonAchievements.startTick();
+      if (window.tycoonHints) window.tycoonHints.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -1901,6 +1902,7 @@
       if (window.tycoonSubsidiaries) window.tycoonSubsidiaries.stopTick();
       if (window.tycoonWins) window.tycoonWins.stopTick();
       if (window.tycoonAchievements) window.tycoonAchievements.stopTick();
+      if (window.tycoonHints) window.tycoonHints.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
