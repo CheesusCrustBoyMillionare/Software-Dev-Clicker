@@ -18,11 +18,53 @@
   // Speed presets. Tycoon speeds: 1, 2, 4, 8. Speed 0 = paused.
   const SPEED_MULTIPLIERS = { 0: 0, 1: 1, 2: 2, 4: 4, 8: 8 };
 
+  // Fraction-of-week progress (0..1). Advances when not paused, resets on each
+  // week tick. This is the single source of truth for where we are within the
+  // current week — both the setTimeout scheduler and the UI progress bar read
+  // from it so speed changes don't reset mid-week progress.
+  let _weekFraction = 0;
+  let _lastScheduledAt = 0;  // performance.now() when current setTimeout was scheduled
+  let _lastScheduledMs = 0;  // duration the current setTimeout was scheduled for
+
   function currentTickMs() {
     const sp = (S && typeof S.speed === 'number') ? S.speed : 1;
     const mult = SPEED_MULTIPLIERS[sp] || 1;
     if (mult <= 0) return BASE_TICK_MS; // paused — interval doesn't matter
     return BASE_TICK_MS / mult;
+  }
+
+  function isPausedNow() {
+    return S.paused === true || S.speed === 0;
+  }
+
+  // Roll accumulated real time into _weekFraction. Call this whenever the
+  // speed or pause state is about to change, so the fraction reflects
+  // progress made at the OLD rate before we start counting at the NEW rate.
+  function advanceFractionFromClock() {
+    if (!_running || isPausedNow() || _lastScheduledAt === 0 || _lastScheduledMs === 0) return;
+    const now = performance.now();
+    const dt = now - _lastScheduledAt;
+    _weekFraction = Math.min(1, _weekFraction + dt / _lastScheduledMs);
+    _lastScheduledAt = now;
+  }
+
+  // Schedule the next tick honoring _weekFraction. The timeout fires in
+  // (1 - fraction) × newTickMs ms. When paused, cancels the timer entirely
+  // — it'll be rescheduled on unpause.
+  function rescheduleTick() {
+    if (_tickTimer) { clearTimeout(_tickTimer); _tickTimer = null; }
+    if (!_running) return;
+    if (isPausedNow()) {
+      // No pending timer while paused — freezes progress until unpaused
+      _lastScheduledAt = 0;
+      _lastScheduledMs = 0;
+      return;
+    }
+    const tickMs = currentTickMs();
+    const remainingMs = Math.max(0, (1 - _weekFraction) * tickMs);
+    _lastScheduledAt = performance.now();
+    _lastScheduledMs = tickMs;
+    _tickTimer = setTimeout(tick, remainingMs);
   }
 
   // Format calendar for display: "Week 12, 1985" style
@@ -59,13 +101,13 @@
   // The tick loop itself
   function tick() {
     if (!_running) return;
-    const paused = (S.paused === true) || (S.speed === 0);
-    if (!paused) {
-      advanceOneWeek();
-      dispatchTick();
-    }
-    // Schedule next tick
-    _tickTimer = setTimeout(tick, currentTickMs());
+    // Guard: if we somehow fire while paused (shouldn't happen — rescheduleTick
+    // cancels the timer on pause — but handle gracefully), just re-schedule.
+    if (isPausedNow()) { rescheduleTick(); return; }
+    advanceOneWeek();
+    dispatchTick();
+    _weekFraction = 0;
+    rescheduleTick();
   }
 
   // Public API
@@ -74,8 +116,8 @@
     start() {
       if (_running) return;
       _running = true;
-      // First tick after the current interval (not immediate)
-      _tickTimer = setTimeout(tick, currentTickMs());
+      _weekFraction = 0;
+      rescheduleTick();
       console.info('[tycoon-time] started at speed ' + (S.speed || 1) + '×');
     },
 
@@ -83,39 +125,57 @@
     stop() {
       _running = false;
       if (_tickTimer) { clearTimeout(_tickTimer); _tickTimer = null; }
+      _lastScheduledAt = 0;
+      _lastScheduledMs = 0;
       console.info('[tycoon-time] stopped');
     },
 
     // Check if running
     isRunning() { return _running; },
 
-    // Set speed (0/1/2/4/8). Takes effect at next tick boundary.
+    // Set speed (0/1/2/4/8). Preserves mid-week progress — if you switch
+    // from 1× to 2× when 40% through a week, you'll still be 40% through
+    // a (now shorter) week and fire the next tick in the remaining 60%
+    // rather than starting a fresh interval.
     setSpeed(n) {
       if (!(n in SPEED_MULTIPLIERS)) {
         console.warn('[tycoon-time] invalid speed: ' + n);
         return;
       }
+      advanceFractionFromClock();
       S.speed = n;
       if (typeof markDirty === 'function') markDirty();
       console.info('[tycoon-time] speed = ' + n + '×' + (n === 0 ? ' (paused)' : ''));
-      // If timer is pending, reschedule with new interval
-      if (_running && _tickTimer) {
-        clearTimeout(_tickTimer);
-        _tickTimer = setTimeout(tick, currentTickMs());
-      }
+      rescheduleTick();
     },
 
-    // Toggle pause. Separate from speed=0 — user-initiated pause.
+    // Toggle pause. Separate from speed=0 — user-initiated pause. Freezes
+    // mid-week progress until unpaused.
     togglePause() {
+      advanceFractionFromClock();
       S.paused = !S.paused;
       if (typeof markDirty === 'function') markDirty();
       console.info('[tycoon-time] paused = ' + S.paused);
+      rescheduleTick();
     },
 
     // Advance one week manually (debug / step-through testing)
     step() {
       advanceOneWeek();
       dispatchTick();
+      _weekFraction = 0;
+      if (_running) rescheduleTick();
+    },
+
+    // Live 0..1 fraction of current week elapsed. UI progress bars read
+    // this directly — it stays continuous across speed changes.
+    weekFraction() {
+      if (!_running || isPausedNow() || _lastScheduledAt === 0 || _lastScheduledMs === 0) {
+        return _weekFraction;
+      }
+      const now = performance.now();
+      const dt = now - _lastScheduledAt;
+      return Math.min(1, _weekFraction + dt / _lastScheduledMs);
     },
 
     // Subscribe to tick events. Returns an unsubscribe function.
@@ -136,7 +196,8 @@
         calendar: S.calendar,
         formatted: formatCalendar(S.calendar),
         listeners: _listeners.length,
-        tickMs: currentTickMs()
+        tickMs: currentTickMs(),
+        weekFraction: _weekFraction,
       };
     },
 
@@ -151,13 +212,17 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       if (_running && !S.paused) {
+        advanceFractionFromClock();
         _wasRunningBeforeBlur = true;
         S.paused = true;
+        rescheduleTick();
       }
     } else {
       if (_wasRunningBeforeBlur) {
+        advanceFractionFromClock();  // no-op when paused, but safe
         S.paused = false;
         _wasRunningBeforeBlur = false;
+        rescheduleTick();
       }
     }
   });
