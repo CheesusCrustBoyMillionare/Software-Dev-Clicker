@@ -82,6 +82,24 @@
     // ----- Rare / hidden -----
     { id: 'a_bankruptcy_warn', name: 'Close Call', desc: 'Trigger a bankruptcy warning and recover.', check: () => S.warnings?.runway3mo && (S.cash || 0) > 100_000 },
     { id: 'a_synergy_triple',  name: 'Marketing Master', desc: 'Trigger 3+ marketing synergies on one launch.', check: () => (S.projects?.shipped || []).some(p => (p.marketingSynergies || []).length >= 3) },
+
+    // ----- Roguelite layer (v3, Phase 10) -----
+    // All check S.school.* which exists from schema v3 onwards.
+    { id: 'ra_enroll_first',    name: 'Freshman',          desc: 'Enroll your first classmate.',                         check: () => (S.school?.currentRunNumber || 0) >= 1 },
+    { id: 'ra_first_run_end',   name: 'Alumnus',           desc: 'Complete a run (any fate).',                           check: () => (S.school?.alumniHall || []).length >= 1 },
+    { id: 'ra_endow_1k',        name: 'Modest Endowment',  desc: 'Bank 1,000 endowment lifetime.',                       check: () => (S.school?.lifetimeEndowmentEarned || 0) >= 1000 },
+    { id: 'ra_endow_10k',       name: 'Sizable Endowment', desc: 'Bank 10,000 endowment lifetime.',                      check: () => (S.school?.lifetimeEndowmentEarned || 0) >= 10000 },
+    { id: 'ra_endow_100k',      name: 'Prestigious',       desc: 'Bank 100,000 endowment lifetime.',                     check: () => (S.school?.lifetimeEndowmentEarned || 0) >= 100000 },
+    { id: 'ra_first_famous',    name: 'Hall of Fame',      desc: 'Produce your first famous alumnus (win or megacorp).', check: () => (S.school?.famousAlumni || []).length >= 1 },
+    { id: 'ra_dept_five',       name: 'Institutional',     desc: 'Purchase 5 department upgrades across all trees.',     check: () => {
+      const d = S.school?.departments || {}; let n = 0;
+      for (const k of Object.keys(d)) n += (d[k] || []).length; return n >= 5;
+    }},
+    { id: 'ra_era_unlock',      name: 'Accelerated',       desc: 'Start a classmate in an accelerated era (1985+).',     check: () => (S.school?.alumniHall || []).some(a => (a.foundedAt || 1980) > 1980) },
+    { id: 'ra_climb_middle',    name: 'Middle of the Pack', desc: 'Play a middle-ranked classmate (rank 13-37).',        check: () => (S.school?.alumniHall || []).some(a => a.rank >= 13 && a.rank <= 37) },
+    { id: 'ra_climb_top5',      name: 'Honors Student',    desc: 'Play a top-5 classmate.',                              check: () => (S.school?.alumniHall || []).some(a => a.rank <= 5) },
+    { id: 'ra_valedictorian',   name: 'Valedictorian',     desc: 'Play the rank-1 classmate of the class.',              check: () => (S.school?.alumniHall || []).some(a => a.rank === 1) },
+    { id: 'ra_ten_alumni',      name: 'Full Cohort',       desc: 'Accumulate 10 alumni in the hall.',                    check: () => (S.school?.alumniHall || []).length >= 10 },
   ];
   window.TYCOON_ACHIEVEMENTS = ACHIEVEMENTS;
 

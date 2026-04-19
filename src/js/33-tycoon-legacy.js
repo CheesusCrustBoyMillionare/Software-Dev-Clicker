@@ -81,7 +81,8 @@
         S.cash = (S.cash || 0) + exitPrice;
         S.tRevenue += exitPrice;
         S.soldToMegacorp = { price: exitPrice, year: S.calendar?.year };
-        // Trigger victory/retrospective
+        // v3 roguelite: megacorp exit is a large-endowment run-end trigger.
+        if (window.tycoonSchool?.endRun) window.tycoonSchool.endRun('megacorp_exit', { price: exitPrice });
         document.dispatchEvent(new CustomEvent('tycoon:megacorp-exit', { detail: { price: exitPrice } }));
         return { ok: true, msg: 'Sold for ' + exitPrice.toLocaleString() + '. Retire in splendor.', endGame: true };
       }

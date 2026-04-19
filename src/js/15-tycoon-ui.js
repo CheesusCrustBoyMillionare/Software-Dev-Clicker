@@ -1974,7 +1974,20 @@
       }
     }, '🏦 Take Out a Loan') : null;
 
-    return h('div', null, loansList, takeLoanBtn);
+    // v3 roguelite: voluntary "Retire & Hand Off" button — gated on Fame 50+
+    const canRetire = window.tycoonSchool?.canVoluntaryRetire?.();
+    const retireBtn = h('button', {
+      className: canRetire ? 't-btn secondary' : 't-btn secondary',
+      style: { marginTop: '16px', opacity: canRetire ? 1 : 0.5, cursor: canRetire ? 'pointer' : 'not-allowed' },
+      title: canRetire ? 'End your run voluntarily; classmate takes over.' : 'Requires Fame 50+ (current ' + (S.tFame || 0) + ')',
+      onclick: () => {
+        if (!canRetire) { pushToast('Need Fame 50+ to retire (current: ' + (S.tFame || 0) + ')'); return; }
+        document.getElementById('_t_finance_modal')?.remove();
+        window.openVoluntaryRetireModal();
+      }
+    }, '🎓 Retire & Hand Off' + (canRetire ? '' : ' (Fame ' + (S.tFame || 0) + '/50)'));
+
+    return h('div', null, loansList, takeLoanBtn, retireBtn);
   }
 
   function refreshMain() {
@@ -2373,6 +2386,70 @@
     pushToast('🏅 ' + a.name + ' — ' + a.desc);
   });
 
+  // v3 roguelite: run-end surfaces the endowment banked. This toast is the
+  // Phase 4 placeholder — Phase 5 routes post-run-end into the school screen
+  // where the full retrospective + class-roster picker live. For now the
+  // existing legacy modal (bankruptcy/win/megacorp) still opens behind this
+  // toast, keeping the retrospective summary alive while we build the
+  // school UI.
+  document.addEventListener('tycoon:run-end', (e) => {
+    const { type, endowEarned } = e.detail || {};
+    const labels = {
+      bankruptcy: '💀 Run over — studio closed',
+      age_retired: '👴 Founder retired — ran out the clock',
+      retire_voluntary: '🎓 Retired and handed off',
+      megacorp_exit: '💰 Sold to Megacorp',
+      win_condition: '🏆 Triumphant run',
+    };
+    pushToast((labels[type] || 'Run ended') +
+      '  ·  +' + (endowEarned || 0).toLocaleString() + ' endowment banked', 'win');
+
+    // v3 roguelite: after a retrospective beat, tear down the tycoon overlay
+    // and open the school screen. Existing legacy/victory modals (if any)
+    // get dismissed in the process — Phase 5's school-screen admissions tab
+    // shows the run's alumnus joined the hall. Phase 8 will replace the
+    // per-run retrospective with a richer in-school one.
+    setTimeout(() => {
+      if (!window.tycoonSchool?.openSchoolScreen) return;
+      // Dismiss any legacy/victory modals still open
+      document.getElementById('_t_legacy_modal')?.remove();
+      document.getElementById('_t_victory_modal')?.remove();
+      // Save the run's result before tearing down tycoon
+      try { if (typeof save === 'function') save(); } catch (e) {}
+      // Tear down tycoon overlay without reloading the page
+      if (window.tycoonUI?.exit) window.tycoonUI.exit({ noReload: true });
+      window.tycoonSchool.openSchoolScreen();
+    }, 2500);
+  });
+
+  // v3 roguelite: voluntary retire button — opens a confirmation. Gated
+  // on Fame ≥ 50 per Q4.
+  window.openVoluntaryRetireModal = function() {
+    if (!window.tycoonSchool?.canVoluntaryRetire?.()) {
+      pushToast('⚠️ Need Fame 50+ to retire with dignity (current: ' + (S.tFame || 0) + ')');
+      return;
+    }
+    const endow = window.tycoonSchool.computeEndowment('retire_voluntary');
+    const ov = h('div', { className: 't-modal-ov', id: '_t_retire_modal',
+      onclick: (e) => { if (e.target.id === '_t_retire_modal') ov.remove(); } },
+      h('div', { className: 't-modal', style: { maxWidth: '460px' } },
+        h('h2', null, '🎓 Retire & Hand Off'),
+        h('div', { style: { fontSize: '0.85rem', color: '#c9d1d9', marginBottom: '14px', lineHeight: '1.5' } },
+          'Step down now. Your alumnus joins the Institute\u2019s Alumni Hall and the next classmate takes over.'),
+        h('div', { style: { fontSize: '0.85rem', color: '#c9d1d9', marginBottom: '14px' } },
+          'Endowment banked: ', h('span', { style: { color: '#7ee787', fontWeight: '700' } }, '+' + endow.toLocaleString())),
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn secondary', onclick: () => ov.remove() }, 'Never mind'),
+          h('button', { className: 't-btn', onclick: () => {
+            ov.remove();
+            window.tycoonSchool.voluntaryRetire();
+          } }, 'Retire now')
+        )
+      )
+    );
+    document.body.appendChild(ov);
+  };
+
   function openVictoryModal(path) {
     // Auto-pause
     S.paused = true;
@@ -2609,6 +2686,12 @@
       if (window.tycoonWins) window.tycoonWins.startTick();
       if (window.tycoonAchievements) window.tycoonAchievements.startTick();
       if (window.tycoonHints) window.tycoonHints.startTick();
+      // v3 roguelite: ensure the class roster exists on entry. Idempotent —
+      // first entry for a save seeds the roster; subsequent entries no-op.
+      if (window.tycoonTraits) window.tycoonTraits.ensureRoster();
+      // v3 roguelite: school module handles yearly founder-age increment +
+      // auto-retirement. Stops with the other modules on exit().
+      if (window.tycoonSchool) window.tycoonSchool.startTick();
       window.tycoonTime.start();
       startUITick();
       startCalProgressLoop();
@@ -2632,6 +2715,7 @@
       if (window.tycoonWins) window.tycoonWins.stopTick();
       if (window.tycoonAchievements) window.tycoonAchievements.stopTick();
       if (window.tycoonHints) window.tycoonHints.stopTick();
+      if (window.tycoonSchool) window.tycoonSchool.stopTick();
       stopCalProgressLoop();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
@@ -2682,12 +2766,19 @@
       window.S = defaults();
       load(); // mutates S if valid v2 save exists
 
-      // Route based on career state
-      if (S.careerStarted && S.founder) {
-        // Resume existing career
+      // v3 roguelite routing:
+      //  - Active run (careerStarted, founder set, no run-end pending) → resume in tycoon
+      //  - Fresh save / between runs (run-end fired, or never started) → school screen
+      //  - Very old saves with no school container → ensureRoster seeds it
+      if (window.tycoonTraits?.ensureRoster) window.tycoonTraits.ensureRoster();
+      const activeRun = S.careerStarted && S.founder && !S._runEndFired;
+      if (activeRun) {
         tycoonUI.enter({ skipCreator: true });
+      } else if (window.tycoonSchool?.openSchoolScreen) {
+        // Between-runs or fresh save — school screen is the roguelite home base.
+        window.tycoonSchool.openSchoolScreen();
       } else {
-        // Fresh slot — show creator
+        // Fallback: classic creator if school module missing.
         tycoonUI.enter();
       }
     }, true); // capture phase — fires before bubble-phase clicker handler
@@ -2721,12 +2812,14 @@
   }
   setTimeout(initSlotHijack, 250);
 
-  // If user exits tycoon, reload the page (cleanest — avoids clicker-state bleed)
+  // If user exits tycoon, reload the page (cleanest — avoids clicker-state bleed).
+  // Pass { noReload: true } to exit in-place (used by the school-screen
+  // transition so we can replace the tycoon overlay with the school UI
+  // without losing the browser tab state).
   const origExit = tycoonUI.exit;
-  tycoonUI.exit = function() {
+  tycoonUI.exit = function(opts) {
     origExit();
-    // Full reload — clicker loop, stale state, timers all reset cleanly
-    location.reload();
+    if (!opts?.noReload) location.reload();
   };
 
   // Hook: hijack shipProject to show a launch celebration modal with reviews
