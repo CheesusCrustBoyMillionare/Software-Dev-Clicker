@@ -522,6 +522,12 @@
           h('div', null, ...activeRivals.map(renderRivalRow))
         ),
 
+        // ----- Subsidiaries (Phase 5D) -----
+        window.tycoonSubsidiaries && h('div', { style:{ marginBottom: '16px' } },
+          h('div', { className: 't-era-band' }, 'Your Subsidiaries (' + (S.subsidiaries?.length || 0) + ')'),
+          renderSubsidiariesSection()
+        ),
+
         // ----- Upcoming rival releases -----
         upcoming.length > 0 && h('div', { style:{ marginBottom: '16px' } },
           h('div', { className: 't-era-band' }, 'Upcoming Rival Releases'),
@@ -608,6 +614,55 @@
       closeMarketModal();
       openMarketModal();
     }
+  }
+
+  function renderSubsidiariesSection() {
+    const subs = S.subsidiaries || [];
+    const canCreate = window.tycoonSubsidiaries?.canCreate?.();
+    const cost = window.tycoonSubsidiaries?.creationCost?.() || 0;
+
+    const rows = subs.map(s => {
+      const nextStr = s.nextProject ?
+        ' · 🚀 ' + s.nextProject.name + ' (' + Math.max(0, s.nextProject.releaseAtWeek - (window.tycoonProjects?.absoluteWeek?.() || 0)) + 'wk)' : '';
+      return h('div', { style:{padding:'10px 12px', background:'#0d1117', border:'1px solid #21262d', borderRadius:'4px', marginBottom:'6px'} },
+        h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'baseline'} },
+          h('div', { style:{fontWeight:'700', color:'#f0f6fc', fontSize:'0.85rem'} },
+            '🏭 ' + s.name),
+          h('div', { style:{color:'#8b949e', fontSize:'0.72rem'} },
+            s.focus + ' · ' + s.shippedCount + ' shipped')
+        ),
+        h('div', { style:{color:'#8b949e', fontSize:'0.72rem', marginTop:'2px'} },
+          'Quality ~' + s.quality + ' · $' + s.monthlyCost.toLocaleString() + '/mo upkeep' + nextStr)
+      );
+    });
+
+    // Create button
+    const createRow = canCreate?.ok ?
+      h('div', { style:{padding:'8px 10px', background:'#0c2d4e', border:'1px solid #1f6feb', borderRadius:'4px', marginTop:'6px'} },
+        h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center'} },
+          h('div', null,
+            h('div', { style:{color:'#f0f6fc', fontWeight:'700'} }, '+ Spin up new subsidiary'),
+            h('div', { style:{color:'#8b949e', fontSize:'0.72rem', marginTop:'2px'} },
+              'Cost: ' + fmtMoney(cost) + ' · $200K/mo upkeep · auto-ships every 18-24 weeks')
+          ),
+          h('button', { className: 't-btn', onclick: () => {
+            const name = prompt('Subsidiary name:', 'Acme Studios ' + ((S.subsidiaries?.length || 0) + 1));
+            if (!name) return;
+            const availTypes = Object.keys(window.PROJECT_TYPES || {}).filter(t => window.isProjectTypeAvailable?.(t));
+            const focus = prompt('Focus genre (' + availTypes.join(', ') + '):', availTypes[0] || 'game');
+            if (!focus) return;
+            const r = window.tycoonSubsidiaries.create(name, focus);
+            if (!r.ok) { pushToast(r.error); return; }
+            pushToast('🏭 Subsidiary created: ' + r.sub.name);
+            rerenderMarketModal();
+            refreshTopBar();
+          }}, 'Create')
+        )
+      ) :
+      h('div', { style:{padding:'8px 10px', color:'#8b949e', fontSize:'0.75rem', marginTop:'6px', fontStyle:'italic'} },
+        '🔒 Subsidiary creation locked: ' + (canCreate?.reason || 'unknown'));
+
+    return h('div', null, subs.length === 0 ? null : h('div', null, ...rows), createRow);
   }
 
   // ---------- Teams modal (Phase 3F) ----------
@@ -1689,6 +1744,7 @@
       if (window.tycoonMacro) window.tycoonMacro.startTick();
       if (window.tycoonMarket) window.tycoonMarket.startTick();
       if (window.tycoonAwards) window.tycoonAwards.startTick();
+      if (window.tycoonSubsidiaries) window.tycoonSubsidiaries.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -1707,6 +1763,7 @@
       if (window.tycoonMacro) window.tycoonMacro.stopTick();
       if (window.tycoonMarket) window.tycoonMarket.stopTick();
       if (window.tycoonAwards) window.tycoonAwards.stopTick();
+      if (window.tycoonSubsidiaries) window.tycoonSubsidiaries.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
