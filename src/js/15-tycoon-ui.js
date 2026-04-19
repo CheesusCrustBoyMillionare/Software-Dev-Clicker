@@ -1589,6 +1589,39 @@
     openLegacyScreen(e.detail.year, 'bankruptcy');
   });
 
+  // Win conditions (Phase 5H)
+  document.addEventListener('tycoon:win-achieved', (e) => {
+    openVictoryModal(e.detail.path);
+  });
+
+  function openVictoryModal(path) {
+    // Auto-pause
+    S.paused = true;
+    refreshTopBar();
+    const totalWins = (S.winsAchieved || []).length;
+    const ov = h('div', { className: 't-modal-ov', id: '_t_victory_modal' },
+      h('div', { className: 't-modal', style: { maxWidth: '560px', textAlign: 'center' } },
+        h('div', { style: { fontSize:'3rem', margin:'8px 0' } }, '🏆'),
+        h('h2', { style: { fontSize:'1.4rem', color:'#f0883e' } }, 'VICTORY — ' + path.label),
+        h('div', { style: { color:'#c9d1d9', fontSize:'0.95rem', margin:'8px 0 20px' } }, path.blurb),
+        h('div', { style: { color:'#8b949e', fontSize:'0.85rem' } },
+          'Win paths achieved this career: ' + totalWins + ' / ' + (window.tycoonWins?.WIN_PATHS?.length || 5)),
+        h('div', { className: 't-modal-actions', style: { justifyContent:'center' } },
+          h('button', { className: 't-btn', onclick: () => {
+            document.getElementById('_t_victory_modal')?.remove();
+            S.paused = false;
+            refreshTopBar();
+          }}, 'Keep Playing'),
+          h('button', { className: 't-btn secondary', onclick: () => {
+            document.getElementById('_t_victory_modal')?.remove();
+            openLegacyScreen(S.calendar?.year || 2024, 'victory');
+          }}, 'End Career (Retrospective)')
+        )
+      )
+    );
+    document.body.appendChild(ov);
+  }
+
   // Polish phase started — prompt player for marketing channels (Phase 4E)
   document.addEventListener('tycoon:project-polish-started', (e) => {
     // Only auto-prompt for own IP (contracts don't get marketing)
@@ -1745,6 +1778,7 @@
       if (window.tycoonMarket) window.tycoonMarket.startTick();
       if (window.tycoonAwards) window.tycoonAwards.startTick();
       if (window.tycoonSubsidiaries) window.tycoonSubsidiaries.startTick();
+      if (window.tycoonWins) window.tycoonWins.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -1764,6 +1798,7 @@
       if (window.tycoonMarket) window.tycoonMarket.stopTick();
       if (window.tycoonAwards) window.tycoonAwards.stopTick();
       if (window.tycoonSubsidiaries) window.tycoonSubsidiaries.stopTick();
+      if (window.tycoonWins) window.tycoonWins.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
