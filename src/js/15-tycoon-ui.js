@@ -1705,12 +1705,21 @@
   }
 
   // ---------- Toast system ----------
-  function pushToast(msg, kind) {
-    let stack = document.querySelector('.t-toast-stack');
-    if (!stack) {
-      stack = h('div', { className: 't-toast-stack' });
-      document.body.appendChild(stack);
+  // Cache the stack element: pushToast fires on nearly every tick (payroll,
+  // research, warnings, …) — a querySelector per call adds up over a long
+  // career. Element lives until tycoonUI.exit(), which clears the cache.
+  let _toastStack = null;
+  function getToastStack() {
+    if (_toastStack && _toastStack.isConnected) return _toastStack;
+    _toastStack = document.querySelector('.t-toast-stack');
+    if (!_toastStack) {
+      _toastStack = h('div', { className: 't-toast-stack' });
+      document.body.appendChild(_toastStack);
     }
+    return _toastStack;
+  }
+  function pushToast(msg, kind) {
+    const stack = getToastStack();
     const t = h('div', { className: 't-toast' }, msg);
     if (kind === 'win') t.style.borderLeftColor = '#f0883e';
     stack.appendChild(t);
@@ -1746,6 +1755,11 @@
     _weekLastSpeedSeen = S.speed;
     _weekTickResetUnsub = window.tycoonTime.onTick(() => { _weekElapsedMs = 0; });
 
+    // Cache the fill element — the top bar is rebuilt by refreshTopBar(),
+    // which replaces the node, so we re-query only when our cached node
+    // gets detached from the DOM. Saves ~60 querySelector calls/second.
+    let fill = null;
+
     const loop = () => {
       const now = performance.now();
       const dt = now - _weekLastFrameMs;
@@ -1764,7 +1778,7 @@
       const tickMs = _WEEK_BASE_MS / Math.max(1, S.speed || 1);
       const pct = Math.min(100, (_weekElapsedMs / tickMs) * 100);
 
-      const fill = document.querySelector('.t-cal-progress-fill');
+      if (!fill || !fill.isConnected) fill = document.querySelector('.t-cal-progress-fill');
       if (fill) fill.style.width = pct.toFixed(1) + '%';
 
       _weekRafHandle = requestAnimationFrame(loop);
@@ -1875,7 +1889,12 @@
   // Megacorp exit (Phase 5E) — immediate retrospective
   document.addEventListener('tycoon:megacorp-exit', (e) => {
     pushToast('💰 Sold to Megacorp for ' + fmtMoney(e.detail.price) + '! You\'re retired in splendor.', 'win');
-    setTimeout(() => openLegacyScreen(S.calendar?.year || 2024, 'victory'), 1500);
+    setTimeout(() => {
+      // Guard: if the player exits to the slot screen within the 1.5s
+      // window, don't open the retrospective over the slot screen.
+      if (!getRootEl()) return;
+      openLegacyScreen(S.calendar?.year || 2024, 'victory');
+    }, 1500);
   });
 
   // Achievements (Phase 5G)
@@ -2142,6 +2161,7 @@
       const root = getRootEl();
       if (root) root.remove();
       document.querySelector('.t-toast-stack')?.remove();
+      _toastStack = null;  // clear cache so re-entry into tycoon gets a fresh stack
       console.info('[tycoon-ui] exited tycoon mode');
     },
     refresh() { refreshTopBar(); refreshMain(); },
