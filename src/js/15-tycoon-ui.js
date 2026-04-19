@@ -1109,6 +1109,8 @@
     const founderEq = fin.founderEquity();
     const totalDil = fin.totalDilution();
     const rounds = (S.vcRounds || []);
+    const ipoState = S.ipo || {};
+    const canIpo = fin.canIPO();
 
     // Equity breakdown
     const equityRows = [h('div', { className: 't-finance-row' },
@@ -1154,7 +1156,41 @@
       ));
     }
 
-    return h('div', null, ...equityRows, ...available);
+    // IPO section
+    const ipoRows = [];
+    if (ipoState.completed) {
+      ipoRows.push(h('div', { style:{padding:'8px 10px', background:'#0c2d4e', border:'1px solid #1f6feb', borderRadius:'4px', marginTop:'8px'} },
+        h('div', { style:{color:'#58a6ff', fontWeight:'700', fontSize:'0.9rem'} },
+          '🔔 PUBLIC COMPANY — IPO\'d ' + ipoState.closedAtYear),
+        h('div', { style:{color:'#8b949e', fontSize:'0.72rem', marginTop:'2px'} },
+          'Valuation at IPO: ' + fmtMoney(ipoState.valuation) + ' · Net raised: ' + fmtMoney(ipoState.netRaise) +
+          ' · Public float: 20% · Quarterly earnings now required')
+      ));
+    } else {
+      const val = fin.currentValuation();
+      ipoRows.push(h('div', { style:{padding:'8px 10px', background:'#0d1117', border:'1px solid #21262d', borderRadius:'4px', marginTop:'8px'} },
+        h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center'} },
+          h('div', null,
+            h('div', { style:{color:'#f0f6fc', fontWeight:'700', fontSize:'0.85rem'} }, '🔔 Go Public (IPO)'),
+            h('div', { style:{color:'#8b949e', fontSize:'0.72rem', marginTop:'2px'} },
+              'Est. valuation: ' + fmtMoney(val) + ' · requires $500M val + Fame 200+ + critic 85+ hit · 5% banker fees'),
+            !canIpo.ok && h('div', { style:{color:'#f0883e', fontSize:'0.7rem', marginTop:'2px'} },
+              '🔒 ' + canIpo.reason)
+          ),
+          canIpo.ok && h('button', { className: 't-btn', onclick: () => {
+            if (!confirm('Take the studio public? Raises ~' + fmtMoney(val * 0.20 * 0.95) + ' net. You can\'t un-IPO.')) return;
+            const r = fin.takeIPO();
+            if (!r.ok) { pushToast(r.error); return; }
+            pushToast('🔔 IPO closed! Net raise ' + fmtMoney(r.netRaise), 'win');
+            document.getElementById('_t_finance_modal')?.remove();
+            openFinanceModal();
+            refreshTopBar();
+          }}, '🔔 IPO Now')
+        )
+      ));
+    }
+
+    return h('div', null, ...equityRows, ...available, ...ipoRows);
   }
 
   function renderLoansSection() {

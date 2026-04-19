@@ -199,6 +199,109 @@
     return (S.vcRounds || []).some(r => r.type === roundId);
   }
 
+  // ========== IPO (Phase 5B) ==========
+  function currentValuation() {
+    ensureCapTable();
+    const annualRev = (S.tRevenue || 0) / Math.max(1, (S.calendar?.year || 1980) - 1980 + 1);
+    const fameBoost = 1 + ((S.tFame || 0) / 500);   // fame up to 500 = 2× valuation
+    const growthBoost = 1.5; // post-IPO assumption
+    return Math.round(annualRev * 5 * fameBoost * growthBoost);
+  }
+
+  function canIPO() {
+    if (S.ipo?.completed) return { ok: false, reason: 'Already public' };
+    const val = currentValuation();
+    if (val < 500_000_000) return { ok: false, reason: 'Valuation < $500M (need ' + ((500_000_000 / 1_000_000).toFixed(0)) + 'M, have ' + (val/1_000_000).toFixed(0) + 'M)' };
+    if ((S.tFame || 0) < 200) return { ok: false, reason: 'Fame < 200 (have ' + (S.tFame || 0) + ')' };
+    const hasHit = (S.projects?.shipped || []).some(p => !p.isContract && (p.criticScore || 0) >= 85);
+    if (!hasHit) return { ok: false, reason: 'No critic 85+ own-IP hit yet' };
+    return { ok: true, valuation: val };
+  }
+
+  function takeIPO() {
+    const check = canIPO();
+    if (!check.ok) return { ok: false, error: check.reason };
+    const valuation = check.valuation;
+    const newEquityOffered = 0.20;     // 20% of company offered to public
+    const grossRaise = Math.round(valuation * newEquityOffered);
+    const bankerFees = Math.round(grossRaise * 0.05);
+    const netRaise = grossRaise - bankerFees;
+    // Pay banker fees immediately
+    S.cash -= bankerFees;
+    S.tExpenses = (S.tExpenses || 0) + bankerFees;
+    // Dilute all existing holders proportionally (same math as VC)
+    ensureCapTable();
+    const existingVCs = { ...S.capTable.vcEquity };
+    const scaleFactor = (1 - newEquityOffered);
+    S.capTable.founderEquity *= scaleFactor;
+    for (const k of Object.keys(existingVCs)) {
+      S.capTable.vcEquity[k] = existingVCs[k] * scaleFactor;
+    }
+    S.capTable.vcEquity['public'] = newEquityOffered;
+    // Player pockets the raise (in real life, proceeds split — we simplify)
+    S.cash += netRaise;
+    // Record IPO
+    S.ipo = {
+      completed: true,
+      closedAtWeek: window.tycoonProjects?.absoluteWeek?.() || 0,
+      closedAtYear: S.calendar?.year || 1980,
+      valuation,
+      grossRaise,
+      netRaise,
+      bankerFees,
+    };
+    // Huge Fame spike
+    S.fame = (S.fame || 0) + 50;
+    S.tFame = (S.tFame || 0) + 50;
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') {
+      log('🔔 Studio IPO! Valuation $' + (valuation/1_000_000).toFixed(0) + 'M. Raised net $' + (netRaise/1_000_000).toFixed(0) + 'M after 5% banker fees. +50 Fame.');
+    }
+    document.dispatchEvent(new CustomEvent('tycoon:ipo', { detail: { valuation, netRaise } }));
+    return { ok: true, valuation, netRaise };
+  }
+
+  // ---------- Post-IPO quarterly earnings pressure ----------
+  // Every 12 weeks (a quarter) compare current rev trajectory vs expectations.
+  let _weeksSinceEarnings = 0;
+  let _lastRevenueCheck = null;
+  function onEarningsTick() {
+    if (!S.ipo?.completed) return;
+    _weeksSinceEarnings += 1;
+    if (_weeksSinceEarnings < 12) return;
+    _weeksSinceEarnings = 0;
+
+    if (_lastRevenueCheck == null) {
+      _lastRevenueCheck = S.tRevenue || 0;
+      return;
+    }
+    const growth = ((S.tRevenue || 0) - _lastRevenueCheck) / Math.max(1, _lastRevenueCheck);
+    _lastRevenueCheck = S.tRevenue || 0;
+
+    if (growth < 0.05) {
+      // Missed forecast
+      if (typeof log === 'function') log('📉 Missed earnings forecast — stock drops, morale hit');
+      // Morale penalty to all employees + founder
+      if (S.founder) S.founder.morale = Math.max(0, (S.founder.morale || 70) - 5);
+      for (const e of (S.employees || [])) e.morale = Math.max(0, (e.morale || 70) - 5);
+      document.dispatchEvent(new CustomEvent('tycoon:ipo-missed-earnings'));
+    } else if (growth > 0.2) {
+      // Strong beat
+      if (typeof log === 'function') log('📈 Strong earnings beat — stock rises, morale up');
+      if (S.founder) S.founder.morale = Math.min(100, (S.founder.morale || 70) + 5);
+      for (const e of (S.employees || [])) e.morale = Math.min(100, (e.morale || 70) + 5);
+      S.fame = (S.fame || 0) + 3;
+      S.tFame = (S.tFame || 0) + 3;
+    }
+  }
+
+  // Hook earnings tick alongside existing ones
+  const _origOnWeekTick = onWeekTick;
+  onWeekTick = function() {
+    _origOnWeekTick();
+    onEarningsTick();
+  };
+
   function ensureCapTable() {
     if (!S.capTable) {
       S.capTable = {
@@ -285,6 +388,10 @@
     takeVCRound,
     founderEquity,
     totalDilution,
+    // IPO (Phase 5B)
+    currentValuation,
+    canIPO,
+    takeIPO,
     startTick: startFinanceTick,
     stopTick: stopFinanceTick,
     state() {
