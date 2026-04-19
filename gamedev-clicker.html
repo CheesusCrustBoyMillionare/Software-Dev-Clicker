@@ -9515,6 +9515,14 @@ let _clockValidated = false;
 .tycoon-topbar .t-stat-val { font-weight: 700; font-size: 1rem; color: #f0f6fc; }
 .tycoon-topbar .t-stat-lbl { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; }
 .tycoon-topbar .t-cal { color: #79c0ff; font-size: 1.1rem; font-weight: 700; }
+.tycoon-topbar .t-cal-progress {
+  margin-top: 4px; width: 140px; height: 4px;
+  background: #21262d; border-radius: 2px; overflow: hidden;
+}
+.tycoon-topbar .t-cal-progress-fill {
+  height: 100%; background: linear-gradient(90deg, #1f6feb, #58a6ff);
+  border-radius: 2px; transition: width 0.4s ease-out;
+}
 .tycoon-topbar .t-speed { margin-left: auto; display: flex; gap: 4px; }
 .tycoon-topbar .t-speed button {
   background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 10px;
@@ -9765,9 +9773,15 @@ let _clockValidated = false;
   function renderTopBar() {
     const topbar = h('div', { className: 't-topbar tycoon-topbar' });
     const eraLabel = window.tycoonEra ? window.tycoonEra.formatDateLine(S.calendar) : '';
+    // Year progress: 4 weeks × 12 months = 48 weeks/year
+    const wkOfYear = ((S.calendar?.month || 1) - 1) * 4 + (S.calendar?.week || 1);
+    const yearPct = Math.max(0, Math.min(100, (wkOfYear / 48) * 100));
     const cal = h('div', { className: 't-cal' },
       window.tycoonTime.formatCalendar(S.calendar),
-      eraLabel ? h('div', { style:{fontSize:'0.65rem', color:'#8957e5', fontWeight:'600', marginTop:'2px'} }, eraLabel) : null
+      eraLabel ? h('div', { style:{fontSize:'0.65rem', color:'#8957e5', fontWeight:'600', marginTop:'2px'} }, eraLabel) : null,
+      h('div', { className: 't-cal-progress', title: 'Week ' + wkOfYear + ' of 48' },
+        h('div', { className: 't-cal-progress-fill', style: { width: yearPct + '%' } })
+      )
     );
     const cash = h('div', { className: 't-stat' },
       h('div', { className: 't-stat-val' }, fmtMoney(S.cash)),
