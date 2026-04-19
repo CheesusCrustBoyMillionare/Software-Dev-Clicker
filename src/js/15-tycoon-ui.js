@@ -540,7 +540,13 @@
     const contractRev = shipped.filter(p => p.isContract).reduce((s,p) => s + (p.payment||0), 0);
     const ipRev = shipped.filter(p => !p.isContract).reduce((s,p) => s + (p.launchSales||0), 0);
     const netProfit = (S.tRevenue || 0) - (S.tExpenses || 0);
-    const runwayMonths = S.cash > 0 ? '∞' : '0'; // no recurring costs yet in Phase 1
+    // Runway from the employees module (Phase 2E)
+    const runwayM = window.tycoonFinance?.currentRunwayMonths?.() ?? Infinity;
+    const runwayStr = runwayM === Infinity || runwayM > 9999 ? '∞' :
+                       runwayM.toFixed(1) + ' months';
+    const runwayKind = runwayM === Infinity ? 'positive' : runwayM < 3 ? 'negative' : runwayM < 6 ? '' : 'positive';
+    const weeklyBurn = window.tycoonEmployees?.weeklyBurn?.() || 0;
+    const annualBurn = window.tycoonEmployees?.annualBurn?.() || 0;
 
     const row = (lbl, val, kind) => h('div', { className: 't-finance-row' + (kind ? ' ' + kind : '') },
       h('span', { className: 'lbl' }, lbl),
@@ -552,7 +558,8 @@
         h('h2', null, '💰 Finance'),
         h('div', { style: { marginBottom: '16px' } },
           row('Current Cash', fmtMoney(S.cash), 'positive'),
-          row('Runway', runwayMonths + ' months'),
+          row('Runway', runwayStr, runwayKind),
+          row('Annual Burn', fmtMoney(annualBurn)),
           row('Difficulty', (S.difficulty || 'normal').toUpperCase())
         ),
         h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Lifetime'),
@@ -586,12 +593,54 @@
             return row((tierDef.icon || '') + ' ' + tierDef.label, status);
           })
         ),
+        // Loans section (Phase 2E)
+        h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Loans'),
+        renderLoansSection(),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: () => document.getElementById('_t_finance_modal')?.remove() }, 'Close')
         )
       )
     );
     document.body.appendChild(ov);
+  }
+
+  function renderLoansSection() {
+    if (!window.tycoonFinance) return h('div', { className:'t-empty' }, 'Loans not available.');
+    const fin = window.tycoonFinance;
+    const canLoan = fin.canTakeLoan();
+    const maxLoan = fin.maxLoanAmount();
+    const loans = S.loans || [];
+
+    const loansList = loans.length === 0 ?
+      h('div', { className: 't-empty', style:{padding:'8px 0',textAlign:'left',fontStyle:'normal'} },
+        'No active loans. ' + (canLoan ? 'Eligible up to ' + fmtMoney(maxLoan) + '.' : 'Unlock at Fame 5+.')) :
+      h('div', null, ...loans.map(l =>
+        h('div', { className: 't-finance-row' },
+          h('span', { className: 'lbl' }, '  · $' + l.principal.toLocaleString() + ' @ 10% APR'),
+          h('span', { className: 'val' }, fmtMoney(l.monthlyPayment) + '/mo · ' + l.monthsRemaining + 'mo left')
+        )
+      ));
+
+    const takeLoanBtn = canLoan ? h('button', {
+      className: 't-btn secondary',
+      style: { marginTop:'8px' },
+      onclick: () => {
+        const str = prompt('Loan amount (up to ' + fmtMoney(maxLoan) + '):', String(Math.min(maxLoan, 50000)));
+        const amt = parseInt(str, 10);
+        if (isNaN(amt)) return;
+        const r = fin.takeLoan(amt);
+        if (!r.ok) pushToast(r.error);
+        else {
+          pushToast('Loan approved: ' + fmtMoney(r.loan.principal));
+          // Re-render modal to show new loan
+          document.getElementById('_t_finance_modal')?.remove();
+          openFinanceModal();
+          refreshTopBar();
+        }
+      }
+    }, '🏦 Take Out a Loan') : null;
+
+    return h('div', null, loansList, takeLoanBtn);
   }
 
   function refreshMain() {
@@ -802,6 +851,24 @@
   document.addEventListener('tycoon:employee-fired', () => refreshMain());
   document.addEventListener('tycoon:payroll', () => { refreshTopBar(); });
 
+  // Runway warnings — show toast + auto-pause (2E)
+  document.addEventListener('tycoon:runway-warning', (e) => {
+    pushToast(e.detail.message);
+    refreshTopBar();
+  });
+  document.addEventListener('tycoon:runway-critical', (e) => {
+    pushToast(e.detail.message);
+    refreshTopBar();
+  });
+  document.addEventListener('tycoon:loan-taken', () => {
+    refreshTopBar();
+    refreshMain();
+  });
+  document.addEventListener('tycoon:client-tier-unlocked', (e) => {
+    const tierDef = window.CLIENT_TIERS?.[e.detail.tierId];
+    if (tierDef) pushToast('🔓 Unlocked ' + tierDef.icon + ' ' + tierDef.label + ' clients!', 'win');
+  });
+
   // ---------- Character creator modal ----------
   function openCharacterCreator(onConfirm) {
     injectStyles();
@@ -936,6 +1003,7 @@
       if (window.tycoonContracts) window.tycoonContracts.startTick();
       if (window.tycoonEmployees) window.tycoonEmployees.startTick();
       if (window.tycoonHiring) window.tycoonHiring.startTick();
+      if (window.tycoonFinance) window.tycoonFinance.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -946,6 +1014,7 @@
       if (window.tycoonContracts) window.tycoonContracts.stopTick();
       if (window.tycoonEmployees) window.tycoonEmployees.stopTick();
       if (window.tycoonHiring) window.tycoonHiring.stopTick();
+      if (window.tycoonFinance) window.tycoonFinance.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
