@@ -119,6 +119,72 @@
 }
 .t-proj-card:hover { border-color: #58a6ff; }
 .t-proj-card.shipped { opacity: 0.85; }
+.t-proj-card.t-proj-clickable { cursor: pointer; }
+.t-proj-card.t-proj-clickable:hover { opacity: 1; border-color: #79c0ff; }
+
+/* Shipped-project detail modal (sales graph + breakdown) */
+.t-pd-section { margin-top: 16px; }
+.t-pd-section h3 {
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #8b949e; margin-bottom: 8px; font-weight: 700;
+}
+.t-pd-stat-row { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: #c9d1d9; }
+.t-pd-stat-row .k { color: #8b949e; margin-right: 4px; }
+.t-pd-stat-row .v { color: #f0f6fc; font-weight: 700; }
+.t-pd-scores { color: #79c0ff; font-size: 0.95rem; font-weight: 700; }
+.t-pd-scores .lbl {
+  color: #f0883e; font-size: 0.75rem; padding: 2px 8px; margin-left: 8px;
+  background: rgba(240, 136, 62, 0.12); border: 1px solid rgba(240, 136, 62, 0.4);
+  border-radius: 3px; vertical-align: middle;
+}
+.t-pd-awards { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.t-pd-award {
+  padding: 3px 8px; font-size: 0.75rem;
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  border-radius: 3px; color: #f1e05a;
+}
+.t-pd-breakdown { font-size: 0.8rem; color: #8b949e; line-height: 1.6; }
+.t-pd-breakdown .mul { color: #7ee787; }
+.t-pd-breakdown .neg { color: #ff7b72; }
+.t-pd-review {
+  padding: 8px 12px; margin-bottom: 6px;
+  background: #0d1117; border-left: 3px solid #30363d; border-radius: 3px;
+  font-size: 0.8rem; font-style: italic; color: #c9d1d9;
+}
+.t-pd-review .src { display: block; font-style: normal; color: #8b949e; font-size: 0.7rem; margin-top: 4px; }
+
+/* SVG graph */
+.t-pd-graph-wrap { position: relative; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 8px; }
+.t-pd-graph { display: block; width: 100%; height: 220px; }
+.t-pd-graph-bar { fill: #1f6feb; opacity: 0.8; }
+.t-pd-graph-bar.projected { fill: #1f6feb; opacity: 0.25; }
+.t-pd-graph-cum { fill: none; stroke: #7ee787; stroke-width: 2; }
+.t-pd-graph-cum.projected { stroke-dasharray: 4 3; opacity: 0.7; }
+.t-pd-graph-breakeven { stroke: #f85149; stroke-width: 1; stroke-dasharray: 3 2; fill: none; }
+.t-pd-graph-axis { stroke: #30363d; stroke-width: 1; }
+.t-pd-graph-label { fill: #8b949e; font-size: 9px; font-family: inherit; }
+.t-pd-graph-label.axis-title { fill: #c9d1d9; font-weight: 700; font-size: 10px; }
+.t-pd-tooltip {
+  position: absolute; pointer-events: none;
+  background: #161b22; border: 1px solid #30363d; border-radius: 4px;
+  padding: 6px 10px; font-size: 0.75rem; color: #c9d1d9;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  white-space: nowrap; transition: opacity 0.15s;
+}
+.t-pd-tooltip .wk { color: #79c0ff; font-weight: 700; }
+.t-pd-tooltip .wkly { color: #1f6feb; }
+.t-pd-tooltip .cum { color: #7ee787; }
+.t-pd-tooltip .proj-tag { color: #8b949e; font-style: italic; }
+.t-pd-legend {
+  display: flex; gap: 16px; margin-top: 6px; font-size: 0.7rem; color: #8b949e;
+  justify-content: center; flex-wrap: wrap;
+}
+.t-pd-legend .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; vertical-align: middle; }
+.t-pd-legend .sw-bar { background: #1f6feb; }
+.t-pd-legend .sw-cum { background: #7ee787; }
+.t-pd-legend .sw-proj { background: #1f6feb; opacity: 0.3; }
+.t-pd-legend .sw-breakeven { background: #f85149; }
 .t-proj-card .t-proj-name { font-weight: 700; color: #f0f6fc; }
 .t-proj-card .t-proj-meta { color: #8b949e; font-size: 0.75rem; margin-top: 2px; }
 .t-proj-card .t-proj-phase { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #79c0ff; margin-top: 6px; font-weight: 600; }
@@ -537,7 +603,17 @@
 
     const typeDef = window.PROJECT_TYPES[proj.type];
     const platDef = proj.platform ? window.tycoonPlatforms?.PLATFORM_BY_ID?.[proj.platform] : null;
-    return h('div', { className: 't-proj-card ' + (isShipped ? 'shipped' : '') },
+    // Own-IP shipped projects open the detail/graph modal on click.
+    // Contracts are non-clickable (no tail, no meaningful sales graph).
+    const isClickable = isShipped && !proj.isContract;
+    const cardProps = {
+      className: 't-proj-card ' + (isShipped ? 'shipped' : '') + (isClickable ? ' t-proj-clickable' : '')
+    };
+    if (isClickable) {
+      cardProps.onclick = () => openShippedProjectModal(proj.id);
+      cardProps.title = 'Click for sales breakdown + reviews';
+    }
+    return h('div', cardProps,
       h('div', { className: 't-proj-name' },
         (typeDef?.icon || '') + ' ' + proj.name),
       h('div', { className: 't-proj-meta' },
@@ -1106,6 +1182,288 @@
     if (document.getElementById('_t_research_modal')) {
       closeResearchModal();
       openResearchModal();
+    }
+  }
+
+  // ---------- Shipped project detail modal (sales graph + breakdown) ----------
+  function closeShippedProjectModal() {
+    const ov = document.getElementById('_t_proj_detail_modal');
+    if (ov) ov.remove();
+  }
+
+  // Build the 12-week sales projection graph as inline SVG.
+  // Data model:
+  //   Week 0: launchSales (big spike bar)
+  //   Weeks 1..tailWeeks: launchSales × 0.10 × (userScore/100) per week
+  //   Weeks past tail: 0
+  // Weeks at or before currentWeek-since-launch are "actual" (solid);
+  // weeks past are "projected" (dashed + transparent bars).
+  function buildSalesGraph(proj) {
+    const LAUNCH_W = 0;
+    const MAX_WEEKS = 12;
+    const launchSales = proj.launchSales || 0;
+    const userScore = proj.userScore || 0;
+    const tailWeeks = proj.tailWeeksTotal || Math.min(12, Math.round(userScore / 10));
+    const weeklyTailRev = Math.round(launchSales * 0.10 * (userScore / 100));
+    const currentWk = window.tycoonProjects?.absoluteWeek?.() || 0;
+    const weeksSinceLaunch = Math.max(0, currentWk - (proj.shippedAtWeek || 0));
+    // Build per-week data
+    const weekly = [];
+    const cumulative = [];
+    let cum = 0;
+    for (let wk = 0; wk <= MAX_WEEKS; wk++) {
+      let val = 0;
+      if (wk === LAUNCH_W) val = launchSales;
+      else if (wk <= tailWeeks) val = weeklyTailRev;
+      weekly.push(val);
+      cum += val;
+      cumulative.push(cum);
+    }
+    const maxWeekly = Math.max(...weekly, 1);
+    const maxCum = Math.max(...cumulative, 1);
+    const marketingSpend = proj.marketingSpend || 0;
+
+    // SVG dimensions
+    const W = 600, H = 220;
+    const padL = 52, padR = 46, padT = 14, padB = 28;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const colW = plotW / (MAX_WEEKS + 1);
+
+    // Format helper for axis labels
+    const fmtK = (v) => {
+      if (v >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
+      if (v >= 1e3) return '$' + (v/1e3).toFixed(0) + 'K';
+      return '$' + Math.round(v);
+    };
+
+    // Y positions
+    const yForWeekly = (v) => padT + plotH - (v / maxWeekly) * plotH;
+    const yForCum    = (v) => padT + plotH - (v / maxCum) * plotH;
+
+    // Build SVG elements as string for simplicity
+    const parts = [];
+    // axes
+    parts.push(`<line class="t-pd-graph-axis" x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+plotH}"/>`);
+    parts.push(`<line class="t-pd-graph-axis" x1="${W-padR}" y1="${padT}" x2="${W-padR}" y2="${padT+plotH}"/>`);
+    parts.push(`<line class="t-pd-graph-axis" x1="${padL}" y1="${padT+plotH}" x2="${W-padR}" y2="${padT+plotH}"/>`);
+
+    // Left y-axis labels (weekly revenue)
+    for (let i = 0; i <= 4; i++) {
+      const v = maxWeekly * (i / 4);
+      const y = padT + plotH - (i/4)*plotH;
+      parts.push(`<text class="t-pd-graph-label" x="${padL-4}" y="${y+3}" text-anchor="end">${fmtK(v)}</text>`);
+    }
+    // Right y-axis labels (cumulative)
+    for (let i = 0; i <= 4; i++) {
+      const v = maxCum * (i / 4);
+      const y = padT + plotH - (i/4)*plotH;
+      parts.push(`<text class="t-pd-graph-label" x="${W-padR+4}" y="${y+3}" text-anchor="start">${fmtK(v)}</text>`);
+    }
+    // Axis titles
+    parts.push(`<text class="t-pd-graph-label axis-title" x="${padL-40}" y="${padT-2}" text-anchor="start">Weekly</text>`);
+    parts.push(`<text class="t-pd-graph-label axis-title" x="${W-padR+4}" y="${padT-2}" text-anchor="start">Cumul.</text>`);
+
+    // X-axis labels (weeks)
+    for (let wk = 0; wk <= MAX_WEEKS; wk += 2) {
+      const x = padL + colW * (wk + 0.5);
+      parts.push(`<text class="t-pd-graph-label" x="${x}" y="${H-padB+12}" text-anchor="middle">w${wk}</text>`);
+    }
+
+    // Bars (weekly)
+    for (let wk = 0; wk <= MAX_WEEKS; wk++) {
+      const val = weekly[wk];
+      if (val <= 0) continue;
+      const barH = (val / maxWeekly) * plotH;
+      const x = padL + colW * wk + 2;
+      const y = padT + plotH - barH;
+      const projected = wk > weeksSinceLaunch;
+      parts.push(`<rect class="t-pd-graph-bar${projected ? ' projected' : ''}" x="${x}" y="${y}" width="${colW-4}" height="${barH}" data-wk="${wk}"/>`);
+    }
+
+    // Cumulative line — split into past (solid) and future (dashed) segments
+    const buildLine = (fromWk, toWk, projected) => {
+      const pts = [];
+      for (let wk = fromWk; wk <= toWk; wk++) {
+        const x = padL + colW * (wk + 0.5);
+        const y = yForCum(cumulative[wk]);
+        pts.push(`${x},${y}`);
+      }
+      if (pts.length < 2) return '';
+      return `<polyline class="t-pd-graph-cum${projected ? ' projected' : ''}" points="${pts.join(' ')}"/>`;
+    };
+    const splitWk = Math.min(weeksSinceLaunch, MAX_WEEKS);
+    if (splitWk >= 1) parts.push(buildLine(0, splitWk, false));
+    if (splitWk < MAX_WEEKS) parts.push(buildLine(Math.max(0, splitWk), MAX_WEEKS, true));
+
+    // Breakeven horizontal line (marketing spend on cumulative axis)
+    if (marketingSpend > 0 && marketingSpend <= maxCum) {
+      const by = yForCum(marketingSpend);
+      parts.push(`<line class="t-pd-graph-breakeven" x1="${padL}" y1="${by}" x2="${W-padR}" y2="${by}"/>`);
+      parts.push(`<text class="t-pd-graph-label" x="${W-padR-4}" y="${by-3}" text-anchor="end" style="fill:#ff7b72">breakeven: ${fmtK(marketingSpend)}</text>`);
+    }
+
+    const svg = `<svg class="t-pd-graph" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-max-weekly="${maxWeekly}" data-max-cum="${maxCum}" data-weeks-since-launch="${weeksSinceLaunch}">${parts.join('')}</svg>`;
+    return { svg, weekly, cumulative, weeksSinceLaunch, tailWeeks, weeklyTailRev, maxWeekly, maxCum };
+  }
+
+  function openShippedProjectModal(projId) {
+    closeShippedProjectModal();
+    const proj = (S.projects?.shipped || []).find(p => p.id === projId);
+    if (!proj) return;
+    const typeDef = window.PROJECT_TYPES[proj.type];
+    const platDef = proj.platform ? window.tycoonPlatforms?.PLATFORM_BY_ID?.[proj.platform] : null;
+
+    // --- Awards won by this project (match by title across yearly ceremonies) ---
+    const awardsWon = [];
+    for (const year of (S.awards?.history || [])) {
+      const ws = year.winners || {};
+      if (ws.goty?.source === 'player' && ws.goty.title === proj.name) awardsWon.push('🏆 Game of the Year ' + year.year);
+      if (ws.risingStar?.source === 'player' && ws.risingStar.title === proj.name) awardsWon.push('⭐ Rising Star ' + year.year);
+      if (ws.innovation?.source === 'player' && ws.innovation.title === proj.name) awardsWon.push('💡 Innovation ' + year.year);
+      for (const [genre, w] of Object.entries(ws.bestInGenre || {})) {
+        if (w.source === 'player' && w.title === proj.name) awardsWon.push('🎯 Best ' + (window.PROJECT_TYPES[genre]?.label || genre) + ' ' + year.year);
+      }
+    }
+
+    // --- Portfolio comparison: this project vs studio average own-IP revenue ---
+    const ownIp = (S.projects?.shipped || []).filter(p => !p.isContract && p.id !== proj.id);
+    const avgRev = ownIp.length
+      ? Math.round(ownIp.reduce((s, p) => s + (p.launchSales || 0) + (p.tailSales || 0), 0) / ownIp.length)
+      : 0;
+    const thisTotal = (proj.launchSales || 0) + (proj.tailSales || 0);
+    let portfolioComparison = null;
+    if (ownIp.length > 0 && avgRev > 0) {
+      const pct = Math.round(((thisTotal / avgRev) - 1) * 100);
+      const sign = pct >= 0 ? '+' : '';
+      const color = pct >= 0 ? '#7ee787' : '#ff7b72';
+      portfolioComparison = h('div', { style: { color, fontSize: '0.85rem' } },
+        sign + pct + '% vs studio average (avg ' + fmtMoney(avgRev) + ' over ' + ownIp.length + ' own-IP ships)');
+    }
+
+    // --- Launch breakdown ---
+    // Values are stored on the project at ship time
+    const critic = proj.criticScore || 0;
+    let thresholdMul = 1;
+    if (critic >= 98) thresholdMul = 25;
+    else if (critic >= 95) thresholdMul = 10;
+    const base = Math.round(Math.pow(Math.max(critic, 10) / 50, 2.0) * 100000);
+    const scopeMul = proj.scope === 'small' ? 1 : proj.scope === 'medium' ? 2.5 : 6;
+    const platformMul = proj.platformPhaseMult && proj.platformRoyaltyCut != null
+      ? proj.platformPhaseMult * (1 - proj.platformRoyaltyCut) : null;
+    const synergies = proj.marketingSynergies || [];
+    const breakdownParts = [
+      h('div', null, h('span', { className: 'k' }, 'Base from critic ' + critic + (thresholdMul > 1 ? ' × ' + thresholdMul + ' jackpot' : '') + ':'), ' ', h('span', { className: 'v' }, fmtMoney(base * thresholdMul))),
+      h('div', null, h('span', { className: 'k' }, 'Scope:'), ' ', h('span', { className: 'mul' }, '× ' + scopeMul)),
+      platformMul != null ? h('div', null, h('span', { className: 'k' }, (platDef?.icon || '') + ' ' + (platDef?.name || 'Platform') + ':'), ' ', h('span', { className: 'mul' }, '× ' + platformMul.toFixed(2) + ' (royalty −' + Math.round((proj.platformRoyaltyCut || 0) * 100) + '%)')) : null,
+      (synergies && synergies.length) ? h('div', null, h('span', { className: 'k' }, 'Marketing synergies:'), ' ', h('span', { className: 'mul' }, synergies.join(', '))) : null,
+      (proj.launchNotes && proj.launchNotes.length) ? h('div', null, ...proj.launchNotes.map(n => h('div', null, h('span', { className: 'k' }, n)))) : null,
+      h('div', { style: { marginTop: '8px', fontSize: '0.85rem' } },
+        h('span', { className: 'k' }, 'Launch sales:'), ' ', h('span', { className: 'v' }, fmtMoney(proj.launchSales || 0)),
+        proj.tailSales ? h('span', null, ' · ', h('span', { className: 'k' }, 'tail so far:'), ' ', h('span', { className: 'v' }, fmtMoney(proj.tailSales))) : null,
+        proj.marketingSpend ? h('span', null, ' · ', h('span', { className: 'k' }, 'marketing spend:'), ' ', h('span', { className: 'v', style:{color:'#ff7b72'} }, fmtMoney(proj.marketingSpend))) : null
+      )
+    ].filter(Boolean);
+
+    // Build graph
+    const graphData = buildSalesGraph(proj);
+
+    // Scores line
+    const delta = (proj.userScore || 0) - (proj.criticScore || 0);
+    const label = delta >= 10 ? ' — cult hit' : delta <= -10 ? ' — reviewer favorite' : '';
+    const scoreLine = h('div', { className: 't-pd-scores' },
+      'Critic ' + proj.criticScore + '/100  ·  Users ' + proj.userScore + '/100',
+      label ? h('span', { className: 'lbl' }, label.replace(' — ', '')) : null
+    );
+
+    // Reviews
+    const reviewsList = (proj.reviews || []).map(r =>
+      h('div', { className: 't-pd-review' },
+        (r.stars ? '\u2605'.repeat(r.stars) + '\u2606'.repeat(Math.max(0, 5 - r.stars)) + ' — ' : '') + (r.quote || r.text || ''),
+        h('span', { className: 'src' }, '— ' + (r.source || r.publication || 'Critic'))
+      )
+    );
+
+    // Modal
+    const ov = h('div', { className: 't-modal-ov', id: '_t_proj_detail_modal',
+      onclick: (e) => { if (e.target.id === '_t_proj_detail_modal') closeShippedProjectModal(); }
+    },
+      h('div', { className: 't-modal', style: { maxWidth: '780px' } },
+        h('h2', null, (typeDef?.icon || '') + ' ' + proj.name),
+        h('div', { style: { color: '#8b949e', fontSize: '0.8rem', marginBottom: '8px' } },
+          (typeDef?.label || proj.type) + ' · ' +
+          (window.PROJECT_SCOPES[proj.scope]?.label || proj.scope) + ' scope' +
+          (platDef ? ' · ' + platDef.icon + ' ' + platDef.name : '') +
+          ' · shipped ' + (() => {
+            // Convert absolute week → "Week N, YYYY". 48 weeks per calendar year.
+            const absW = proj.shippedAtWeek || 0;
+            const year = 1980 + Math.floor(absW / 48);
+            const wkOfYear = (absW % 48) + 1;
+            return 'Week ' + wkOfYear + ', ' + year;
+          })() +
+          (proj.tailWeeksRemaining > 0
+            ? ' · earning for ' + proj.tailWeeksRemaining + ' more week' + (proj.tailWeeksRemaining === 1 ? '' : 's')
+            : ' · tail closed')
+        ),
+        scoreLine,
+        awardsWon.length > 0 ? h('div', { className: 't-pd-awards' }, ...awardsWon.map(a => h('span', { className: 't-pd-award' }, a))) : null,
+        h('div', { className: 't-pd-section' },
+          h('h3', null, 'Sales projection — 12 weeks'),
+          h('div', { className: 't-pd-graph-wrap', id: '_t_pd_graph_wrap' }),
+          h('div', { className: 't-pd-legend' },
+            h('span', null, h('span', { className: 'swatch sw-bar' }), 'Weekly (actual)'),
+            h('span', null, h('span', { className: 'swatch sw-proj' }), 'Weekly (projected)'),
+            h('span', null, h('span', { className: 'swatch sw-cum' }), 'Cumulative'),
+            proj.marketingSpend ? h('span', null, h('span', { className: 'swatch sw-breakeven' }), 'Marketing breakeven') : null
+          )
+        ),
+        h('div', { className: 't-pd-section' },
+          h('h3', null, 'Launch breakdown'),
+          h('div', { className: 't-pd-breakdown' }, ...breakdownParts)
+        ),
+        portfolioComparison ? h('div', { className: 't-pd-section' },
+          h('h3', null, 'Portfolio comparison'),
+          portfolioComparison
+        ) : null,
+        reviewsList.length ? h('div', { className: 't-pd-section' },
+          h('h3', null, 'Reviews'),
+          ...reviewsList
+        ) : null,
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn', onclick: closeShippedProjectModal }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
+
+    // Inject the SVG (innerHTML because our h() helper is for DOM nodes, not raw strings)
+    const graphWrap = document.getElementById('_t_pd_graph_wrap');
+    if (graphWrap) {
+      graphWrap.innerHTML = graphData.svg;
+      // Tooltip element
+      const tip = document.createElement('div');
+      tip.className = 't-pd-tooltip';
+      tip.style.opacity = '0';
+      graphWrap.appendChild(tip);
+      const bars = graphWrap.querySelectorAll('.t-pd-graph-bar');
+      bars.forEach(bar => {
+        bar.addEventListener('pointerenter', (e) => {
+          const wk = +bar.dataset.wk;
+          const weekly = graphData.weekly[wk];
+          const cum = graphData.cumulative[wk];
+          const projected = wk > graphData.weeksSinceLaunch;
+          tip.innerHTML =
+            '<span class="wk">Week ' + wk + (projected ? ' (projected)' : '') + '</span><br>' +
+            '<span class="wkly">Weekly: ' + fmtMoney(weekly) + '</span><br>' +
+            '<span class="cum">Cumulative: ' + fmtMoney(cum) + '</span>';
+          tip.style.opacity = '1';
+        });
+        bar.addEventListener('pointermove', (e) => {
+          const rect = graphWrap.getBoundingClientRect();
+          tip.style.left = (e.clientX - rect.left + 10) + 'px';
+          tip.style.top = (e.clientY - rect.top - 10) + 'px';
+        });
+        bar.addEventListener('pointerleave', () => { tip.style.opacity = '0'; });
+      });
     }
   }
 

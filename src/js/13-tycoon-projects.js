@@ -427,7 +427,9 @@
     proj.launchSales = computeLaunchSales(proj);
     // Sales tail tracking (filled by tail ticker below until duration elapses)
     proj.tailSales = 0;
-    proj.tailWeeksRemaining = proj.isContract ? 0 : Math.min(12, Math.round((proj.userScore || 0) / 10));
+    const tailWeeksTotal = proj.isContract ? 0 : Math.min(12, Math.round((proj.userScore || 0) / 10));
+    proj.tailWeeksTotal = tailWeeksTotal;            // immutable — for graph projection
+    proj.tailWeeksRemaining = tailWeeksTotal;        // decrements weekly
 
     // Move from active to shipped
     S.projects.active = S.projects.active.filter(p => p.id !== proj.id);
