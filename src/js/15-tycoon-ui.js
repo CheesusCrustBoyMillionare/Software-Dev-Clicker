@@ -1191,37 +1191,37 @@
     if (ov) ov.remove();
   }
 
-  // Build the 12-week sales projection graph as inline SVG.
-  // Data model:
-  //   Week 0: launchSales (big spike bar)
-  //   Weeks 1..tailWeeks: launchSales × 0.10 × (userScore/100) per week
-  //   Weeks past tail: 0
-  // Weeks at or before currentWeek-since-launch are "actual" (solid);
-  // weeks past are "projected" (dashed + transparent bars).
+  // Build the 24-week sales projection graph as inline SVG.
+  // v10.2 data model: weekRevenue(proj, weekIndex) distributes the launch
+  // spike over the first half of the (doubled) tail with front-loaded
+  // weights; the second half pays the flat tail rate.
+  //   Actual weeks (weeksSinceLaunch ≤): solid bars + solid cumulative
+  //   Projected weeks (> weeksSinceLaunch): transparent bars + dashed cum
   function buildSalesGraph(proj) {
-    const LAUNCH_W = 0;
-    const MAX_WEEKS = 12;
-    const launchSales = proj.launchSales || 0;
-    const userScore = proj.userScore || 0;
-    const tailWeeks = proj.tailWeeksTotal || Math.min(12, Math.round(userScore / 10));
-    const weeklyTailRev = Math.round(launchSales * 0.10 * (userScore / 100));
+    const MAX_WEEKS = 24;
+    const tailWeeks = proj.tailWeeksTotal || 0;
     const currentWk = window.tycoonProjects?.absoluteWeek?.() || 0;
     const weeksSinceLaunch = Math.max(0, currentWk - (proj.shippedAtWeek || 0));
-    // Build per-week data
+    // Build per-week data using the canonical formula
     const weekly = [];
     const cumulative = [];
+    const weekRev = window.tycoonProjects?.weekRevenue;
     let cum = 0;
     for (let wk = 0; wk <= MAX_WEEKS; wk++) {
-      let val = 0;
-      if (wk === LAUNCH_W) val = launchSales;
-      else if (wk <= tailWeeks) val = weeklyTailRev;
+      const val = (wk < tailWeeks && weekRev) ? (weekRev(proj, wk) || 0) : 0;
       weekly.push(val);
       cum += val;
       cumulative.push(cum);
     }
     const maxWeekly = Math.max(...weekly, 1);
     const maxCum = Math.max(...cumulative, 1);
+    // v10.2: breakeven line includes BOTH marketing spend and team salary
+    // paid across the project's duration. That's the real "what the
+    // project cost" baseline the cumulative line needs to cross to be
+    // genuinely profitable.
     const marketingSpend = proj.marketingSpend || 0;
+    const salaryCost = Math.round(proj.salaryCost || 0);
+    const breakeven = marketingSpend + salaryCost;
 
     // SVG dimensions
     const W = 600, H = 220;
@@ -1263,8 +1263,8 @@
     parts.push(`<text class="t-pd-graph-label axis-title" x="${padL-40}" y="${padT-2}" text-anchor="start">Weekly</text>`);
     parts.push(`<text class="t-pd-graph-label axis-title" x="${W-padR+4}" y="${padT-2}" text-anchor="start">Cumul.</text>`);
 
-    // X-axis labels (weeks)
-    for (let wk = 0; wk <= MAX_WEEKS; wk += 2) {
+    // X-axis labels (weeks) — every 4 weeks since we span 24 now
+    for (let wk = 0; wk <= MAX_WEEKS; wk += 4) {
       const x = padL + colW * (wk + 0.5);
       parts.push(`<text class="t-pd-graph-label" x="${x}" y="${H-padB+12}" text-anchor="middle">w${wk}</text>`);
     }
@@ -1295,15 +1295,21 @@
     if (splitWk >= 1) parts.push(buildLine(0, splitWk, false));
     if (splitWk < MAX_WEEKS) parts.push(buildLine(Math.max(0, splitWk), MAX_WEEKS, true));
 
-    // Breakeven horizontal line (marketing spend on cumulative axis)
-    if (marketingSpend > 0 && marketingSpend <= maxCum) {
-      const by = yForCum(marketingSpend);
+    // Breakeven horizontal line on the cumulative axis.
+    // v10.2: breakeven = marketing spend + total team salary paid during
+    // dev/polish/design weeks. The cumulative-revenue line crossing this
+    // is the real "profitable" moment.
+    if (breakeven > 0 && breakeven <= maxCum) {
+      const by = yForCum(breakeven);
       parts.push(`<line class="t-pd-graph-breakeven" x1="${padL}" y1="${by}" x2="${W-padR}" y2="${by}"/>`);
-      parts.push(`<text class="t-pd-graph-label" x="${W-padR-4}" y="${by-3}" text-anchor="end" style="fill:#ff7b72">breakeven: ${fmtK(marketingSpend)}</text>`);
+      const label = salaryCost > 0 && marketingSpend > 0
+        ? `breakeven: ${fmtK(breakeven)} (mkt ${fmtK(marketingSpend)} + salary ${fmtK(salaryCost)})`
+        : `breakeven: ${fmtK(breakeven)}`;
+      parts.push(`<text class="t-pd-graph-label" x="${W-padR-4}" y="${by-3}" text-anchor="end" style="fill:#ff7b72">${label}</text>`);
     }
 
     const svg = `<svg class="t-pd-graph" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-max-weekly="${maxWeekly}" data-max-cum="${maxCum}" data-weeks-since-launch="${weeksSinceLaunch}">${parts.join('')}</svg>`;
-    return { svg, weekly, cumulative, weeksSinceLaunch, tailWeeks, weeklyTailRev, maxWeekly, maxCum };
+    return { svg, weekly, cumulative, weeksSinceLaunch, tailWeeks, maxWeekly, maxCum, breakeven, salaryCost, marketingSpend };
   }
 
   function openShippedProjectModal(projId) {
@@ -1358,9 +1364,18 @@
       (synergies && synergies.length) ? h('div', null, h('span', { className: 'k' }, 'Marketing synergies:'), ' ', h('span', { className: 'mul' }, synergies.join(', '))) : null,
       (proj.launchNotes && proj.launchNotes.length) ? h('div', null, ...proj.launchNotes.map(n => h('div', null, h('span', { className: 'k' }, n)))) : null,
       h('div', { style: { marginTop: '8px', fontSize: '0.85rem' } },
-        h('span', { className: 'k' }, 'Launch sales:'), ' ', h('span', { className: 'v' }, fmtMoney(proj.launchSales || 0)),
-        proj.tailSales ? h('span', null, ' · ', h('span', { className: 'k' }, 'tail so far:'), ' ', h('span', { className: 'v' }, fmtMoney(proj.tailSales))) : null,
-        proj.marketingSpend ? h('span', null, ' · ', h('span', { className: 'k' }, 'marketing spend:'), ' ', h('span', { className: 'v', style:{color:'#ff7b72'} }, fmtMoney(proj.marketingSpend))) : null
+        h('span', { className: 'k' }, 'Launch sales total:'), ' ', h('span', { className: 'v' }, fmtMoney(proj.launchSales || 0)),
+        proj.tailSales ? h('span', null, ' · ', h('span', { className: 'k' }, 'earned so far:'), ' ', h('span', { className: 'v' }, fmtMoney(proj.tailSales))) : null
+      ),
+      h('div', { style: { marginTop: '6px', fontSize: '0.85rem' } },
+        proj.marketingSpend ? h('span', null, h('span', { className: 'k' }, 'Marketing spend:'), ' ', h('span', { className: 'v', style:{color:'#ff7b72'} }, fmtMoney(proj.marketingSpend))) : null,
+        proj.marketingSpend && proj.salaryCost ? ' · ' : null,
+        proj.salaryCost ? h('span', null, h('span', { className: 'k' }, 'Team salary paid:'), ' ', h('span', { className: 'v', style:{color:'#ff7b72'} }, fmtMoney(Math.round(proj.salaryCost)))) : null,
+        (proj.marketingSpend || proj.salaryCost)
+          ? h('span', null, ' · ', h('span', { className: 'k' }, 'Breakeven target:'), ' ',
+              h('span', { className: 'v', style:{color:'#f85149', fontWeight:'700'} },
+                fmtMoney((proj.marketingSpend || 0) + Math.round(proj.salaryCost || 0))))
+          : null
       )
     ].filter(Boolean);
 
@@ -1407,13 +1422,13 @@
         scoreLine,
         awardsWon.length > 0 ? h('div', { className: 't-pd-awards' }, ...awardsWon.map(a => h('span', { className: 't-pd-award' }, a))) : null,
         h('div', { className: 't-pd-section' },
-          h('h3', null, 'Sales projection — 12 weeks'),
+          h('h3', null, 'Sales projection — 24 weeks'),
           h('div', { className: 't-pd-graph-wrap', id: '_t_pd_graph_wrap' }),
           h('div', { className: 't-pd-legend' },
             h('span', null, h('span', { className: 'swatch sw-bar' }), 'Weekly (actual)'),
             h('span', null, h('span', { className: 'swatch sw-proj' }), 'Weekly (projected)'),
             h('span', null, h('span', { className: 'swatch sw-cum' }), 'Cumulative'),
-            proj.marketingSpend ? h('span', null, h('span', { className: 'swatch sw-breakeven' }), 'Marketing breakeven') : null
+            (proj.marketingSpend || proj.salaryCost) ? h('span', null, h('span', { className: 'swatch sw-breakeven' }), 'Breakeven (mkt + salary)') : null
           )
         ),
         h('div', { className: 't-pd-section' },

@@ -9042,6 +9042,37 @@ let _clockValidated = false;
     return elapsed >= proj.phaseWeeksRequired;
   }
 
+  // ---------- Per-week revenue for shipped own-IP project ----------
+  // v10.2: Rebuilt sales-over-time model.
+  //   - Tail duration doubled: now Math.min(24, round(user/10) * 2), min 4
+  //   - What was the week-0 lump is now distributed over the FIRST HALF of
+  //     the tail (H weeks) with weeks 0 & 1 both at peak, then linearly
+  //     declining to week H-1. Launch cash still "feels" like a spike but
+  //     spread across the first couple months.
+  //   - The SECOND HALF of the tail pays the standard per-week rate:
+  //     launchSales × 0.10 × (user/100). Good reviews → long fat tail.
+  //
+  // weekIndex: 0 = launch week, 1 = week after, …, (tailWeeksTotal − 1) = last.
+  function weekRevenue(proj, weekIndex) {
+    if (!proj || proj.isContract) return 0;
+    const total = proj.tailWeeksTotal || 0;
+    if (weekIndex < 0 || weekIndex >= total) return 0;
+    const H = Math.floor(total / 2);
+    const launch = proj.launchSales || 0;
+    const userScore = proj.userScore || 0;
+    if (weekIndex < H) {
+      // Front-loaded launch distribution
+      const weightFor = (i) => Math.max(1, H - Math.max(0, i - 1));
+      let totalWeight = 0;
+      for (let i = 0; i < H; i++) totalWeight += weightFor(i);
+      return totalWeight > 0 ? Math.round(launch * (weightFor(weekIndex) / totalWeight)) : 0;
+    }
+    // Second half — standard flat tail
+    return Math.round(launch * 0.10 * (userScore / 100));
+  }
+  // Expose for the sales-graph renderer in the UI module.
+  if (window.dbg) window.dbg.weekRevenue = weekRevenue;
+
   // ---------- Shipping ----------
   function shipProject(projId) {
     const proj = findProject(projId);
@@ -9057,11 +9088,21 @@ let _clockValidated = false;
     proj.shippedAtWeek = absoluteWeek();
     proj.phase = 'launched';
     proj.launchSales = computeLaunchSales(proj);
-    // Sales tail tracking (filled by tail ticker below until duration elapses)
+    // v10.2: Tail duration doubled — Math.max(4, round(user/10) × 2), cap 24.
+    // Week 0 no longer pays in a lump; the first half of the tail spreads
+    // the launch distribution with front-loaded weights (see weekRevenue()).
+    const tailWeeksTotal = proj.isContract
+      ? 0
+      : Math.max(4, Math.min(24, Math.round((proj.userScore || 0) / 10) * 2));
     proj.tailSales = 0;
-    const tailWeeksTotal = proj.isContract ? 0 : Math.min(12, Math.round((proj.userScore || 0) / 10));
     proj.tailWeeksTotal = tailWeeksTotal;            // immutable — for graph projection
-    proj.tailWeeksRemaining = tailWeeksTotal;        // decrements weekly
+    proj.tailWeeksRemaining = tailWeeksTotal;        // decrements weekly (includes week 0)
+
+    // Record total team salary accumulated across design + development +
+    // polish so the breakeven math can include what the team actually
+    // cost (salaryCost) on top of what was spent on marketing. Per-week
+    // accumulation happens in onWeekTick.
+    proj.salaryCost = Math.round(proj.salaryCost || 0);
 
     // Move from active to shipped
     S.projects.active = S.projects.active.filter(p => p.id !== proj.id);
@@ -9075,22 +9116,24 @@ let _clockValidated = false;
     // Macro event revenue modifier (Phase 3G)
     const macroMult = window.tycoonMacro?.revenueMultiplier?.(proj.type) || 1;
 
-    // Revenue: contract payout or launch sales
+    // Revenue: contract payout (lump) or first distributed launch-week payout
     if (proj.isContract) {
       const paid = Math.round(proj.payment * macroMult);
       S.cash = (S.cash || 0) + paid;
       S.tRevenue = (S.tRevenue || 0) + paid;
-      proj.actualPayment = paid; // record post-macro payout
-      // Client rating (Phase 2D)
+      proj.actualPayment = paid;
       if (typeof window._tycoonRecordContractDelivery === 'function') {
         window._tycoonRecordContractDelivery(proj);
       }
     } else {
-      // Own IP: launch sales (modified by macro events)
-      const rev = Math.round(proj.launchSales * macroMult);
-      proj.actualLaunchSales = rev;
-      S.cash = (S.cash || 0) + rev;
-      S.tRevenue = (S.tRevenue || 0) + rev;
+      // Pay the week-0 slice of the spread-out launch distribution only.
+      // Subsequent weekly payouts run via the tail ticker in onWeekTick.
+      const week0 = Math.round(weekRevenue(proj, 0) * macroMult);
+      S.cash = (S.cash || 0) + week0;
+      S.tRevenue = (S.tRevenue || 0) + week0;
+      proj.actualLaunchSales = week0;  // just the week-0 payout; tail adds via tailSales
+      proj.tailSales = week0;          // accumulated revenue starts with week 0
+      proj.tailWeeksRemaining -= 1;    // week 0 already paid
     }
 
     // Phase 4F: attach generated review quotes
@@ -9256,6 +9299,21 @@ let _clockValidated = false;
     if (!S.projects) return;
     if (Array.isArray(S.projects.active)) {
       for (const proj of [...S.projects.active]) {
+        // v10.2: accumulate weekly team-salary cost for this project. Used
+        // later by the breakeven line in the shipped-detail modal
+        // (marketing spend + salary cost). Founder excluded (no salary).
+        // Runs for every phase (design/development/polish) so the whole
+        // duration counts, not just the phases that do quality work.
+        if (Array.isArray(proj.team) && proj.team.length > 0) {
+          let weeklyWage = 0;
+          for (const id of proj.team) {
+            if (id === 'founder') continue;
+            const e = (S.employees || []).find(x => x.id === id);
+            if (e && e.salary) weeklyWage += e.salary / 48;
+          }
+          if (weeklyWage > 0) proj.salaryCost = (proj.salaryCost || 0) + weeklyWage;
+        }
+
         if (proj.phase === 'design') {
           if (isPhaseComplete(proj)) advancePhase(proj.id);
         } else if (proj.phase === 'development') {
@@ -9268,15 +9326,18 @@ let _clockValidated = false;
         }
       }
     }
-    // v10.1: sales tail — for own-IP projects with tail weeks remaining,
-    // add weekly revenue = launchSales × 0.10 × (userScore / 100).
-    // High user score = longer and fatter tail; low user score = short tail.
-    // Contracts never have a tail (single paycheck on delivery).
+    // v10.2: Sales tail — pay weekRevenue(proj, weekIndex) each tick for
+    // shipped own-IP. weekIndex starts at 1 (week 0 was paid at ship).
+    // The helper distributes the launch lump over the first half of the
+    // tail and emits a flat rate for the second half.
     if (Array.isArray(S.projects.shipped)) {
       for (const proj of S.projects.shipped) {
         if (proj.isContract) continue;
         if (!proj.tailWeeksRemaining || proj.tailWeeksRemaining <= 0) continue;
-        const weekly = Math.round((proj.launchSales || 0) * 0.10 * ((proj.userScore || 0) / 100));
+        // weekIndex = total − remaining. Since we decremented on ship to
+        // account for week 0, this starts at 1 on the first tick.
+        const weekIndex = (proj.tailWeeksTotal || 0) - proj.tailWeeksRemaining;
+        const weekly = weekRevenue(proj, weekIndex);
         if (weekly > 0) {
           S.cash = (S.cash || 0) + weekly;
           S.tRevenue = (S.tRevenue || 0) + weekly;
@@ -9309,6 +9370,7 @@ let _clockValidated = false;
     // Scoring (exposed for testing)
     computeCriticScore,
     computeLaunchSales,
+    weekRevenue,  // v10.2: per-week payout for shipped own-IP (used by sales graph)
     // Tick management
     startTick: startProjectsTick,
     stopTick: stopProjectsTick,
@@ -10800,37 +10862,37 @@ let _clockValidated = false;
     if (ov) ov.remove();
   }
 
-  // Build the 12-week sales projection graph as inline SVG.
-  // Data model:
-  //   Week 0: launchSales (big spike bar)
-  //   Weeks 1..tailWeeks: launchSales × 0.10 × (userScore/100) per week
-  //   Weeks past tail: 0
-  // Weeks at or before currentWeek-since-launch are "actual" (solid);
-  // weeks past are "projected" (dashed + transparent bars).
+  // Build the 24-week sales projection graph as inline SVG.
+  // v10.2 data model: weekRevenue(proj, weekIndex) distributes the launch
+  // spike over the first half of the (doubled) tail with front-loaded
+  // weights; the second half pays the flat tail rate.
+  //   Actual weeks (weeksSinceLaunch ≤): solid bars + solid cumulative
+  //   Projected weeks (> weeksSinceLaunch): transparent bars + dashed cum
   function buildSalesGraph(proj) {
-    const LAUNCH_W = 0;
-    const MAX_WEEKS = 12;
-    const launchSales = proj.launchSales || 0;
-    const userScore = proj.userScore || 0;
-    const tailWeeks = proj.tailWeeksTotal || Math.min(12, Math.round(userScore / 10));
-    const weeklyTailRev = Math.round(launchSales * 0.10 * (userScore / 100));
+    const MAX_WEEKS = 24;
+    const tailWeeks = proj.tailWeeksTotal || 0;
     const currentWk = window.tycoonProjects?.absoluteWeek?.() || 0;
     const weeksSinceLaunch = Math.max(0, currentWk - (proj.shippedAtWeek || 0));
-    // Build per-week data
+    // Build per-week data using the canonical formula
     const weekly = [];
     const cumulative = [];
+    const weekRev = window.tycoonProjects?.weekRevenue;
     let cum = 0;
     for (let wk = 0; wk <= MAX_WEEKS; wk++) {
-      let val = 0;
-      if (wk === LAUNCH_W) val = launchSales;
-      else if (wk <= tailWeeks) val = weeklyTailRev;
+      const val = (wk < tailWeeks && weekRev) ? (weekRev(proj, wk) || 0) : 0;
       weekly.push(val);
       cum += val;
       cumulative.push(cum);
     }
     const maxWeekly = Math.max(...weekly, 1);
     const maxCum = Math.max(...cumulative, 1);
+    // v10.2: breakeven line includes BOTH marketing spend and team salary
+    // paid across the project's duration. That's the real "what the
+    // project cost" baseline the cumulative line needs to cross to be
+    // genuinely profitable.
     const marketingSpend = proj.marketingSpend || 0;
+    const salaryCost = Math.round(proj.salaryCost || 0);
+    const breakeven = marketingSpend + salaryCost;
 
     // SVG dimensions
     const W = 600, H = 220;
@@ -10872,8 +10934,8 @@ let _clockValidated = false;
     parts.push(`<text class="t-pd-graph-label axis-title" x="${padL-40}" y="${padT-2}" text-anchor="start">Weekly</text>`);
     parts.push(`<text class="t-pd-graph-label axis-title" x="${W-padR+4}" y="${padT-2}" text-anchor="start">Cumul.</text>`);
 
-    // X-axis labels (weeks)
-    for (let wk = 0; wk <= MAX_WEEKS; wk += 2) {
+    // X-axis labels (weeks) — every 4 weeks since we span 24 now
+    for (let wk = 0; wk <= MAX_WEEKS; wk += 4) {
       const x = padL + colW * (wk + 0.5);
       parts.push(`<text class="t-pd-graph-label" x="${x}" y="${H-padB+12}" text-anchor="middle">w${wk}</text>`);
     }
@@ -10904,15 +10966,21 @@ let _clockValidated = false;
     if (splitWk >= 1) parts.push(buildLine(0, splitWk, false));
     if (splitWk < MAX_WEEKS) parts.push(buildLine(Math.max(0, splitWk), MAX_WEEKS, true));
 
-    // Breakeven horizontal line (marketing spend on cumulative axis)
-    if (marketingSpend > 0 && marketingSpend <= maxCum) {
-      const by = yForCum(marketingSpend);
+    // Breakeven horizontal line on the cumulative axis.
+    // v10.2: breakeven = marketing spend + total team salary paid during
+    // dev/polish/design weeks. The cumulative-revenue line crossing this
+    // is the real "profitable" moment.
+    if (breakeven > 0 && breakeven <= maxCum) {
+      const by = yForCum(breakeven);
       parts.push(`<line class="t-pd-graph-breakeven" x1="${padL}" y1="${by}" x2="${W-padR}" y2="${by}"/>`);
-      parts.push(`<text class="t-pd-graph-label" x="${W-padR-4}" y="${by-3}" text-anchor="end" style="fill:#ff7b72">breakeven: ${fmtK(marketingSpend)}</text>`);
+      const label = salaryCost > 0 && marketingSpend > 0
+        ? `breakeven: ${fmtK(breakeven)} (mkt ${fmtK(marketingSpend)} + salary ${fmtK(salaryCost)})`
+        : `breakeven: ${fmtK(breakeven)}`;
+      parts.push(`<text class="t-pd-graph-label" x="${W-padR-4}" y="${by-3}" text-anchor="end" style="fill:#ff7b72">${label}</text>`);
     }
 
     const svg = `<svg class="t-pd-graph" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-max-weekly="${maxWeekly}" data-max-cum="${maxCum}" data-weeks-since-launch="${weeksSinceLaunch}">${parts.join('')}</svg>`;
-    return { svg, weekly, cumulative, weeksSinceLaunch, tailWeeks, weeklyTailRev, maxWeekly, maxCum };
+    return { svg, weekly, cumulative, weeksSinceLaunch, tailWeeks, maxWeekly, maxCum, breakeven, salaryCost, marketingSpend };
   }
 
   function openShippedProjectModal(projId) {
@@ -10967,9 +11035,18 @@ let _clockValidated = false;
       (synergies && synergies.length) ? h('div', null, h('span', { className: 'k' }, 'Marketing synergies:'), ' ', h('span', { className: 'mul' }, synergies.join(', '))) : null,
       (proj.launchNotes && proj.launchNotes.length) ? h('div', null, ...proj.launchNotes.map(n => h('div', null, h('span', { className: 'k' }, n)))) : null,
       h('div', { style: { marginTop: '8px', fontSize: '0.85rem' } },
-        h('span', { className: 'k' }, 'Launch sales:'), ' ', h('span', { className: 'v' }, fmtMoney(proj.launchSales || 0)),
-        proj.tailSales ? h('span', null, ' · ', h('span', { className: 'k' }, 'tail so far:'), ' ', h('span', { className: 'v' }, fmtMoney(proj.tailSales))) : null,
-        proj.marketingSpend ? h('span', null, ' · ', h('span', { className: 'k' }, 'marketing spend:'), ' ', h('span', { className: 'v', style:{color:'#ff7b72'} }, fmtMoney(proj.marketingSpend))) : null
+        h('span', { className: 'k' }, 'Launch sales total:'), ' ', h('span', { className: 'v' }, fmtMoney(proj.launchSales || 0)),
+        proj.tailSales ? h('span', null, ' · ', h('span', { className: 'k' }, 'earned so far:'), ' ', h('span', { className: 'v' }, fmtMoney(proj.tailSales))) : null
+      ),
+      h('div', { style: { marginTop: '6px', fontSize: '0.85rem' } },
+        proj.marketingSpend ? h('span', null, h('span', { className: 'k' }, 'Marketing spend:'), ' ', h('span', { className: 'v', style:{color:'#ff7b72'} }, fmtMoney(proj.marketingSpend))) : null,
+        proj.marketingSpend && proj.salaryCost ? ' · ' : null,
+        proj.salaryCost ? h('span', null, h('span', { className: 'k' }, 'Team salary paid:'), ' ', h('span', { className: 'v', style:{color:'#ff7b72'} }, fmtMoney(Math.round(proj.salaryCost)))) : null,
+        (proj.marketingSpend || proj.salaryCost)
+          ? h('span', null, ' · ', h('span', { className: 'k' }, 'Breakeven target:'), ' ',
+              h('span', { className: 'v', style:{color:'#f85149', fontWeight:'700'} },
+                fmtMoney((proj.marketingSpend || 0) + Math.round(proj.salaryCost || 0))))
+          : null
       )
     ].filter(Boolean);
 
@@ -11016,13 +11093,13 @@ let _clockValidated = false;
         scoreLine,
         awardsWon.length > 0 ? h('div', { className: 't-pd-awards' }, ...awardsWon.map(a => h('span', { className: 't-pd-award' }, a))) : null,
         h('div', { className: 't-pd-section' },
-          h('h3', null, 'Sales projection — 12 weeks'),
+          h('h3', null, 'Sales projection — 24 weeks'),
           h('div', { className: 't-pd-graph-wrap', id: '_t_pd_graph_wrap' }),
           h('div', { className: 't-pd-legend' },
             h('span', null, h('span', { className: 'swatch sw-bar' }), 'Weekly (actual)'),
             h('span', null, h('span', { className: 'swatch sw-proj' }), 'Weekly (projected)'),
             h('span', null, h('span', { className: 'swatch sw-cum' }), 'Cumulative'),
-            proj.marketingSpend ? h('span', null, h('span', { className: 'swatch sw-breakeven' }), 'Marketing breakeven') : null
+            (proj.marketingSpend || proj.salaryCost) ? h('span', null, h('span', { className: 'swatch sw-breakeven' }), 'Breakeven (mkt + salary)') : null
           )
         ),
         h('div', { className: 't-pd-section' },

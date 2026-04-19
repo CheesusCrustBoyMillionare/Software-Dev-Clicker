@@ -410,6 +410,37 @@
     return elapsed >= proj.phaseWeeksRequired;
   }
 
+  // ---------- Per-week revenue for shipped own-IP project ----------
+  // v10.2: Rebuilt sales-over-time model.
+  //   - Tail duration doubled: now Math.min(24, round(user/10) * 2), min 4
+  //   - What was the week-0 lump is now distributed over the FIRST HALF of
+  //     the tail (H weeks) with weeks 0 & 1 both at peak, then linearly
+  //     declining to week H-1. Launch cash still "feels" like a spike but
+  //     spread across the first couple months.
+  //   - The SECOND HALF of the tail pays the standard per-week rate:
+  //     launchSales × 0.10 × (user/100). Good reviews → long fat tail.
+  //
+  // weekIndex: 0 = launch week, 1 = week after, …, (tailWeeksTotal − 1) = last.
+  function weekRevenue(proj, weekIndex) {
+    if (!proj || proj.isContract) return 0;
+    const total = proj.tailWeeksTotal || 0;
+    if (weekIndex < 0 || weekIndex >= total) return 0;
+    const H = Math.floor(total / 2);
+    const launch = proj.launchSales || 0;
+    const userScore = proj.userScore || 0;
+    if (weekIndex < H) {
+      // Front-loaded launch distribution
+      const weightFor = (i) => Math.max(1, H - Math.max(0, i - 1));
+      let totalWeight = 0;
+      for (let i = 0; i < H; i++) totalWeight += weightFor(i);
+      return totalWeight > 0 ? Math.round(launch * (weightFor(weekIndex) / totalWeight)) : 0;
+    }
+    // Second half — standard flat tail
+    return Math.round(launch * 0.10 * (userScore / 100));
+  }
+  // Expose for the sales-graph renderer in the UI module.
+  if (window.dbg) window.dbg.weekRevenue = weekRevenue;
+
   // ---------- Shipping ----------
   function shipProject(projId) {
     const proj = findProject(projId);
@@ -425,11 +456,21 @@
     proj.shippedAtWeek = absoluteWeek();
     proj.phase = 'launched';
     proj.launchSales = computeLaunchSales(proj);
-    // Sales tail tracking (filled by tail ticker below until duration elapses)
+    // v10.2: Tail duration doubled — Math.max(4, round(user/10) × 2), cap 24.
+    // Week 0 no longer pays in a lump; the first half of the tail spreads
+    // the launch distribution with front-loaded weights (see weekRevenue()).
+    const tailWeeksTotal = proj.isContract
+      ? 0
+      : Math.max(4, Math.min(24, Math.round((proj.userScore || 0) / 10) * 2));
     proj.tailSales = 0;
-    const tailWeeksTotal = proj.isContract ? 0 : Math.min(12, Math.round((proj.userScore || 0) / 10));
     proj.tailWeeksTotal = tailWeeksTotal;            // immutable — for graph projection
-    proj.tailWeeksRemaining = tailWeeksTotal;        // decrements weekly
+    proj.tailWeeksRemaining = tailWeeksTotal;        // decrements weekly (includes week 0)
+
+    // Record total team salary accumulated across design + development +
+    // polish so the breakeven math can include what the team actually
+    // cost (salaryCost) on top of what was spent on marketing. Per-week
+    // accumulation happens in onWeekTick.
+    proj.salaryCost = Math.round(proj.salaryCost || 0);
 
     // Move from active to shipped
     S.projects.active = S.projects.active.filter(p => p.id !== proj.id);
@@ -443,22 +484,24 @@
     // Macro event revenue modifier (Phase 3G)
     const macroMult = window.tycoonMacro?.revenueMultiplier?.(proj.type) || 1;
 
-    // Revenue: contract payout or launch sales
+    // Revenue: contract payout (lump) or first distributed launch-week payout
     if (proj.isContract) {
       const paid = Math.round(proj.payment * macroMult);
       S.cash = (S.cash || 0) + paid;
       S.tRevenue = (S.tRevenue || 0) + paid;
-      proj.actualPayment = paid; // record post-macro payout
-      // Client rating (Phase 2D)
+      proj.actualPayment = paid;
       if (typeof window._tycoonRecordContractDelivery === 'function') {
         window._tycoonRecordContractDelivery(proj);
       }
     } else {
-      // Own IP: launch sales (modified by macro events)
-      const rev = Math.round(proj.launchSales * macroMult);
-      proj.actualLaunchSales = rev;
-      S.cash = (S.cash || 0) + rev;
-      S.tRevenue = (S.tRevenue || 0) + rev;
+      // Pay the week-0 slice of the spread-out launch distribution only.
+      // Subsequent weekly payouts run via the tail ticker in onWeekTick.
+      const week0 = Math.round(weekRevenue(proj, 0) * macroMult);
+      S.cash = (S.cash || 0) + week0;
+      S.tRevenue = (S.tRevenue || 0) + week0;
+      proj.actualLaunchSales = week0;  // just the week-0 payout; tail adds via tailSales
+      proj.tailSales = week0;          // accumulated revenue starts with week 0
+      proj.tailWeeksRemaining -= 1;    // week 0 already paid
     }
 
     // Phase 4F: attach generated review quotes
@@ -624,6 +667,21 @@
     if (!S.projects) return;
     if (Array.isArray(S.projects.active)) {
       for (const proj of [...S.projects.active]) {
+        // v10.2: accumulate weekly team-salary cost for this project. Used
+        // later by the breakeven line in the shipped-detail modal
+        // (marketing spend + salary cost). Founder excluded (no salary).
+        // Runs for every phase (design/development/polish) so the whole
+        // duration counts, not just the phases that do quality work.
+        if (Array.isArray(proj.team) && proj.team.length > 0) {
+          let weeklyWage = 0;
+          for (const id of proj.team) {
+            if (id === 'founder') continue;
+            const e = (S.employees || []).find(x => x.id === id);
+            if (e && e.salary) weeklyWage += e.salary / 48;
+          }
+          if (weeklyWage > 0) proj.salaryCost = (proj.salaryCost || 0) + weeklyWage;
+        }
+
         if (proj.phase === 'design') {
           if (isPhaseComplete(proj)) advancePhase(proj.id);
         } else if (proj.phase === 'development') {
@@ -636,15 +694,18 @@
         }
       }
     }
-    // v10.1: sales tail — for own-IP projects with tail weeks remaining,
-    // add weekly revenue = launchSales × 0.10 × (userScore / 100).
-    // High user score = longer and fatter tail; low user score = short tail.
-    // Contracts never have a tail (single paycheck on delivery).
+    // v10.2: Sales tail — pay weekRevenue(proj, weekIndex) each tick for
+    // shipped own-IP. weekIndex starts at 1 (week 0 was paid at ship).
+    // The helper distributes the launch lump over the first half of the
+    // tail and emits a flat rate for the second half.
     if (Array.isArray(S.projects.shipped)) {
       for (const proj of S.projects.shipped) {
         if (proj.isContract) continue;
         if (!proj.tailWeeksRemaining || proj.tailWeeksRemaining <= 0) continue;
-        const weekly = Math.round((proj.launchSales || 0) * 0.10 * ((proj.userScore || 0) / 100));
+        // weekIndex = total − remaining. Since we decremented on ship to
+        // account for week 0, this starts at 1 on the first tick.
+        const weekIndex = (proj.tailWeeksTotal || 0) - proj.tailWeeksRemaining;
+        const weekly = weekRevenue(proj, weekIndex);
         if (weekly > 0) {
           S.cash = (S.cash || 0) + weekly;
           S.tRevenue = (S.tRevenue || 0) + weekly;
@@ -677,6 +738,7 @@
     // Scoring (exposed for testing)
     computeCriticScore,
     computeLaunchSales,
+    weekRevenue,  // v10.2: per-week payout for shipped own-IP (used by sales graph)
     // Tick management
     startTick: startProjectsTick,
     stopTick: stopProjectsTick,
