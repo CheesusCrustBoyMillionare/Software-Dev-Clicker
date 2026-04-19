@@ -541,12 +541,30 @@
 
     const rowClass = 't-research-row' + (isDone ? ' completed' : isInProg ? ' inprogress' : avail.ok ? '' : ' locked');
 
+    // Show Pioneer badge if applicable
+    const pioneerOwner = S.researchPioneers?.[node.id];
+    const pioneerBadge = pioneerOwner ? (() => {
+      if (pioneerOwner === 'player') return h('span', { style:{color:'#f0883e', fontWeight:'700', fontSize:'0.7rem', marginLeft:'6px'} }, '🏆 Pioneer');
+      const rival = (S.rivals || []).find(r => r.id === pioneerOwner);
+      return h('span', { style:{color:'#8b949e', fontSize:'0.7rem', marginLeft:'6px'} }, '🥈 ' + (rival?.name || pioneerOwner));
+    })() : null;
+
+    // Rival progress on this node (if any rival is actively researching it)
+    const rivalProgs = (S.rivals || []).map(r => {
+      const p = window.tycoonRivals?.rivalResearchProgress?.(r.id, node.id);
+      if (!p || p.status !== 'in_progress') return null;
+      return r.icon + ' ' + r.name + ' ' + p.pct + '%';
+    }).filter(Boolean);
+
     const leftSide = h('div', { style: { flex:1, minWidth: 0 } },
       h('div', { className: 'r-name' },
-        (categoryIcons[node.category] || '') + ' ' + node.name),
+        (categoryIcons[node.category] || '') + ' ' + node.name,
+        pioneerBadge
+      ),
       h('div', { className: 'r-meta' },
         node.rpCost + ' RP · ' + (node.category) + (node.era > 1980 ? ' · ' + node.era + '+' : '') +
         (node.hardware ? ' · ⚙ hw:' + node.hardware : '') +
+        (rivalProgs.length ? ' · 🏁 ' + rivalProgs.join(', ') : '') +
         (node.desc ? ' — ' + node.desc : ''))
     );
     let rightSide;
@@ -1127,11 +1145,28 @@
   // Research completion (Phase 3C/3E)
   document.addEventListener('tycoon:research-completed', (e) => {
     const node = window.tycoonResearch.NODE_BY_ID[e.detail.nodeId];
-    if (node) pushToast('✅ Research done: ' + node.name, 'win');
+    const isPioneer = window.tycoonRivals?.isPlayerPioneer?.(e.detail.nodeId);
+    if (node) pushToast((isPioneer ? '🏆 Pioneer: ' : '✅ Research done: ') + node.name, 'win');
     refreshMain();
     rerenderResearchModal();
   });
   document.addEventListener('tycoon:research-started', () => refreshMain());
+
+  // Macro events (Phase 3G)
+  document.addEventListener('tycoon:macro-event', (e) => {
+    const ev = e.detail.event;
+    pushToast(ev.title + ' — ' + ev.blurb, 'win');
+    // Auto-pause on major events
+    if (window.tycoonTime && !S.paused) {
+      S.paused = true;
+      refreshTopBar();
+    }
+  });
+
+  // Rival research updates (for UI refresh)
+  document.addEventListener('tycoon:rival-research-completed', () => {
+    rerenderResearchModal();
+  });
 
   // ---------- Character creator modal ----------
   function openCharacterCreator(onConfirm) {
@@ -1271,6 +1306,8 @@
       if (window.tycoonEra) window.tycoonEra.startTick();
       if (window.tycoonResearch) window.tycoonResearch.startTick();
       if (window.tycoonHardware) window.tycoonHardware.startTick();
+      if (window.tycoonRivals) window.tycoonRivals.startTick();
+      if (window.tycoonMacro) window.tycoonMacro.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -1285,6 +1322,8 @@
       if (window.tycoonEra) window.tycoonEra.stopTick();
       if (window.tycoonResearch) window.tycoonResearch.stopTick();
       if (window.tycoonHardware) window.tycoonHardware.stopTick();
+      if (window.tycoonRivals) window.tycoonRivals.stopTick();
+      if (window.tycoonMacro) window.tycoonMacro.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();

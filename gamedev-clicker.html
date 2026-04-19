@@ -9024,18 +9024,23 @@ let _clockValidated = false;
     S.projects.active = S.projects.active.filter(p => p.id !== proj.id);
     S.projects.shipped.push(proj);
 
+    // Macro event revenue modifier (Phase 3G)
+    const macroMult = window.tycoonMacro?.revenueMultiplier?.(proj.type) || 1;
+
     // Revenue: contract payout or launch sales
     if (proj.isContract) {
-      const paid = proj.payment;
+      const paid = Math.round(proj.payment * macroMult);
       S.cash = (S.cash || 0) + paid;
       S.tRevenue = (S.tRevenue || 0) + paid;
+      proj.actualPayment = paid; // record post-macro payout
       // Client rating (Phase 2D)
       if (typeof window._tycoonRecordContractDelivery === 'function') {
         window._tycoonRecordContractDelivery(proj);
       }
     } else {
-      // Own IP: launch sales become cash immediately in Phase 1 (sales tail comes later)
-      const rev = proj.launchSales;
+      // Own IP: launch sales (modified by macro events)
+      const rev = Math.round(proj.launchSales * macroMult);
+      proj.actualLaunchSales = rev;
       S.cash = (S.cash || 0) + rev;
       S.tRevenue = (S.tRevenue || 0) + rev;
     }
@@ -9991,12 +9996,30 @@ let _clockValidated = false;
 
     const rowClass = 't-research-row' + (isDone ? ' completed' : isInProg ? ' inprogress' : avail.ok ? '' : ' locked');
 
+    // Show Pioneer badge if applicable
+    const pioneerOwner = S.researchPioneers?.[node.id];
+    const pioneerBadge = pioneerOwner ? (() => {
+      if (pioneerOwner === 'player') return h('span', { style:{color:'#f0883e', fontWeight:'700', fontSize:'0.7rem', marginLeft:'6px'} }, '🏆 Pioneer');
+      const rival = (S.rivals || []).find(r => r.id === pioneerOwner);
+      return h('span', { style:{color:'#8b949e', fontSize:'0.7rem', marginLeft:'6px'} }, '🥈 ' + (rival?.name || pioneerOwner));
+    })() : null;
+
+    // Rival progress on this node (if any rival is actively researching it)
+    const rivalProgs = (S.rivals || []).map(r => {
+      const p = window.tycoonRivals?.rivalResearchProgress?.(r.id, node.id);
+      if (!p || p.status !== 'in_progress') return null;
+      return r.icon + ' ' + r.name + ' ' + p.pct + '%';
+    }).filter(Boolean);
+
     const leftSide = h('div', { style: { flex:1, minWidth: 0 } },
       h('div', { className: 'r-name' },
-        (categoryIcons[node.category] || '') + ' ' + node.name),
+        (categoryIcons[node.category] || '') + ' ' + node.name,
+        pioneerBadge
+      ),
       h('div', { className: 'r-meta' },
         node.rpCost + ' RP · ' + (node.category) + (node.era > 1980 ? ' · ' + node.era + '+' : '') +
         (node.hardware ? ' · ⚙ hw:' + node.hardware : '') +
+        (rivalProgs.length ? ' · 🏁 ' + rivalProgs.join(', ') : '') +
         (node.desc ? ' — ' + node.desc : ''))
     );
     let rightSide;
@@ -10577,11 +10600,28 @@ let _clockValidated = false;
   // Research completion (Phase 3C/3E)
   document.addEventListener('tycoon:research-completed', (e) => {
     const node = window.tycoonResearch.NODE_BY_ID[e.detail.nodeId];
-    if (node) pushToast('✅ Research done: ' + node.name, 'win');
+    const isPioneer = window.tycoonRivals?.isPlayerPioneer?.(e.detail.nodeId);
+    if (node) pushToast((isPioneer ? '🏆 Pioneer: ' : '✅ Research done: ') + node.name, 'win');
     refreshMain();
     rerenderResearchModal();
   });
   document.addEventListener('tycoon:research-started', () => refreshMain());
+
+  // Macro events (Phase 3G)
+  document.addEventListener('tycoon:macro-event', (e) => {
+    const ev = e.detail.event;
+    pushToast(ev.title + ' — ' + ev.blurb, 'win');
+    // Auto-pause on major events
+    if (window.tycoonTime && !S.paused) {
+      S.paused = true;
+      refreshTopBar();
+    }
+  });
+
+  // Rival research updates (for UI refresh)
+  document.addEventListener('tycoon:rival-research-completed', () => {
+    rerenderResearchModal();
+  });
 
   // ---------- Character creator modal ----------
   function openCharacterCreator(onConfirm) {
@@ -10721,6 +10761,8 @@ let _clockValidated = false;
       if (window.tycoonEra) window.tycoonEra.startTick();
       if (window.tycoonResearch) window.tycoonResearch.startTick();
       if (window.tycoonHardware) window.tycoonHardware.startTick();
+      if (window.tycoonRivals) window.tycoonRivals.startTick();
+      if (window.tycoonMacro) window.tycoonMacro.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -10735,6 +10777,8 @@ let _clockValidated = false;
       if (window.tycoonEra) window.tycoonEra.stopTick();
       if (window.tycoonResearch) window.tycoonResearch.stopTick();
       if (window.tycoonHardware) window.tycoonHardware.stopTick();
+      if (window.tycoonRivals) window.tycoonRivals.stopTick();
+      if (window.tycoonMacro) window.tycoonMacro.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
@@ -12584,6 +12628,348 @@ let _clockValidated = false;
   if (window.dbg) window.dbg.hardware = window.tycoonHardware;
 
   console.log('[tycoon-hardware] module loaded. ' + HARDWARE_ITEMS.length + ' items available.');
+})();
+// ========== TYCOON RIVAL STUDIOS (v2) ==========
+// Phase 3G: 2 rival studios that research in background. Pioneer/Fast Follower
+// bonuses apply to whoever completes a research node first. Full rival sim
+// (roster churn, market dynamics) is Phase 4.
+(function(){
+  'use strict';
+
+  // Starting rivals — named studios with distinct personalities
+  const RIVAL_TEMPLATES = [
+    {
+      id: 'r_electrosoft',
+      name: 'Electrosoft',
+      icon: '🏢',
+      focus: ['business', 'saas'],
+      priorityNodes: ['n_databases', 'n_mouse_ui', 'n_object_oriented', 'n_tcp_ip', 'n_broadband', 'n_cloud_infra'],
+      rpPerWeek: 3.5,  // Slow but steady researcher
+    },
+    {
+      id: 'r_zeromega',
+      name: 'Zeromega',
+      icon: '🕹️',
+      focus: ['game'],
+      priorityNodes: ['n_sound_chip', 'n_2d_sprites', 'n_256_color', 'n_cd_rom', 'n_3d_graphics', 'n_networking'],
+      rpPerWeek: 4.0,  // Slightly faster on game tech
+    },
+  ];
+
+  // ---------- State ----------
+  function ensureState() {
+    if (!Array.isArray(S.rivals)) {
+      S.rivals = RIVAL_TEMPLATES.map(template => ({
+        id: template.id,
+        name: template.name,
+        icon: template.icon,
+        focus: template.focus,
+        priorityNodes: template.priorityNodes,
+        rpPerWeek: template.rpPerWeek,
+        completedResearch: [],
+        inProgress: null,     // { nodeId, rpEarned }
+      }));
+    }
+    if (!S.researchPioneers) S.researchPioneers = {}; // nodeId -> studioId (first to complete)
+  }
+
+  // ---------- Per-tick rival work ----------
+  function onWeekTick() {
+    ensureState();
+    const year = S.calendar?.year || 1980;
+    for (const rival of S.rivals) {
+      if (!rival.inProgress) {
+        // Pick next node from priority list
+        const nextNode = rival.priorityNodes.find(id => {
+          if (rival.completedResearch.includes(id)) return false;
+          const node = window.tycoonResearch?.NODE_BY_ID?.[id];
+          if (!node) return false;
+          if (year < node.era) return false;  // not yet available for this era
+          // Prereqs must be satisfied (from their OWN completed list)
+          for (const p of (node.prereqs || [])) {
+            if (!rival.completedResearch.includes(p)) return false;
+          }
+          return true;
+        });
+        if (!nextNode) continue;
+        rival.inProgress = { nodeId: nextNode, rpEarned: 0 };
+      }
+      // Accumulate RP
+      rival.inProgress.rpEarned += rival.rpPerWeek;
+      const node = window.tycoonResearch?.NODE_BY_ID?.[rival.inProgress.nodeId];
+      if (node && rival.inProgress.rpEarned >= node.rpCost) {
+        const completedId = rival.inProgress.nodeId;
+        rival.completedResearch.push(completedId);
+        rival.inProgress = null;
+        // Check if we're the Pioneer (first to complete across all studios + player)
+        const playerCompleted = (S.research?.completed || []).includes(completedId);
+        if (!S.researchPioneers[completedId]) {
+          if (playerCompleted) {
+            S.researchPioneers[completedId] = 'player';
+          } else {
+            S.researchPioneers[completedId] = rival.id;
+          }
+        }
+        if (typeof markDirty === 'function') markDirty();
+        if (typeof log === 'function') log('🔬 ' + rival.icon + ' ' + rival.name + ' completed research: ' + node.name);
+        document.dispatchEvent(new CustomEvent('tycoon:rival-research-completed', {
+          detail: { rivalId: rival.id, nodeId: completedId }
+        }));
+      }
+    }
+  }
+
+  // ---------- Hook into player research ----------
+  // When player completes research, check if they're the Pioneer
+  document.addEventListener('tycoon:research-completed', (e) => {
+    ensureState();
+    const nodeId = e.detail.nodeId;
+    if (!S.researchPioneers[nodeId]) {
+      S.researchPioneers[nodeId] = 'player';
+      if (typeof log === 'function') {
+        const node = window.tycoonResearch?.NODE_BY_ID?.[nodeId];
+        if (node) log('🏆 Pioneer: first to complete ' + node.name + '!');
+      }
+    }
+  });
+
+  // ---------- Query helpers ----------
+  function isPlayerPioneer(nodeId) {
+    ensureState();
+    return S.researchPioneers[nodeId] === 'player';
+  }
+
+  function isPlayerFastFollower(nodeId) {
+    ensureState();
+    return S.researchPioneers[nodeId] && S.researchPioneers[nodeId] !== 'player' &&
+           (S.research?.completed || []).includes(nodeId);
+  }
+
+  function rivalResearchProgress(rivalId, nodeId) {
+    ensureState();
+    const rival = S.rivals?.find(r => r.id === rivalId);
+    if (!rival) return null;
+    if (rival.completedResearch.includes(nodeId)) return { status: 'done' };
+    if (rival.inProgress?.nodeId === nodeId) {
+      const node = window.tycoonResearch?.NODE_BY_ID?.[nodeId];
+      return {
+        status: 'in_progress',
+        rpEarned: rival.inProgress.rpEarned,
+        rpCost: node?.rpCost || 0,
+        pct: node ? Math.round((rival.inProgress.rpEarned / node.rpCost) * 100) : 0
+      };
+    }
+    return { status: 'pending' };
+  }
+
+  // ---------- Tick subscription ----------
+  let _unsub = null;
+  function startRivalsTick() {
+    if (_unsub) return;
+    if (!window.tycoonTime) { console.warn('[rivals] tycoonTime not available'); return; }
+    ensureState();
+    _unsub = window.tycoonTime.onTick(onWeekTick);
+  }
+  function stopRivalsTick() {
+    if (_unsub) { _unsub(); _unsub = null; }
+  }
+
+  // ---------- Public API ----------
+  window.tycoonRivals = {
+    TEMPLATES: RIVAL_TEMPLATES,
+    isPlayerPioneer,
+    isPlayerFastFollower,
+    rivalResearchProgress,
+    startTick: startRivalsTick,
+    stopTick: stopRivalsTick,
+    state() {
+      ensureState();
+      return {
+        rivals: S.rivals.map(r => ({
+          name: r.name,
+          icon: r.icon,
+          completedCount: r.completedResearch.length,
+          inProgress: r.inProgress ? {
+            nodeId: r.inProgress.nodeId,
+            rpEarned: r.inProgress.rpEarned.toFixed(1),
+            node: window.tycoonResearch?.NODE_BY_ID?.[r.inProgress.nodeId]?.name
+          } : null
+        })),
+        pioneers: S.researchPioneers
+      };
+    }
+  };
+  if (window.dbg) window.dbg.rivals = window.tycoonRivals;
+
+  console.log('[tycoon-rivals] module loaded. ' + RIVAL_TEMPLATES.length + ' rival studios.');
+})();
+// ========== TYCOON MACRO EVENTS (v2) ==========
+// Phase 3G: 5 scripted macro events tied to real computing history.
+// Each event applies time-limited modifiers to revenue / market.
+// Full catalog (15 events) is in DESIGN_V2.md; this is a Phase 3 subset.
+(function(){
+  'use strict';
+
+  // ---------- Event catalog (5 scripted events) ----------
+  const MACRO_EVENTS = [
+    {
+      id: 'ev_video_game_crash',
+      year: 1983,
+      month: 3,
+      title: '📉 Video Game Crash',
+      blurb: 'Atari and over-saturation wreck the gaming market. Game revenue cratering for 2 years.',
+      durationMonths: 24,
+      effects: { revenueMultByType: { game: 0.70 } }
+    },
+    {
+      id: 'ev_black_monday',
+      year: 1987,
+      month: 10,
+      title: '💸 Black Monday',
+      blurb: 'Global stock crash. All tech spending down 15% for a year.',
+      durationMonths: 12,
+      effects: { revenueMultAll: 0.85 }
+    },
+    {
+      id: 'ev_internet_boom',
+      year: 1995,
+      month: 8,
+      title: '🌐 Internet Boom',
+      blurb: 'Netscape IPO kicks off the web gold rush. Web revenue surging +40%!',
+      durationMonths: 60,
+      effects: { revenueMultByType: { web: 1.40 } }
+    },
+    {
+      id: 'ev_dotcom_burst',
+      year: 2001,
+      month: 3,
+      title: '💥 Dot-com Burst',
+      blurb: 'The web bubble pops. Web revenue -40% for 3 years.',
+      durationMonths: 36,
+      effects: { revenueMultByType: { web: 0.60 } }
+    },
+    {
+      id: 'ev_financial_crisis',
+      year: 2008,
+      month: 9,
+      title: '🏦 Financial Crisis',
+      blurb: 'Lehman collapses. Global economy in freefall. All revenue -25% for 2 years.',
+      durationMonths: 24,
+      effects: { revenueMultAll: 0.75 }
+    },
+  ];
+  window.MACRO_EVENTS = MACRO_EVENTS;
+
+  // ---------- State ----------
+  function ensureState() {
+    if (!S.macroEvents) S.macroEvents = { fired: [], active: [] };
+    if (!Array.isArray(S.macroEvents.fired)) S.macroEvents.fired = [];
+    if (!Array.isArray(S.macroEvents.active)) S.macroEvents.active = [];
+  }
+
+  // ---------- Fire check ----------
+  function checkEventsToFire() {
+    ensureState();
+    const cal = S.calendar;
+    if (!cal) return;
+    for (const ev of MACRO_EVENTS) {
+      if (S.macroEvents.fired.includes(ev.id)) continue;
+      if (cal.year > ev.year || (cal.year === ev.year && cal.month >= ev.month)) {
+        fireEvent(ev);
+      }
+    }
+  }
+
+  function fireEvent(ev) {
+    ensureState();
+    S.macroEvents.fired.push(ev.id);
+    const startMonth = (S.calendar.year - 1980) * 12 + S.calendar.month;
+    const endMonth = startMonth + ev.durationMonths;
+    S.macroEvents.active.push({
+      id: ev.id,
+      startMonth,
+      endMonth,
+      effects: ev.effects
+    });
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log(ev.title + ' — ' + ev.blurb);
+    document.dispatchEvent(new CustomEvent('tycoon:macro-event', { detail: { event: ev } }));
+  }
+
+  // ---------- Expire active events ----------
+  function expireFinished() {
+    ensureState();
+    if (!S.calendar) return;
+    const curMonth = (S.calendar.year - 1980) * 12 + S.calendar.month;
+    const before = S.macroEvents.active.length;
+    S.macroEvents.active = S.macroEvents.active.filter(a => a.endMonth > curMonth);
+    const expired = before - S.macroEvents.active.length;
+    if (expired > 0) {
+      if (typeof markDirty === 'function') markDirty();
+      if (typeof log === 'function') log('📊 ' + expired + ' macro event effect' + (expired > 1 ? 's' : '') + ' ended');
+    }
+  }
+
+  // ---------- Query: revenue multipliers ----------
+  // Called from shipProject when computing launch sales / contract revenue
+  function revenueMultiplier(projectType) {
+    ensureState();
+    let mult = 1;
+    for (const active of S.macroEvents.active) {
+      const e = active.effects;
+      if (e.revenueMultAll) mult *= e.revenueMultAll;
+      if (e.revenueMultByType && e.revenueMultByType[projectType]) {
+        mult *= e.revenueMultByType[projectType];
+      }
+    }
+    return mult;
+  }
+
+  // ---------- Tick: check monthly ----------
+  let _weekCounter = 0;
+  const WEEKS_PER_MONTH = 4;
+  function onWeekTick() {
+    _weekCounter += 1;
+    if (_weekCounter >= WEEKS_PER_MONTH) {
+      _weekCounter = 0;
+      checkEventsToFire();
+      expireFinished();
+    }
+  }
+
+  // ---------- Tick subscription ----------
+  let _unsub = null;
+  function startMacroTick() {
+    if (_unsub) return;
+    if (!window.tycoonTime) { console.warn('[macro] tycoonTime not available'); return; }
+    ensureState();
+    _unsub = window.tycoonTime.onTick(onWeekTick);
+  }
+  function stopMacroTick() {
+    if (_unsub) { _unsub(); _unsub = null; }
+  }
+
+  // ---------- Public API ----------
+  window.tycoonMacro = {
+    EVENTS: MACRO_EVENTS,
+    revenueMultiplier,
+    checkEventsToFire,
+    startTick: startMacroTick,
+    stopTick: stopMacroTick,
+    state() {
+      ensureState();
+      return {
+        fired: S.macroEvents.fired,
+        active: S.macroEvents.active.map(a => {
+          const ev = MACRO_EVENTS.find(e => e.id === a.id);
+          return { title: ev?.title, endMonth: a.endMonth };
+        })
+      };
+    }
+  };
+  if (window.dbg) window.dbg.macro = window.tycoonMacro;
+
+  console.log('[tycoon-macro] module loaded. ' + MACRO_EVENTS.length + ' events scripted.');
 })();
 </script>
 </body>

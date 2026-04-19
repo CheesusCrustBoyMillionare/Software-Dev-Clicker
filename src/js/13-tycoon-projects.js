@@ -407,18 +407,23 @@
     S.projects.active = S.projects.active.filter(p => p.id !== proj.id);
     S.projects.shipped.push(proj);
 
+    // Macro event revenue modifier (Phase 3G)
+    const macroMult = window.tycoonMacro?.revenueMultiplier?.(proj.type) || 1;
+
     // Revenue: contract payout or launch sales
     if (proj.isContract) {
-      const paid = proj.payment;
+      const paid = Math.round(proj.payment * macroMult);
       S.cash = (S.cash || 0) + paid;
       S.tRevenue = (S.tRevenue || 0) + paid;
+      proj.actualPayment = paid; // record post-macro payout
       // Client rating (Phase 2D)
       if (typeof window._tycoonRecordContractDelivery === 'function') {
         window._tycoonRecordContractDelivery(proj);
       }
     } else {
-      // Own IP: launch sales become cash immediately in Phase 1 (sales tail comes later)
-      const rev = proj.launchSales;
+      // Own IP: launch sales (modified by macro events)
+      const rev = Math.round(proj.launchSales * macroMult);
+      proj.actualLaunchSales = rev;
       S.cash = (S.cash || 0) + rev;
       S.tRevenue = (S.tRevenue || 0) + rev;
     }
