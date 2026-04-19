@@ -228,12 +228,16 @@ Examples:
 - C) RimWorld-inspired (passions + 2-3 traits)
 - D) Mix of C + narrative ← ✅ picked
 
-### Q7 — Trait inheritance model (depends on Q1 + Q6)
-When a new founder spawns:
-- **A) Fully procedural** — every heir re-rolls from scratch
-- **B) Pure inheritance** — heir gets parent's traits verbatim
-- **C) Mutation** — heir inherits 1-2 parent traits + rolls 1-2 new ones
-- **D) Player choice** — pick which trait to pass down, then new traits roll
+### Q7 — Trait inheritance model ✅ LOCKED: Fully procedural
+
+Each classmate's passions + mechanical traits + narrative traits are rolled fresh from the pools (weighted by their rank). Past runs don't influence what future classmates roll.
+
+**Rationale:** bell-curve distribution + rank-driven count already supply plenty of run-to-run variation. Layering a "famous alumni nudge" or "endorse a trait" system on top would muddy the math without adding much texture — the school endowment in Q8 is already a meta-progression layer; doubling up on meta-progression for trait rolls is over-engineering.
+
+**Old options (for reference):**
+- B) Famous alumni nudge — past wins bias future trait rolls
+- C) Curriculum-driven — endowment unlocks bias trait pool
+- D) Player choice — pay to endorse one trait per run
 
 ### Q8 — Meta-progression currency (depends on Q3)
 What do players earn across runs that shapes future runs?
