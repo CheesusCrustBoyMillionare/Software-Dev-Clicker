@@ -9563,7 +9563,9 @@ let _clockValidated = false;
   background: transparent; border: 1px solid #30363d; color: #8b949e;
   padding: 6px 10px; border-radius: 4px; cursor: pointer; font-family: inherit;
 }
-.tycoon-topbar .t-exit:hover { color: #f85149; border-color: #f85149; }
+/* Save & Quit: benign action, use neutral accent on hover (not the red
+   "danger" color the old Exit button had — nothing is being destroyed). */
+.tycoon-topbar .t-exit:hover { color: #7ee787; border-color: #2ea043; background: rgba(46,160,67,0.08); }
 .tycoon-topbar .t-options-btn {
   background: transparent; border: 1px solid #30363d; color: #c9d1d9;
   padding: 4px 10px; margin-left: 4px; border-radius: 4px; cursor: pointer;
@@ -9858,8 +9860,16 @@ let _clockValidated = false;
 
     const exitBtn = h('button', {
       className: 't-exit',
-      onclick: () => { tycoonUI.exit(); }
-    }, 'Exit Tycoon');
+      title: 'Persist current career to this slot and return to the slot screen',
+      onclick: () => {
+        // Explicit save before exit — previously we relied on the
+        // markDirty autosave debounce, but a user hitting exit right
+        // after a state change (hire, research tick, etc.) could lose
+        // a few seconds of progress before the debounce fired.
+        try { if (typeof save === 'function') save(); } catch (e) { console.error('[save-and-quit] save failed:', e); }
+        tycoonUI.exit();
+      }
+    }, '\uD83D\uDCBE Save & Quit');
 
     topbar.append(cal, cash, revenue, shipped);
     if (bankruptBlock) topbar.append(bankruptBlock);
