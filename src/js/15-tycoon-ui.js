@@ -357,12 +357,14 @@
       h('div', { className: 't-proj-critic' }, 'Critic ' + proj.criticScore + '/100' + (proj.launchSales ? ' · ' + fmtMoney(proj.launchSales) : '')) : null;
 
     const typeDef = window.PROJECT_TYPES[proj.type];
+    const platDef = proj.platform ? window.tycoonPlatforms?.PLATFORM_BY_ID?.[proj.platform] : null;
     return h('div', { className: 't-proj-card ' + (isShipped ? 'shipped' : '') },
       h('div', { className: 't-proj-name' },
         (typeDef?.icon || '') + ' ' + proj.name),
       h('div', { className: 't-proj-meta' },
         (typeDef?.label || proj.type) + ' · ' +
         (window.PROJECT_SCOPES[proj.scope]?.label || proj.scope) + ' scope' +
+        (platDef ? ' · ' + platDef.icon + ' ' + platDef.name : '') +
         (proj.isContract ? ' · contract' : ' · own IP')),
       h('div', { className: 't-proj-phase ' + proj.phase }, proj.phase),
       progEl,
@@ -394,6 +396,27 @@
               return h('div', { className: 't-finance-row' },
                 h('span', { className: 'lbl' }, (typeDef?.icon || '') + ' ' + (typeDef?.label || type)),
                 h('span', { className: 'val' }, h_.icons + ' ' + h_.trend)
+              );
+            })
+          )
+        ),
+
+        // ----- Platform Health -----
+        window.tycoonPlatforms && h('div', { style:{ marginBottom: '16px' } },
+          h('div', { className: 't-era-band' }, 'Platform Health'),
+          h('div', null, ...window.tycoonPlatforms.PLATFORMS
+            .filter(p => window.tycoonPlatforms.getPhase(p) !== null)
+            .map(p => {
+              const phase = window.tycoonPlatforms.getPhase(p);
+              const phaseLbl = window.tycoonPlatforms.phaseLabel(p);
+              const mult = window.tycoonPlatforms.phaseMultiplier(p);
+              const color = phase === 'dead' ? '#f85149' : phase === 'decline' ? '#f0883e' :
+                            phase === 'peak' ? '#7ee787' : '#c9d1d9';
+              return h('div', { className: 't-finance-row' },
+                h('span', { className: 'lbl' }, p.icon + ' ' + p.name +
+                  (p.royaltyCut > 0 ? ' (' + Math.round(p.royaltyCut*100) + '% cut)' : '')),
+                h('span', { style:{ color, fontWeight:'700', fontVariantNumeric:'tabular-nums' } },
+                  phaseLbl + ' (×' + mult.toFixed(1) + ')')
               );
             })
           )
@@ -1009,10 +1032,14 @@
     // Default to first era-available type
     const availableTypes = Object.keys(window.PROJECT_TYPES).filter(k => window.isProjectTypeAvailable(k));
     const defaultType = availableTypes.includes('game') ? 'game' : availableTypes[0];
+    // Default platform: first available for that type
+    const initialPlatforms = window.tycoonPlatforms?.availableForType?.(defaultType) || [];
+    const defaultPlatform = initialPlatforms[0]?.id || null;
     const config = {
       name: 'Untitled',
       type: defaultType,
       scope: 'small',
+      platform: defaultPlatform,
       features: [],
       isContract: false
     };
@@ -1046,6 +1073,25 @@
               })
             )
           ),
+          // Platform selector (Phase 4C)
+          (() => {
+            const avail = window.tycoonPlatforms?.availableForType?.(config.type) || [];
+            if (avail.length === 0) return null;
+            // Sync config.platform if invalid
+            if (!avail.some(p => p.id === config.platform)) config.platform = avail[0].id;
+            return h('label', null, 'Platform',
+              h('select', {
+                onchange: (e) => { config.platform = e.target.value; rerender(); }
+              },
+                ...avail.map(p => {
+                  const phase = window.tycoonPlatforms.phaseLabel(p);
+                  const cutStr = p.royaltyCut > 0 ? ' · ' + Math.round(p.royaltyCut*100) + '% cut' : '';
+                  return h('option', { value: p.id, selected: p.id === config.platform ? true : null },
+                    p.icon + ' ' + p.name + ' — ' + phase + cutStr);
+                })
+              )
+            );
+          })(),
           h('label', null, 'Scope',
             h('select', {
               onchange: (e) => { config.scope = e.target.value; rerender(); }

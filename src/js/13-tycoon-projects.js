@@ -169,6 +169,7 @@
       // Design-phase choices
       features: Array.isArray(config.features) ? [...config.features] : [],
       budget: config.budget || 0,
+      platform: config.platform || null, // Phase 4C
       isContract: !!config.isContract,
       clientId: config.clientId || null,
       clientTier: config.clientTier || null,
@@ -469,17 +470,22 @@
   }
 
   // ---------- Launch sales ----------
-  // Phase 1: simplified. Real formula with platform/genre/rival in Phase 4.
+  // Phase 4C: includes platform phase multiplier and royalty cut.
   function computeLaunchSales(proj) {
-    if (proj.isContract) return 0; // contracts paid on delivery, not by sales
+    if (proj.isContract) return 0;
     const critic = proj.criticScore || 60;
-    // Base multiplier curve: linear below 70, accelerating above
     let base = Math.pow(Math.max(critic, 10) / 50, 2.2) * 100000;
-    // Scope modifier
     const scopeMul = proj.scope === 'small' ? 1 : proj.scope === 'medium' ? 2.5 : 6;
-    // Marketing (placeholder — full channels in Phase 5)
     const mktMul = 1 + ((proj.marketingSpend || 0) / 100000);
-    return Math.round(base * scopeMul * mktMul);
+    // Platform multiplier (includes phase × (1 - royaltyCut))
+    let platformMul = 1;
+    if (proj.platform && window.tycoonPlatforms) {
+      const pm = window.tycoonPlatforms.launchMultiplier(proj.platform, S.calendar?.year);
+      platformMul = pm.net;
+      proj.platformPhaseMult = pm.phaseMult;
+      proj.platformRoyaltyCut = pm.royaltyCut;
+    }
+    return Math.round(base * scopeMul * mktMul * platformMul);
   }
 
   // ---------- Lookup helpers ----------
