@@ -373,6 +373,100 @@
     );
   }
 
+  // ---------- Marketing channels modal (Phase 4E) ----------
+  function openMarketingModal(projId) {
+    closeMarketingModal();
+    const proj = window.tycoonProjects.find(projId);
+    if (!proj) return;
+    const selected = new Set(proj.marketingChannels || []);
+    const available = window.tycoonMarketing?.availableChannels?.(S.calendar?.year) || [];
+
+    // Auto-pause game while player decides
+    const prevPaused = S.paused;
+    S.paused = true;
+    refreshTopBar();
+
+    function render() {
+      const totalCost = window.tycoonMarketing.totalCost([...selected]);
+      const affordable = (S.cash || 0) >= totalCost;
+      const tempProj = { ...proj, marketingChannels: [...selected] };
+      const mult = window.tycoonMarketing.computeMarketingMultiplier(tempProj);
+
+      const ov = h('div', { className: 't-modal-ov', id: '_t_marketing_modal' },
+        h('div', { className: 't-modal', style: { maxWidth: '620px' } },
+          h('h2', null, '📣 Marketing — ' + proj.name),
+          h('div', { style: { color:'#8b949e', fontSize:'0.8rem', marginBottom:'12px' } },
+            'Polish phase: pick channels to boost launch sales. ' +
+            'Synergy bonuses apply for matched combos.'),
+
+          // Channel list
+          h('div', null, ...available.map(ch => {
+            const picked = selected.has(ch.id);
+            const eff = ch.effectiveness[proj.type] || ch.effectiveness.all || 1;
+            const effPct = Math.round((eff - 1) * 100);
+            const effLabel = effPct > 0 ? '+' + effPct + '%' : (effPct < 0 ? effPct + '%' : '—');
+            return h('div', {
+              className: 't-feat-card' + (picked ? ' picked' : ''),
+              onclick: () => {
+                if (picked) selected.delete(ch.id);
+                else selected.add(ch.id);
+                document.getElementById('_t_marketing_modal')?.remove();
+                render();
+              }
+            },
+              h('div', { className: 'n' },
+                ch.icon + ' ' + ch.name,
+                h('span', { className: 'c' }, fmtMoney(ch.cost) + ' · ' + effLabel)),
+              h('div', { className: 'm' }, ch.desc)
+            );
+          })),
+
+          // Summary
+          h('div', { style: { marginTop:'16px', padding:'10px', background:'#0d1117', border:'1px solid #30363d', borderRadius:'4px' } },
+            h('div', { style:{ color:'#c9d1d9', fontSize:'0.85rem', fontWeight:'700' } },
+              selected.size + ' channel' + (selected.size===1?'':'s') + ' · Total cost ' + fmtMoney(totalCost) + ' · Sales multiplier ×' + mult.mult.toFixed(2)),
+            mult.synergies.length > 0 && h('div', { style:{ color:'#f0883e', fontSize:'0.72rem', marginTop:'4px' } },
+              '⚡ Synergies: ' + mult.synergies.map(s => s.label + ' (+' + Math.round((s.mult-1)*100) + '%)').join(', ')),
+            !affordable && h('div', { style:{ color:'#f85149', fontSize:'0.72rem', marginTop:'4px' } },
+              '⚠ Not enough cash. Need ' + fmtMoney(totalCost - (S.cash || 0)) + ' more.')
+          ),
+
+          h('div', { className: 't-modal-actions' },
+            h('button', { className: 't-btn secondary', onclick: () => {
+              // Cancel — keep no channels
+              S.paused = prevPaused;
+              refreshTopBar();
+              closeMarketingModal();
+            }}, 'Skip (no marketing)'),
+            h('button', { className: 't-btn',
+              disabled: !affordable ? 'disabled' : null,
+              onclick: () => {
+                if (!affordable) return;
+                // Charge + store
+                S.cash -= totalCost;
+                S.tExpenses = (S.tExpenses || 0) + totalCost;
+                proj.marketingChannels = [...selected];
+                proj.marketingSpend = totalCost;
+                markDirty();
+                S.paused = prevPaused;
+                refreshTopBar();
+                closeMarketingModal();
+                pushToast('Marketing locked: ' + selected.size + ' channel' + (selected.size===1?'':'s') + ' · ' + fmtMoney(totalCost));
+              }
+            }, selected.size === 0 ? 'Confirm (no marketing)' : 'Confirm — ' + fmtMoney(totalCost))
+          )
+        )
+      );
+      document.body.appendChild(ov);
+    }
+    render();
+  }
+
+  function closeMarketingModal() {
+    const ov = document.getElementById('_t_marketing_modal');
+    if (ov) ov.remove();
+  }
+
   // ---------- Market panel modal (Phase 4B) ----------
   function openMarketModal() {
     closeMarketModal();
@@ -1309,6 +1403,14 @@
   // Rival research updates (for UI refresh)
   document.addEventListener('tycoon:rival-research-completed', () => {
     rerenderResearchModal();
+  });
+
+  // Polish phase started — prompt player for marketing channels (Phase 4E)
+  document.addEventListener('tycoon:project-polish-started', (e) => {
+    // Only auto-prompt for own IP (contracts don't get marketing)
+    const proj = window.tycoonProjects.find(e.detail.projectId);
+    if (!proj || proj.isContract) return;
+    openMarketingModal(proj.id);
   });
 
   // ---------- Character creator modal ----------

@@ -229,6 +229,9 @@
       proj.phase = 'polish';
       proj.phaseStartedAtWeek = absoluteWeek();
       proj.phaseWeeksRequired = scope.phaseWeeks.polish;
+      // Phase 4E: fire event so UI can prompt for marketing channels.
+      // Player can still ship without picking any (mktMul = 1).
+      document.dispatchEvent(new CustomEvent('tycoon:project-polish-started', { detail: { projectId: proj.id } }));
     } else if (proj.phase === 'polish') {
       // Launch — handled by shipProject()
       shipProject(proj.id);
@@ -476,7 +479,16 @@
     const critic = proj.criticScore || 60;
     let base = Math.pow(Math.max(critic, 10) / 50, 2.2) * 100000;
     const scopeMul = proj.scope === 'small' ? 1 : proj.scope === 'medium' ? 2.5 : 6;
-    const mktMul = 1 + ((proj.marketingSpend || 0) / 100000);
+    // Marketing multiplier (Phase 4E: channel-based)
+    let mktMul;
+    if (window.tycoonMarketing && Array.isArray(proj.marketingChannels) && proj.marketingChannels.length > 0) {
+      const r = window.tycoonMarketing.computeMarketingMultiplier(proj);
+      mktMul = r.mult;
+      proj.marketingBreakdown = r.breakdown;
+      proj.marketingSynergies = r.synergies;
+    } else {
+      mktMul = 1 + ((proj.marketingSpend || 0) / 100000);
+    }
     // Platform multiplier (includes phase × (1 - royaltyCut))
     let platformMul = 1;
     if (proj.platform && window.tycoonPlatforms) {

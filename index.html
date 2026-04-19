@@ -8846,6 +8846,9 @@ let _clockValidated = false;
       proj.phase = 'polish';
       proj.phaseStartedAtWeek = absoluteWeek();
       proj.phaseWeeksRequired = scope.phaseWeeks.polish;
+      // Phase 4E: fire event so UI can prompt for marketing channels.
+      // Player can still ship without picking any (mktMul = 1).
+      document.dispatchEvent(new CustomEvent('tycoon:project-polish-started', { detail: { projectId: proj.id } }));
     } else if (proj.phase === 'polish') {
       // Launch — handled by shipProject()
       shipProject(proj.id);
@@ -9093,7 +9096,16 @@ let _clockValidated = false;
     const critic = proj.criticScore || 60;
     let base = Math.pow(Math.max(critic, 10) / 50, 2.2) * 100000;
     const scopeMul = proj.scope === 'small' ? 1 : proj.scope === 'medium' ? 2.5 : 6;
-    const mktMul = 1 + ((proj.marketingSpend || 0) / 100000);
+    // Marketing multiplier (Phase 4E: channel-based)
+    let mktMul;
+    if (window.tycoonMarketing && Array.isArray(proj.marketingChannels) && proj.marketingChannels.length > 0) {
+      const r = window.tycoonMarketing.computeMarketingMultiplier(proj);
+      mktMul = r.mult;
+      proj.marketingBreakdown = r.breakdown;
+      proj.marketingSynergies = r.synergies;
+    } else {
+      mktMul = 1 + ((proj.marketingSpend || 0) / 100000);
+    }
     // Platform multiplier (includes phase × (1 - royaltyCut))
     let platformMul = 1;
     if (proj.platform && window.tycoonPlatforms) {
@@ -9847,6 +9859,100 @@ let _clockValidated = false;
       qRow,
       criticEl
     );
+  }
+
+  // ---------- Marketing channels modal (Phase 4E) ----------
+  function openMarketingModal(projId) {
+    closeMarketingModal();
+    const proj = window.tycoonProjects.find(projId);
+    if (!proj) return;
+    const selected = new Set(proj.marketingChannels || []);
+    const available = window.tycoonMarketing?.availableChannels?.(S.calendar?.year) || [];
+
+    // Auto-pause game while player decides
+    const prevPaused = S.paused;
+    S.paused = true;
+    refreshTopBar();
+
+    function render() {
+      const totalCost = window.tycoonMarketing.totalCost([...selected]);
+      const affordable = (S.cash || 0) >= totalCost;
+      const tempProj = { ...proj, marketingChannels: [...selected] };
+      const mult = window.tycoonMarketing.computeMarketingMultiplier(tempProj);
+
+      const ov = h('div', { className: 't-modal-ov', id: '_t_marketing_modal' },
+        h('div', { className: 't-modal', style: { maxWidth: '620px' } },
+          h('h2', null, '📣 Marketing — ' + proj.name),
+          h('div', { style: { color:'#8b949e', fontSize:'0.8rem', marginBottom:'12px' } },
+            'Polish phase: pick channels to boost launch sales. ' +
+            'Synergy bonuses apply for matched combos.'),
+
+          // Channel list
+          h('div', null, ...available.map(ch => {
+            const picked = selected.has(ch.id);
+            const eff = ch.effectiveness[proj.type] || ch.effectiveness.all || 1;
+            const effPct = Math.round((eff - 1) * 100);
+            const effLabel = effPct > 0 ? '+' + effPct + '%' : (effPct < 0 ? effPct + '%' : '—');
+            return h('div', {
+              className: 't-feat-card' + (picked ? ' picked' : ''),
+              onclick: () => {
+                if (picked) selected.delete(ch.id);
+                else selected.add(ch.id);
+                document.getElementById('_t_marketing_modal')?.remove();
+                render();
+              }
+            },
+              h('div', { className: 'n' },
+                ch.icon + ' ' + ch.name,
+                h('span', { className: 'c' }, fmtMoney(ch.cost) + ' · ' + effLabel)),
+              h('div', { className: 'm' }, ch.desc)
+            );
+          })),
+
+          // Summary
+          h('div', { style: { marginTop:'16px', padding:'10px', background:'#0d1117', border:'1px solid #30363d', borderRadius:'4px' } },
+            h('div', { style:{ color:'#c9d1d9', fontSize:'0.85rem', fontWeight:'700' } },
+              selected.size + ' channel' + (selected.size===1?'':'s') + ' · Total cost ' + fmtMoney(totalCost) + ' · Sales multiplier ×' + mult.mult.toFixed(2)),
+            mult.synergies.length > 0 && h('div', { style:{ color:'#f0883e', fontSize:'0.72rem', marginTop:'4px' } },
+              '⚡ Synergies: ' + mult.synergies.map(s => s.label + ' (+' + Math.round((s.mult-1)*100) + '%)').join(', ')),
+            !affordable && h('div', { style:{ color:'#f85149', fontSize:'0.72rem', marginTop:'4px' } },
+              '⚠ Not enough cash. Need ' + fmtMoney(totalCost - (S.cash || 0)) + ' more.')
+          ),
+
+          h('div', { className: 't-modal-actions' },
+            h('button', { className: 't-btn secondary', onclick: () => {
+              // Cancel — keep no channels
+              S.paused = prevPaused;
+              refreshTopBar();
+              closeMarketingModal();
+            }}, 'Skip (no marketing)'),
+            h('button', { className: 't-btn',
+              disabled: !affordable ? 'disabled' : null,
+              onclick: () => {
+                if (!affordable) return;
+                // Charge + store
+                S.cash -= totalCost;
+                S.tExpenses = (S.tExpenses || 0) + totalCost;
+                proj.marketingChannels = [...selected];
+                proj.marketingSpend = totalCost;
+                markDirty();
+                S.paused = prevPaused;
+                refreshTopBar();
+                closeMarketingModal();
+                pushToast('Marketing locked: ' + selected.size + ' channel' + (selected.size===1?'':'s') + ' · ' + fmtMoney(totalCost));
+              }
+            }, selected.size === 0 ? 'Confirm (no marketing)' : 'Confirm — ' + fmtMoney(totalCost))
+          )
+        )
+      );
+      document.body.appendChild(ov);
+    }
+    render();
+  }
+
+  function closeMarketingModal() {
+    const ov = document.getElementById('_t_marketing_modal');
+    if (ov) ov.remove();
   }
 
   // ---------- Market panel modal (Phase 4B) ----------
@@ -10785,6 +10891,14 @@ let _clockValidated = false;
   // Rival research updates (for UI refresh)
   document.addEventListener('tycoon:rival-research-completed', () => {
     rerenderResearchModal();
+  });
+
+  // Polish phase started — prompt player for marketing channels (Phase 4E)
+  document.addEventListener('tycoon:project-polish-started', (e) => {
+    // Only auto-prompt for own IP (contracts don't get marketing)
+    const proj = window.tycoonProjects.find(e.detail.projectId);
+    if (!proj || proj.isContract) return;
+    openMarketingModal(proj.id);
   });
 
   // ---------- Character creator modal ----------
@@ -13858,6 +13972,168 @@ let _clockValidated = false;
   if (window.dbg) window.dbg.launch = window.tycoonLaunch;
 
   console.log('[tycoon-launch] module loaded.');
+})();
+// ========== TYCOON MARKETING CHANNELS (v2) ==========
+// Phase 4E: multi-channel marketing. Player picks 0-4 channels at Polish phase.
+// Each channel has cost + per-type effectiveness; certain combos synergize.
+(function(){
+  'use strict';
+
+  // ---------- Channel catalog ----------
+  // effectiveness: per-type sales multiplier (1 = no effect, 1.1 = +10%)
+  // 'all' applies to any type not explicitly listed
+  const CHANNELS = [
+    {
+      id: 'mk_press',
+      name: 'Press Kit',
+      icon: '📰',
+      era: [1980, 9999],
+      cost: 5000,
+      effectiveness: { all: 1.10, business: 1.15, saas: 1.15 },
+      desc: 'Mailed review copies + press release to enthusiast outlets.'
+    },
+    {
+      id: 'mk_magazine',
+      name: 'Magazine Ads',
+      icon: '📖',
+      era: [1980, 2005],
+      cost: 25000,
+      effectiveness: { all: 1.15, game: 1.20 },
+      desc: 'Full-page ads in Compute!, PC Gamer, etc.'
+    },
+    {
+      id: 'mk_tradeshow',
+      name: 'Trade Show Booth',
+      icon: '🎪',
+      era: [1980, 9999],
+      cost: 40000,
+      effectiveness: { all: 1.12, business: 1.20, saas: 1.20 },
+      desc: 'CES, E3, COMDEX presence with demo floor.'
+    },
+    {
+      id: 'mk_tv',
+      name: 'TV Commercials',
+      icon: '📺',
+      era: [1985, 2015],
+      cost: 200000,
+      effectiveness: { all: 1.25, game: 1.35 },
+      desc: 'Prime-time national broadcast spots.'
+    },
+    {
+      id: 'mk_web_banner',
+      name: 'Web Banner Ads',
+      icon: '🖼️',
+      era: [1996, 9999],
+      cost: 35000,
+      effectiveness: { all: 1.15, web: 1.22, saas: 1.18 },
+      desc: 'Banner campaigns on enthusiast and major portal sites.'
+    },
+    {
+      id: 'mk_search',
+      name: 'Search Ads',
+      icon: '🔎',
+      era: [2002, 9999],
+      cost: 50000,
+      effectiveness: { all: 1.20, saas: 1.25, web: 1.20, business: 1.18 },
+      desc: 'Keyword-targeted Google AdWords / Bing Ads.'
+    },
+    {
+      id: 'mk_social',
+      name: 'Social Media',
+      icon: '📱',
+      era: [2006, 9999],
+      cost: 30000,
+      effectiveness: { all: 1.15, mobile: 1.25, web: 1.20 },
+      desc: 'Facebook/Twitter campaigns, organic community building.'
+    },
+    {
+      id: 'mk_influencer',
+      name: 'Influencer / YouTube',
+      icon: '🎥',
+      era: [2010, 9999],
+      cost: 100000,
+      effectiveness: { all: 1.20, game: 1.30, mobile: 1.25, ai: 1.25 },
+      desc: 'Sponsored content with YouTube creators and streamers.'
+    },
+    {
+      id: 'mk_streaming',
+      name: 'Streaming / Twitch',
+      icon: '📹',
+      era: [2015, 9999],
+      cost: 75000,
+      effectiveness: { all: 1.18, game: 1.28, ai: 1.20 },
+      desc: 'Sponsored streams, tournaments, Twitch ads.'
+    },
+  ];
+  window.MARKETING_CHANNELS = CHANNELS;
+  const CHANNEL_BY_ID = Object.fromEntries(CHANNELS.map(c => [c.id, c]));
+
+  // ---------- Synergies ----------
+  const SYNERGIES = [
+    { ids:['mk_press','mk_tradeshow'],       mult: 1.10, label:'Industry Darling' },
+    { ids:['mk_magazine','mk_tv'],           mult: 1.15, label:'Mass Market Blitz' },
+    { ids:['mk_social','mk_influencer'],     mult: 1.25, label:'Viral Moment' },
+    { ids:['mk_search','mk_web_banner'],     mult: 1.10, label:'Digital Full Stack' },
+    { ids:['mk_streaming','mk_influencer'],  mult: 1.20, label:'Content Creator Wave' },
+  ];
+
+  // ---------- Availability ----------
+  function isChannelAvailable(channelId, year) {
+    const c = CHANNEL_BY_ID[channelId];
+    if (!c) return false;
+    year = year == null ? (S.calendar?.year || 1980) : year;
+    return year >= c.era[0] && year <= c.era[1];
+  }
+
+  function availableChannels(year) {
+    year = year == null ? (S.calendar?.year || 1980) : year;
+    return CHANNELS.filter(c => year >= c.era[0] && year <= c.era[1]);
+  }
+
+  // ---------- Effectiveness math ----------
+  // Computes the total marketing multiplier for a project given its selected channels
+  function computeMarketingMultiplier(proj) {
+    const selected = proj.marketingChannels || [];
+    if (selected.length === 0) return { mult: 1.0, breakdown: [], synergies: [] };
+    let mult = 1.0;
+    const breakdown = [];
+    for (const cid of selected) {
+      const c = CHANNEL_BY_ID[cid];
+      if (!c) continue;
+      const eff = c.effectiveness[proj.type] || c.effectiveness.all || 1;
+      mult *= eff;
+      breakdown.push({ channel: c.name, icon: c.icon, effect: eff });
+    }
+    // Synergy bonuses
+    const synergies = [];
+    for (const syn of SYNERGIES) {
+      if (syn.ids.every(id => selected.includes(id))) {
+        mult *= syn.mult;
+        synergies.push({ label: syn.label, mult: syn.mult });
+      }
+    }
+    // Diminishing returns for 5+ channels (spread too thin)
+    if (selected.length >= 5) mult *= 0.92;
+    return { mult, breakdown, synergies };
+  }
+
+  function totalCost(channelIds) {
+    return channelIds.reduce((s, id) => s + (CHANNEL_BY_ID[id]?.cost || 0), 0);
+  }
+
+  // ---------- Public API ----------
+  window.tycoonMarketing = {
+    CHANNELS,
+    CHANNEL_BY_ID,
+    SYNERGIES,
+    isChannelAvailable,
+    availableChannels,
+    computeMarketingMultiplier,
+    totalCost,
+  };
+  if (window.dbg) window.dbg.marketing = window.tycoonMarketing;
+
+  console.log('[tycoon-marketing] module loaded. ' + CHANNELS.length + ' channels.');
 })();
 </script>
 </body>
