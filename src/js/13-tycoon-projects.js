@@ -96,6 +96,7 @@
       budget: config.budget || 0,
       isContract: !!config.isContract,
       clientId: config.clientId || null,
+      clientTier: config.clientTier || null,
       payment: config.payment || 0,
       deadline: config.deadline || null, // absolute week number
 
@@ -272,6 +273,10 @@
       const paid = proj.payment;
       S.cash = (S.cash || 0) + paid;
       S.tRevenue = (S.tRevenue || 0) + paid;
+      // Client rating (Phase 2D)
+      if (typeof window._tycoonRecordContractDelivery === 'function') {
+        window._tycoonRecordContractDelivery(proj);
+      }
     } else {
       // Own IP: launch sales become cash immediately in Phase 1 (sales tail comes later)
       const rev = proj.launchSales;

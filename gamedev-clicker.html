@@ -8713,6 +8713,7 @@ let _clockValidated = false;
       budget: config.budget || 0,
       isContract: !!config.isContract,
       clientId: config.clientId || null,
+      clientTier: config.clientTier || null,
       payment: config.payment || 0,
       deadline: config.deadline || null, // absolute week number
 
@@ -8889,6 +8890,10 @@ let _clockValidated = false;
       const paid = proj.payment;
       S.cash = (S.cash || 0) + paid;
       S.tRevenue = (S.tRevenue || 0) + paid;
+      // Client rating (Phase 2D)
+      if (typeof window._tycoonRecordContractDelivery === 'function') {
+        window._tycoonRecordContractDelivery(proj);
+      }
     } else {
       // Own IP: launch sales become cash immediately in Phase 1 (sales tail comes later)
       const rev = proj.launchSales;
@@ -9768,7 +9773,10 @@ let _clockValidated = false;
     const deadlineWeeksFromNow = contract.deadline - currentWeek;
     return h('div', { className: 't-contract-card' },
       h('div', { className: 't-c-hdr' },
-        h('div', { className: 't-c-client' }, contract.clientName),
+        h('div', { className: 't-c-client' },
+          (contract.clientTierIcon || '🏪') + ' ' + contract.clientName,
+          contract.clientTierLabel ? h('span', { style:{color:'#8b949e',fontWeight:'400',fontSize:'0.7rem',marginLeft:'6px'} }, contract.clientTierLabel) : null
+        ),
         h('div', { className: 't-c-pay' }, fmtMoney(contract.payment))
       ),
       h('div', { className: 't-c-proj' }, contract.projectName),
@@ -9871,6 +9879,23 @@ let _clockValidated = false;
           row('Total shipped', String(shipped.length)),
           row('  · Contracts delivered', String(shipped.filter(p => p.isContract).length)),
           row('  · Own IP', String(shipped.filter(p => !p.isContract).length))
+        ),
+        // Client relationships grid (Phase 2D)
+        S.clientReputation && h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Client Relationships'),
+        S.clientReputation && h('div', null,
+          ...Object.entries(S.clientReputation).map(([tierId, rep]) => {
+            const tierDef = window.CLIENT_TIERS?.[tierId];
+            if (!tierDef) return null;
+            const starsFilled = Math.round(rep.avg);
+            const starStr = rep.count > 0 ? '★'.repeat(starsFilled) + '☆'.repeat(5-starsFilled) : '—';
+            const unlocked = rep.unlocked;
+            const droppedBelow = rep.count >= 2 && rep.avg < tierDef.minAvg;
+            const status = !unlocked ? '🔒 Locked' :
+                           droppedBelow ? '⚠️ Reputation dropped' :
+                           rep.count === 0 ? 'New' :
+                           starStr + ' (avg ' + rep.avg.toFixed(1) + ', ' + rep.count + ' delivered)';
+            return row((tierDef.icon || '') + ' ' + tierDef.label, status);
+          })
         ),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: () => document.getElementById('_t_finance_modal')?.remove() }, 'Close')
@@ -10378,22 +10403,66 @@ let _clockValidated = false;
     ]
   };
 
+  // ---------- Client tiers (ECON-6b) ----------
+  // Unlock chain: Small Biz → Enterprise → Tech Giant → Government
+  const CLIENT_TIERS = {
+    small_biz: {
+      id: 'small_biz',
+      label: 'Small Biz',
+      icon: '🏪',
+      payMult: 1.0,
+      unlockedFromStart: true,
+      gate: null,
+      // Drop if avg falls below this (tier stops offering)
+      minAvg: 2.5,
+    },
+    enterprise: {
+      id: 'enterprise',
+      label: 'Enterprise',
+      icon: '🏢',
+      payMult: 5.0,                  // 5× small biz pay
+      unlockedFromStart: false,
+      gate: { tier: 'small_biz', minAvg: 3.5, minDeliveries: 3 },
+      minAvg: 3.0,
+    },
+    tech_giant: {
+      id: 'tech_giant',
+      label: 'Tech Giant',
+      icon: '🏛️',
+      payMult: 20.0,                 // 20× small biz pay
+      unlockedFromStart: false,
+      gate: { tier: 'enterprise', minAvg: 4.0, minDeliveries: 3 },
+      minAvg: 3.5,
+    },
+    government: {
+      id: 'government',
+      label: 'Government',
+      icon: '🏛',
+      payMult: 80.0,                 // 80× small biz pay
+      unlockedFromStart: false,
+      gate: { tier: 'enterprise', minAvg: 4.0, minDeliveries: 5, minFame: 100 },
+      minAvg: 3.5,
+    },
+  };
+  window.CLIENT_TIERS = CLIENT_TIERS;
+
   // ---------- Contract specifications per project type ----------
-  // Defines typical features the client wants, scope, payment range.
-  // Phase 1: Small scope only (Contract + Medium/Large in Phase 2+).
   const CONTRACT_SPECS = {
     business: {
-      scopes: ['small'],                     // Phase 1: small only
+      scopes: ['small'],                     // Phase 2 keeps small only
       requiredFeatures: {
-        small: ['f_save', 'f_print']         // always required on small business contracts
+        small: ['f_save', 'f_print']
       },
       suggestedFeatures: {
-        small: ['f_import', 'f_reports', 'f_templates', 'f_help']  // nice-to-haves
+        small: ['f_import', 'f_reports', 'f_templates', 'f_help']
       },
       paymentRange: { small: [12000, 28000] },
-      deadlineMult: 1.4,                     // 40% more weeks than minimum dev time
-      weights: {                             // relative likelihood of each client tier requesting this
-        smallBiz: 1.0
+      deadlineMult: 1.4,
+      tierWeights: {
+        small_biz: 1.0,
+        enterprise: 1.3,
+        tech_giant: 1.5,
+        government: 2.0,
       }
     },
     game: {
@@ -10404,10 +10473,13 @@ let _clockValidated = false;
       suggestedFeatures: {
         small: ['f_sound', 'f_diff', 'f_tutorial', 'f_ach', 'f_help']
       },
-      paymentRange: { small: [8000, 22000] },  // games pay less on contract (risk)
+      paymentRange: { small: [8000, 22000] },
       deadlineMult: 1.5,
-      weights: {
-        smallBiz: 0.3                          // few small biz clients want games
+      tierWeights: {
+        small_biz: 0.3,
+        enterprise: 0.4,
+        tech_giant: 0.6,
+        government: 0.2,
       }
     }
   };
@@ -10427,9 +10499,49 @@ let _clockValidated = false;
     return Math.round(lo + Math.random() * (hi - lo));
   }
 
-  function pickProjectType() {
-    // Weighted roll across types based on their smallBiz weights
-    const entries = Object.entries(CONTRACT_SPECS).map(([type, spec]) => [type, spec.weights.smallBiz]);
+  // Which tiers are currently unlocked + not dropped (below minAvg)
+  function unlockedTiers() {
+    ensureReputation();
+    const out = [];
+    for (const tierId of Object.keys(CLIENT_TIERS)) {
+      if (isClientTierAvailable(tierId)) out.push(tierId);
+    }
+    return out;
+  }
+
+  function isClientTierAvailable(tierId) {
+    const tier = CLIENT_TIERS[tierId];
+    if (!tier) return false;
+    const rep = S.clientReputation[tierId];
+    if (!rep) return false;
+    if (!rep.unlocked) return false;
+    // Drop check: if we have deliveries and avg is below minAvg, tier temporarily stops offering
+    if (rep.count >= 2 && rep.avg < tier.minAvg) return false;
+    return true;
+  }
+
+  // Pick a client tier weighted by what's unlocked
+  function pickClientTier() {
+    const tiers = unlockedTiers();
+    if (tiers.length === 0) return 'small_biz'; // safety fallback
+    // Bias: prefer higher tiers slightly (more interesting)
+    const weights = tiers.map(t => {
+      const idx = Object.keys(CLIENT_TIERS).indexOf(t);
+      return { t, w: 1 + idx * 0.5 }; // small_biz=1, enterprise=1.5, tech=2, gov=2.5
+    });
+    const total = weights.reduce((s, x) => s + x.w, 0);
+    let roll = Math.random() * total;
+    for (const { t, w } of weights) {
+      roll -= w;
+      if (roll <= 0) return t;
+    }
+    return tiers[0];
+  }
+
+  // Weighted project type pick, scaled by the selected tier
+  function pickProjectTypeForTier(tierId) {
+    const entries = Object.entries(CONTRACT_SPECS).map(([type, spec]) =>
+      [type, spec.tierWeights[tierId] || 0.5]);
     const total = entries.reduce((s, [,w]) => s + w, 0);
     let roll = Math.random() * total;
     for (const [type, w] of entries) {
@@ -10439,17 +10551,83 @@ let _clockValidated = false;
     return entries[0][0];
   }
 
+  // ---------- Reputation state ----------
+  function ensureReputation() {
+    if (!S.clientReputation) {
+      S.clientReputation = {
+        small_biz:  { avg: 0, count: 0, unlocked: true  },
+        enterprise: { avg: 0, count: 0, unlocked: false },
+        tech_giant: { avg: 0, count: 0, unlocked: false },
+        government: { avg: 0, count: 0, unlocked: false },
+      };
+    }
+  }
+
+  // Recompute unlock gates after a delivery or fame change
+  function refreshTierUnlocks() {
+    ensureReputation();
+    for (const tierId of Object.keys(CLIENT_TIERS)) {
+      const tier = CLIENT_TIERS[tierId];
+      if (tier.unlockedFromStart) continue;
+      const gate = tier.gate;
+      if (!gate) continue;
+      const rep = S.clientReputation[tierId];
+      if (rep.unlocked) continue;
+      const gateRep = S.clientReputation[gate.tier];
+      if (!gateRep) continue;
+      if (gateRep.count < gate.minDeliveries) continue;
+      if (gateRep.avg < gate.minAvg) continue;
+      if (gate.minFame && (S.tFame || 0) < gate.minFame) continue;
+      // Unlock!
+      rep.unlocked = true;
+      if (typeof log === 'function') log('🔓 Client tier unlocked: ' + tier.icon + ' ' + tier.label);
+      document.dispatchEvent(new CustomEvent('tycoon:client-tier-unlocked', { detail: { tierId } }));
+    }
+  }
+
+  // Called when a contract is delivered — records the star rating
+  function recordContractDelivery(proj) {
+    if (!proj.isContract) return;
+    ensureReputation();
+    const critic = proj.criticScore || 50;
+    // Map critic 0-100 → stars 1-5 (90+ = 5, 70-89 = 4, 50-69 = 3, 30-49 = 2, <30 = 1)
+    const stars = Math.max(1, Math.min(5, Math.ceil(critic / 20)));
+    proj.clientStars = stars;
+    const tierId = proj.clientTier || 'small_biz';
+    const rep = S.clientReputation[tierId];
+    if (!rep) return;
+    // Running average
+    const prevAvg = rep.avg;
+    rep.avg = ((rep.avg * rep.count) + stars) / (rep.count + 1);
+    rep.count += 1;
+    if (typeof log === 'function') {
+      const starStr = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+      log('📋 ' + (CLIENT_TIERS[tierId]?.label || tierId) + ' rated ' + proj.name + ': ' + starStr + ' (' + stars + '/5)');
+    }
+    refreshTierUnlocks();
+    if (typeof markDirty === 'function') markDirty();
+    document.dispatchEvent(new CustomEvent('tycoon:contract-rated', { detail: { projectId: proj.id, stars, tierId } }));
+  }
+
+  // Expose the hook so shipProject can call it
+  window._tycoonRecordContractDelivery = recordContractDelivery;
+
   function generateContract() {
+    ensureReputation();
     const currentWeek = window.tycoonProjects.absoluteWeek();
-    const type = pickProjectType();
+    const tierId = pickClientTier();
+    const tier = CLIENT_TIERS[tierId];
+    const type = pickProjectTypeForTier(tierId);
     const spec = CONTRACT_SPECS[type];
     const scope = randomFromArray(spec.scopes);
     const scopeDef = window.PROJECT_SCOPES[scope];
 
-    // Pick required features + 0-2 suggested features
+    // Pick required features + 0-2 suggested features (higher tiers demand more)
     const required = [...(spec.requiredFeatures[scope] || [])];
     const suggestedPool = spec.suggestedFeatures[scope] || [];
-    const suggestedCount = Math.floor(Math.random() * 3);
+    // Higher tiers want more features (more demanding clients)
+    const baseCount = tierId === 'small_biz' ? 0 : tierId === 'enterprise' ? 1 : 2;
+    const suggestedCount = baseCount + Math.floor(Math.random() * 2);
     const suggested = [];
     for (let i = 0; i < suggestedCount && suggestedPool.length > 0; i++) {
       const pick = randomFromArray(suggestedPool);
@@ -10457,24 +10635,24 @@ let _clockValidated = false;
     }
     const allFeatures = [...required, ...suggested];
 
-    // Scope-based payment with slight variance
-    const payment = randomInRange(spec.paymentRange[scope]);
+    // Payment: base range × tier multiplier
+    const basePay = randomInRange(spec.paymentRange[scope]);
+    const payment = Math.round(basePay * tier.payMult);
 
     // Deadline: enough time to complete + buffer
     const minWeeks = scopeDef.phaseWeeks.design + scopeDef.phaseWeeks.development + scopeDef.phaseWeeks.polish;
     const deadline = currentWeek + Math.ceil(minWeeks * spec.deadlineMult);
 
-    // Project name + client name
     const projectName = randomFromArray(PROJECT_NAME_TEMPLATES[type]);
     const clientName = randomFromArray(CLIENT_NAMES);
-
-    // Offer expires 8 game-weeks from now (or on deadline - whichever comes first)
     const expiresAtWeek = Math.min(currentWeek + 8, deadline - 4);
 
     return {
       id: newContractId(),
       clientName,
-      clientTier: 'small_biz',
+      clientTier: tierId,
+      clientTierLabel: tier.label,
+      clientTierIcon: tier.icon,
       projectType: type,
       projectName,
       scope,
@@ -10543,6 +10721,7 @@ let _clockValidated = false;
       features: contract.allFeatures,
       isContract: true,
       clientId: contract.clientName,
+      clientTier: contract.clientTier,
       payment: contract.payment,
       deadline: contract.deadline,
     });

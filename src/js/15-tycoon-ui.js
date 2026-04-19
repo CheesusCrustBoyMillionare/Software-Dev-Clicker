@@ -462,7 +462,10 @@
     const deadlineWeeksFromNow = contract.deadline - currentWeek;
     return h('div', { className: 't-contract-card' },
       h('div', { className: 't-c-hdr' },
-        h('div', { className: 't-c-client' }, contract.clientName),
+        h('div', { className: 't-c-client' },
+          (contract.clientTierIcon || '🏪') + ' ' + contract.clientName,
+          contract.clientTierLabel ? h('span', { style:{color:'#8b949e',fontWeight:'400',fontSize:'0.7rem',marginLeft:'6px'} }, contract.clientTierLabel) : null
+        ),
         h('div', { className: 't-c-pay' }, fmtMoney(contract.payment))
       ),
       h('div', { className: 't-c-proj' }, contract.projectName),
@@ -565,6 +568,23 @@
           row('Total shipped', String(shipped.length)),
           row('  · Contracts delivered', String(shipped.filter(p => p.isContract).length)),
           row('  · Own IP', String(shipped.filter(p => !p.isContract).length))
+        ),
+        // Client relationships grid (Phase 2D)
+        S.clientReputation && h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Client Relationships'),
+        S.clientReputation && h('div', null,
+          ...Object.entries(S.clientReputation).map(([tierId, rep]) => {
+            const tierDef = window.CLIENT_TIERS?.[tierId];
+            if (!tierDef) return null;
+            const starsFilled = Math.round(rep.avg);
+            const starStr = rep.count > 0 ? '★'.repeat(starsFilled) + '☆'.repeat(5-starsFilled) : '—';
+            const unlocked = rep.unlocked;
+            const droppedBelow = rep.count >= 2 && rep.avg < tierDef.minAvg;
+            const status = !unlocked ? '🔒 Locked' :
+                           droppedBelow ? '⚠️ Reputation dropped' :
+                           rep.count === 0 ? 'New' :
+                           starStr + ' (avg ' + rep.avg.toFixed(1) + ', ' + rep.count + ' delivered)';
+            return row((tierDef.icon || '') + ' ' + tierDef.label, status);
+          })
         ),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: () => document.getElementById('_t_finance_modal')?.remove() }, 'Close')
