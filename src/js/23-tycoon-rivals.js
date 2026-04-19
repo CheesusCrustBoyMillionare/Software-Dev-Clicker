@@ -69,26 +69,42 @@
   }
 
   function newRivalFromTemplate(t) {
+    // v3 Phase 9: rival scaling. Each run, rivals start progressively more
+    // developed as if in-universe time passed while the next classmate was
+    // admitted. Offset = min(5, floor(runNumber/3)). Bumps starting tier,
+    // revenue, team size, quality, and pre-completes some research from
+    // their priority list.
+    const offset = Math.max(0, Math.min(5, Math.floor((S.school?.currentRunNumber || 1) / 3)));
+    const baseTier = t.startTier || 2;
+    const tier = Math.min(5, baseTier + offset);
+    const baseRev = t.startRevenue || 200_000;
+    const revenue = Math.round(baseRev * (1 + offset * 0.3));
+    const quality = Math.min(95, (t.startQuality || 70) + offset * 3);
+    const teamSize = Math.round(tier * 12);
+    const preCompleted = (t.priorityNodes || []).slice(0, offset);
+
     return {
       id: t.id, name: t.name, icon: t.icon, focus: t.focus,
       priorityNodes: t.priorityNodes, rpPerWeek: t.rpPerWeek,
-      // Research state
-      completedResearch: [],
+      // Research state — rivals may already have knocked out some priority
+      // nodes before the player's run begins.
+      completedResearch: preCompleted.slice(),
       inProgress: null,
-      // Business state (Phase 4A)
-      tier: t.startTier || 2,
-      revenue: t.startRevenue || 200_000,
-      annualRevHistory: [],   // track quarter-over-quarter
-      teamSize: Math.round((t.startTier || 2) * 12),
-      quality: t.startQuality || 70,
-      trajectory: 0,          // growth rate (per quarter)
+      // Business state, scaled by offset
+      tier,
+      revenue,
+      annualRevHistory: [],
+      teamSize,
+      quality,
+      trajectory: offset * 0.05,  // higher baseline growth at later runs
       marketShare: 0,
-      // Project pipeline
-      nextProject: null,       // { name, type, startedAtWeek, duration, releaseAtWeek }
-      shippedCount: 0,
+      nextProject: null,
+      shippedCount: offset,   // more-mature rivals have ship counts on arrival
       // Lifecycle
-      status: 'active',        // active | bankrupt | acquired
+      status: 'active',
       weeksOfDecline: 0,
+      // Audit trail for debug
+      spawnedWithOffset: offset,
     };
   }
 

@@ -448,6 +448,31 @@
 .ss-record:last-child { border-bottom: none; }
 .ss-record .k { color: #8b949e; width: 180px; }
 .ss-record .v { color: #f0f6fc; font-weight: 600; flex: 1; }
+
+/* Accelerated-start era picker — Phase 9 */
+.ss-era-section { margin-top: 24px; }
+.ss-era-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.ss-era-card {
+  padding: 12px 14px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 6px; cursor: pointer; transition: all 0.15s;
+}
+.ss-era-card:hover:not(.locked) { border-color: #58a6ff; transform: translateY(-2px); }
+.ss-era-card.locked { opacity: 0.5; cursor: not-allowed; }
+.ss-era-card.queued {
+  background: linear-gradient(135deg, rgba(46,160,67,0.1), #161b22);
+  border-color: #2ea043;
+  box-shadow: 0 0 0 1px rgba(46,160,67,0.3);
+}
+.ss-era-year { font-size: 1.5rem; font-weight: 700; color: #f0f6fc; }
+.ss-era-label { font-size: 0.75rem; color: #8b949e; margin-top: 2px; }
+.ss-era-blurb { font-size: 0.7rem; color: #8b949e; margin-top: 6px; line-height: 1.4; min-height: 2.4em; }
+.ss-era-cost { font-size: 0.8rem; color: #7ee787; font-weight: 700; margin-top: 8px; }
+.ss-era-status { font-size: 0.7rem; margin-top: 4px; color: #c9d1d9; }
+.ss-era-card.queued .ss-era-status { color: #7ee787; }
+.ss-era-card.locked .ss-era-status { color: #f0883e; }
 `;
     document.head.appendChild(s);
   }
@@ -724,10 +749,9 @@
         }
       }
     }
-    // Famous alumni bleed-in (Q3h): past winning runs become persistent
-    // rival studios in future runs. Inject them into S.rivals if not
-    // already present. Runs once per enroll.
-    injectSchoolRivals();
+    // injectSchoolRivals is called from enrollClassmate AFTER tycoonUI
+    // enter so the default rival seeding happens first. Don't call it
+    // here.
   }
 
   // Seed S.rivals with any school-level rival entries (Celebrated Rivalry
@@ -796,6 +820,28 @@
     return candidates[(classmate.rank || 0) % candidates.length];
   }
 
+  // ---------- Premium era-start curriculum (Phase 9) ----------
+  // Softens the Q5 "always 1980" lock as an earned privilege. Only the
+  // enrollment flow consumes it — after the classmate loads into tycoon,
+  // era is just the standard calendar year in S.calendar.
+  const ERA_STARTS = [
+    { id: 'era_1985', year: 1985, cost: 3000,  reqWins: 1, label: 'Accelerated Start — 1985',
+      blurb: 'Second-gen hardware era. Console launches in full swing.' },
+    { id: 'era_1995', year: 1995, cost: 8000,  reqWins: 3, label: 'Accelerated Start — 1995',
+      blurb: 'CD-ROM era. Web rising. Dot-com smoke on the horizon.' },
+    { id: 'era_2005', year: 2005, cost: 15000, reqWins: 5, label: 'Accelerated Start — 2005',
+      blurb: 'Post-crash rebuild. Broadband ubiquitous. First smartphones.' },
+    { id: 'era_2015', year: 2015, cost: 30000, reqWins: 8, label: 'Accelerated Start — 2015',
+      blurb: 'Cloud-native dominance. Gig economy. AI winter thawing.' },
+  ];
+  function eraStartEligibility(opt) {
+    const wins = S.school?.lifetimeStats?.winConditionRuns || 0;
+    const endow = S.school?.endowment || 0;
+    const needsWins = Math.max(0, opt.reqWins - wins);
+    const affordable = endow >= opt.cost;
+    return { affordable, unlocked: needsWins === 0, needsWins, eligible: affordable && needsWins === 0 };
+  }
+
   // ---------- Rank labels (Phase 6 flavor) ----------
   function rankLabel(rank) {
     if (rank === 1) return 'Valedictorian';
@@ -837,14 +883,35 @@
     S.tExpenses = 0;
     S.tFame = 0;
     S.fame = 0;
-    S.calendar = { week: 1, month: 1, year: 1980 };
+    // Phase 9: accelerated-start era (Q5 lock relaxed). If the player queued
+    // an era option, use its year and charge its cost. Otherwise default 1980.
+    let startYear = 1980;
+    const queued = S.school?.queuedEraStart
+      ? ERA_STARTS.find(e => e.id === S.school.queuedEraStart)
+      : null;
+    if (queued) {
+      const elig = eraStartEligibility(queued);
+      if (elig.eligible) {
+        S.school.endowment -= queued.cost;
+        startYear = queued.year;
+        if (typeof log === 'function') log('\uD83C\uDF93 Enrolled with ' + queued.label + ' (\u2212' + queued.cost + ' endow)');
+      }
+    }
+    S.school.queuedEraStart = null;
+    S.calendar = { week: 1, month: 1, year: startYear };
     S.projects = { active: [], shipped: [], contracts: [] };
     S.employees = [];
     S.loans = [];
     S.bankruptcy = { negativeWeeks: 0, triggered: false };
     S.warnings = { runway6mo: false, runway3mo: false, runway1mo: false };
     S.hiring = { queue: [], fairIndex: 0 };
-    S.rivals = [];
+    // Delete S.rivals so tycoonRivals.ensureState re-seeds the starting
+    // roster on enter. injectSchoolRivals runs AFTER enter to layer on
+    // any school-specific rivals without blocking the default seed.
+    delete S.rivals;
+    delete S.rivalMeta;
+    delete S.researchPioneers;
+    delete S.rivalShippedTitles;
     S.awards = { history: [] };
     S.subsidiaries = [];
     S.vcRounds = [];
@@ -907,11 +974,18 @@
     // founder + run state is built. Scholarship Fund stacks add to cash,
     // Visiting Professors bump stats, curriculum adds pre-unlocked research,
     // school lab adds hardware, etc.
+    // Note: applyDepartmentEffects no longer calls injectSchoolRivals —
+    // we run that AFTER tycoonUI.enter so rivals are seeded first.
     applyDepartmentEffects();
 
     if (typeof markDirty === 'function') markDirty();
     closeSchoolScreen();
     if (window.tycoonUI?.enter) window.tycoonUI.enter({ skipCreator: true });
+    // Now that tycoonRivals.ensureState has seeded the starting 5 (and
+    // applied Phase 9 rival scaling via S.school.currentRunNumber),
+    // layer on the school-level rivals (Celebrated Rivalry + famous
+    // alumni bleed-in).
+    injectSchoolRivals();
     return { ok: true, classmate };
   }
 
@@ -928,7 +1002,11 @@
     }
     for (const c of children.flat()) {
       if (c == null || c === false) continue;
-      el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+      if (typeof c === 'string' || typeof c === 'number') {
+        el.appendChild(document.createTextNode(String(c)));
+      } else {
+        el.appendChild(c);
+      }
     }
     return el;
   }
@@ -1022,7 +1100,47 @@
         'Class of ' + (S.school?.foundedYear || 1980) + ' \u00B7 '
         + enrolled + ' enrolled, ' + unenrolled + ' remaining'),
       hEl('div', { className: 'ss-roster' }, ...rosterEls),
-      currentBlock
+      currentBlock,
+      renderEraStartRow()
+    );
+  }
+
+  // ---------- Accelerated-start era picker (Phase 9) ----------
+  function renderEraStartRow() {
+    const queuedId = S.school?.queuedEraStart || null;
+    const rows = ERA_STARTS.map(opt => {
+      const e = eraStartEligibility(opt);
+      const queued = queuedId === opt.id;
+      const cls = 'ss-era-card'
+        + (queued ? ' queued' : '')
+        + (e.eligible ? '' : ' locked');
+      const statusLine = (() => {
+        if (queued) return '\u2713 Queued for next enrollment';
+        if (!e.unlocked) return '\uD83D\uDD12 ' + e.needsWins + ' more win' + (e.needsWins === 1 ? '' : 's') + ' needed';
+        if (!e.affordable) return '\uD83D\uDCB8 Need ' + (opt.cost - (S.school?.endowment || 0)).toLocaleString() + ' more endowment';
+        return '\u2728 Ready';
+      })();
+      return hEl('div', {
+        className: cls,
+        onclick: () => {
+          if (!e.eligible) return;
+          // Toggle: clicking a queued option un-queues it
+          S.school.queuedEraStart = queued ? null : opt.id;
+          rerenderSchoolScreen();
+        }
+      },
+        hEl('div', { className: 'ss-era-year' }, opt.year),
+        hEl('div', { className: 'ss-era-label' }, opt.label.replace('Accelerated Start — ', '')),
+        hEl('div', { className: 'ss-era-blurb' }, opt.blurb),
+        hEl('div', { className: 'ss-era-cost' }, '\uD83C\uDF93 ' + opt.cost.toLocaleString()),
+        hEl('div', { className: 'ss-era-status' }, statusLine)
+      );
+    });
+    return hEl('div', { className: 'ss-era-section' },
+      hEl('h3', null, 'Advanced Curriculum — skip ahead in time'),
+      hEl('div', { style: { fontSize: '0.8rem', color: '#8b949e', marginBottom: '10px' } },
+        'Gated by win-condition runs + endowment. Click to queue for the next enrollment; click again to clear.'),
+      hEl('div', { className: 'ss-era-grid' }, ...rows)
     );
   }
 
@@ -1536,6 +1654,17 @@
     applyDepartmentEffects,
     // Phase 8: alumni + rival injection
     injectSchoolRivals,
+    // Phase 9: era-start + rival-scaling hooks
+    ERA_STARTS,
+    eraStartEligibility,
+    queueEraStart(id) {
+      const opt = ERA_STARTS.find(e => e.id === id);
+      if (!opt) return { ok: false, error: 'Unknown era' };
+      const e = eraStartEligibility(opt);
+      if (!e.eligible) return { ok: false, error: 'Not eligible' };
+      S.school.queuedEraStart = id;
+      return { ok: true };
+    },
     // Debug access
     resetRunEndFlag() { delete S._runEndFired; _lastYearSeen = null; },
     state() {
