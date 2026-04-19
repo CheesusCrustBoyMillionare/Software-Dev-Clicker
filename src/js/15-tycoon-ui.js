@@ -2058,7 +2058,7 @@
       const banner = document.createElement('div');
       banner.id = '_t_tycoon_banner';
       banner.style.cssText = 'font-size:0.75rem;color:#8957e5;letter-spacing:.05em;text-transform:uppercase;text-align:center;margin:-8px 0 12px;font-weight:700;';
-      banner.textContent = '🚀 Tycoon Edition (v2 Alpha)';
+      banner.textContent = '🚀 Tycoon Edition';
       const subtitle = slotsEl.querySelector('.slot-sub');
       if (subtitle) subtitle.after(banner);
     }

@@ -497,3 +497,72 @@ Simulation-driven rebalance targeting a consistent ~1.5× time increase per ship
 - Unlock ships (where new coder types become available) feel rewarding (faster), non-unlock ships provide challenge (slower)
 - The saw-tooth pattern averages out to ~1.5× across the full progression
 - Simulation showed average ratio of 1.49× across 10 ships with times progressing from ~9 min to ~59 min
+
+---
+
+*Note: v5.0 through v9.6 incremental patches are captured in the git history on `main`. The rest of this document resumes with the v2 tycoon rework below.*
+
+## v10.0 — Software Dev Tycoon (v2 Rework)
+
+Transforms the clicker into a full-loop software studio management simulator while keeping the single-file architecture. Lives on branch `software-dev-2`; the clicker is preserved on `main`.
+
+### Core Loop — Phases 0-1
+- **Time system**: weekly tick, calendar (week/month/year), pause + 1×/2×/4×/8× speed controls, event-driven `onTick` pub-sub
+- **Projects**: 3-phase flow (Design → Build → Polish → Ship) with per-phase scope, feature picks, and quality accumulation
+- **Milestone Checks**: branching mid-project choices with lasting quality/cash/tech-debt consequences
+- **Character creator**: founder name, studio name, specialty, trait, difficulty; state persisted per slot
+- **Save schema v2**: migrations registry wipes v1 clicker saves on first load
+
+### Economy — Phase 2
+- **Hiring Fair**: quarterly recruitment queue with interview reveal and premium candidates
+- **Biweekly payroll**: salaries scale with tier + traits; fires `tycoon:payroll` events
+- **Client tiers**: Small Biz → Enterprise → Tech Giant → Government, each with its own contract pool, pay multiplier, and star-rating drop logic
+- **Runway warnings** at 3 months + 1 month; hard bankruptcy + legacy screen when cash < −30k for 6 weeks
+- **Bank loans** with weekly interest compounding
+
+### Research / Teams / Era — Phase 3
+- **Research tree** with 30+ nodes, era-gated prereqs, pioneer tracking vs rivals
+- **Hardware** (SGI workstations, CD mastering, server infra, cloud credits) — permanent quality-ceiling boosts
+- **Era system**: 1980→1985→1995→2005→2015→2020 transitions with platform/feature deprecations
+- **Teams panel**: explicit engineer-to-project assignment with specialty match bonuses
+- **Macro events**: 15 scripted + random events (dot-com bust, GDC hype, console launches, etc.)
+
+### Market / Rivals — Phase 4
+- **Rival simulation**: 5 starting studios + dynamic spawns; quarterly strategy updates; bankrupt/acquired states
+- **Market heat**: genre demand shifts over time, visible in Market panel
+- **Platform lifecycles**: NES/PS/Xbox/PC/web/mobile/cloud with hardware-phase royalty cuts
+- **Launch collision**: shipping within a rival's window halves attention; seasonal bonuses (Q4 for games, Q1 for business)
+- **Multi-channel marketing**: TV/web/press/influencer with synergies; chosen during Polish
+- **Reviews**: critic + user quote generator seeded by project stats + traits
+- **Annual awards ceremony**: GOTY, Best-in-Genre, Rising Star, Innovation, Studio of the Year
+
+### Endgame — Phase 5
+- **VC rounds**: Seed → Series A → Series B with proportional dilution and cap-table tracking
+- **IPO**: once fame + revenue thresholds met; quarterly earnings calls post-listing; missed earnings trigger penalties
+- **Subsidiaries**: late-game genre-focused sub-studios that ship passively
+- **Legacy decisions (2020+)**: 5 one-time strategic pivots — Philanthropy, Go Private, Spin-off, Sell to Megacorp, Charitable Foundation
+- **Win conditions**: 5 victory paths (Industry Titan, IPO Exit, Catalog Master, The Acquirer, Reach 2024) — multiple can stack per career
+- **50 achievements** across 10 categories, tracked in `S.tycoonAchievements.unlocked`
+- **Hall of Fame** entry point + shareable summary card
+
+### Scenarios + Polish + Bugfixes — Phase 6
+- **6 starting scenarios**: First Studio (tutorial), Sandbox 1980, Mid-80s Game Shop, Dot-Com Survivor (2001), AI Revolution (2022), Custom Start. Advanced scenarios pre-populate research, hardware, fame, team, and for AI Revolution a retroactive IPO
+- **17 onboarding hints**: tick-based (welcome, low cash, VC available, legacy unlocked) + event-driven (first MC, contract, hire, research, era change, rival spawn, awards, loan, polish phase). Bottom-right card UI, auto-dismiss at 25s, "Don't show tips" opt-out
+- **In-game Options modal** (⚙ top-bar button): Tips On/Off toggle + Reset tip history
+- **Bug fixes**:
+  - Scenario `applyBonus()` ran before module `ensureState()` helpers, so research/hardware/etc. containers were undefined and pre-seeding silently no-opped — fixed with `preinitStateForScenario()`
+  - Slot-hijack set `window.KEY` instead of the module-scoped `let KEY`, so every slot loaded slot 1's data — fixed by dropping the `window.` prefix
+  - `PROJECT_NAME_TEMPLATES` only covered 2 of 6 contract types; `saas`/`ai`/`web`/`mobile` crashed tick listeners in AI-era scenarios — added 15 names per missing type plus null-guard in `randomFromArray`
+
+### Architecture
+- **36 JS modules** concatenated via `build.py` → `gamedev-clicker.html` (810 KB, ~16,700 lines)
+- **Event-driven communication**: 35+ `tycoon:*` custom events (project-shipped, mc-pending, research-completed, era-change, awards-ceremony, win-achieved, …)
+- **Module pattern**: each system exposes `startTick/stopTick/state` on `window.tycoonX` and registers under `window.dbg.X` for dev console access
+- **Rebuild pipeline**: Python 3 (no Node required); `extract.py` companion script splits the monolith back into `src/js/*.js`
+
+### Known Gaps
+- Tutorial flow is hints-only; no guided overlay
+- No mobile-specific tycoon layout (desktop-first)
+- Marketing synergies cap at 3 per launch by design; more advanced combos parked in V2_IDEAS
+- Roguelite meta-progression and card mechanic remain TODOs in DESIGN_V2
+
