@@ -566,6 +566,24 @@
       ' · 🔬 ' + (window.tycoonResearch?.NODE_BY_ID?.[rival.inProgress.nodeId]?.name || '?') : '';
     const nextRelease = rival.nextProject ?
       ' · 🚀 ' + rival.nextProject.name + ' (' + Math.max(0, rival.nextProject.releaseAtWeek - (window.tycoonProjects?.absoluteWeek?.() || 0)) + 'wk)' : '';
+    // Phase 4I: acquisition button
+    const canAcq = window.tycoonRivals?.canAcquire?.(rival.id);
+    const cost = window.tycoonRivals?.acquisitionCost?.(rival.id);
+    const acqBtn = canAcq?.ok ?
+      h('button', { className: 't-btn secondary', style:{padding:'4px 8px',fontSize:'0.7rem', marginTop:'6px'},
+        onclick: () => {
+          if (!confirm('Acquire ' + rival.name + ' for ' + fmtMoney(cost) + '?')) return;
+          const r = window.tycoonRivals.acquire(rival.id);
+          if (!r.ok) { pushToast(r.error); return; }
+          pushToast('💼 Acquired ' + r.rivalName + ' — +' + r.fameGain + ' Fame, ex-engineers available');
+          rerenderMarketModal();
+          refreshTopBar();
+          refreshMain();
+        }
+      }, '💼 Acquire ' + fmtMoney(cost)) :
+      (cost != null ? h('div', { style:{color:'#8b949e', fontSize:'0.7rem', marginTop:'4px'} },
+        '💼 Acquisition: ' + fmtMoney(cost) + (canAcq?.reason ? ' (' + canAcq.reason + ')' : '')) : null);
+
     return h('div', { style:{
       padding: '10px 12px', background:'#0d1117', border:'1px solid #21262d',
       borderRadius:'4px', marginBottom:'6px'
@@ -580,8 +598,16 @@
         'Focus: ' + (rival.focus || []).join(', ') +
         ' · ' + (rival.shippedCount || 0) + ' shipped' +
         ' · quality ~' + rival.quality +
-        researching + nextRelease)
+        researching + nextRelease),
+      acqBtn
     );
+  }
+
+  function rerenderMarketModal() {
+    if (document.getElementById('_t_market_modal')) {
+      closeMarketModal();
+      openMarketModal();
+    }
   }
 
   // ---------- Teams modal (Phase 3F) ----------

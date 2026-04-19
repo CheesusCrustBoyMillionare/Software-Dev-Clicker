@@ -311,6 +311,70 @@
     return { status: 'pending' };
   }
 
+  // ---------- Acquisitions (Phase 4I) ----------
+  // Cost = 4× rival's annual revenue (simplified; full negotiation in later phases)
+  function acquisitionCost(rivalId) {
+    const r = S.rivals?.find(x => x.id === rivalId);
+    if (!r) return null;
+    return Math.round(r.revenue * 4);
+  }
+
+  function canAcquire(rivalId) {
+    ensureState();
+    const r = S.rivals?.find(x => x.id === rivalId);
+    if (!r) return { ok: false, reason: 'Rival not found' };
+    if (r.status !== 'active') return { ok: false, reason: 'Already inactive' };
+    if (r.tier >= 6) return { ok: false, reason: 'Too big to acquire (tier ' + r.tier + ')' };
+    // Player must have enough cash
+    const cost = acquisitionCost(rivalId);
+    if ((S.cash || 0) < cost) return { ok: false, reason: 'Need ' + cost.toLocaleString() + ' cash' };
+    return { ok: true, cost };
+  }
+
+  function acquireRival(rivalId) {
+    const check = canAcquire(rivalId);
+    if (!check.ok) return { ok: false, error: check.reason };
+    const r = S.rivals.find(x => x.id === rivalId);
+    const cost = check.cost;
+    // Deduct cash
+    S.cash -= cost;
+    S.tExpenses = (S.tExpenses || 0) + cost;
+    // Change status
+    r.status = 'acquired';
+    r.acquiredAtWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    // Inherit Fame (small boost based on their quality × shippedCount)
+    const fameGain = Math.round(Math.min(40, (r.quality * r.shippedCount) / 20));
+    S.fame = (S.fame || 0) + fameGain;
+    S.tFame = (S.tFame || 0) + fameGain;
+    // Mark their shipped titles as acquired by the player
+    if (Array.isArray(S.rivalShippedTitles)) {
+      for (const t of S.rivalShippedTitles) {
+        if (t.rivalId === rivalId) t.acquiredByPlayer = true;
+      }
+    }
+    // Spawn 2-3 engineers from their team (adds to Hiring Fair queue as "Ex-RivalName" candidates)
+    // Phase 4I: simplified — just 2 engineers, direct hire (bypass interview)
+    if (window.tycoonEmployees) {
+      ensureState();
+      if (!S.hiring) S.hiring = { queue: [], fairIndex: 0 };
+      const count = 2 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < count; i++) {
+        const c = window.tycoonEmployees.generateCandidate({ tier: Math.min(4, r.tier) });
+        c.interviewed = true;
+        c.stats = c.hiddenStats;
+        c.traits = [c.visibleTrait, c.hiddenTrait].filter(Boolean);
+        c.personality = c.hiddenPersonality;
+        c.name = 'Ex-' + r.name + ': ' + c.name;
+        c.expiresAtWeek = (window.tycoonProjects?.absoluteWeek?.() || 0) + 24; // longer-lived
+        S.hiring.queue.push(c);
+      }
+    }
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('💼 Acquired ' + r.icon + ' ' + r.name + ' for ' + cost.toLocaleString() + ' — +' + fameGain + ' Fame, ex-engineers added to hiring queue');
+    document.dispatchEvent(new CustomEvent('tycoon:rival-acquired', { detail: { rivalId, cost, fameGain } }));
+    return { ok: true, cost, fameGain, rivalName: r.name };
+  }
+
   function upcomingRivalReleases(maxCount) {
     ensureState();
     maxCount = maxCount || 6;
@@ -353,6 +417,9 @@
     isPlayerFastFollower,
     rivalResearchProgress,
     upcomingRivalReleases,
+    acquisitionCost,
+    canAcquire,
+    acquire: acquireRival,
     startTick: startRivalsTick,
     stopTick: stopRivalsTick,
     state() {
