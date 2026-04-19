@@ -59,7 +59,49 @@
       hook: { kind: 'earlyCareer', weeks: 12, outputMul: 1.30 } },
     { id: 't_prestigious',       name: 'Prestigious',        desc: '+20 Fame per ship; all costs +10%',
       hook: { kind: 'prestige', fameBonus: 20, costMul: 1.10 } },
+    // Phase 10 trait catalog expansion (15 → 25).
+    // These are DEFINED but flagged wired:false so the class-roster
+    // generator doesn't roll them into founders yet — the mechanical
+    // effects aren't hooked into the gameplay loop. They'll light up in
+    // a future patch. Keeps the founder UI honest: every rolled trait
+    // has a real effect, no dud descriptions.
+    { id: 't_polymath',          name: 'Polymath',           desc: '+10% output on ALL axes, but \u221210% to matched-axis specialty bonus',
+      wired: false,
+      hook: { kind: 'polymath', axisMul: 1.10, specialtyPenalty: 0.9 } },
+    { id: 't_lean_ops',          name: 'Lean Operator',      desc: '\u221215% monthly loan payments and payroll',
+      wired: false,
+      hook: { kind: 'leanOps', mul: 0.85 } },
+    { id: 't_trend_chaser',      name: 'Trend Chaser',       desc: '+30% launch sales on ships in the last 2 years of an era window',
+      wired: false,
+      hook: { kind: 'trendChaser', mul: 1.30, eraEndWindowYears: 2 } },
+    { id: 't_early_riser',       name: 'Early Riser',        desc: '+15% output during weeks 1\u20136 of a project',
+      wired: false,
+      hook: { kind: 'earlyPhase', weeks: 6, outputMul: 1.15 } },
+    { id: 't_crunch_addict',     name: 'Crunch Addict',      desc: 'Crunch mode: +20% output (was +30%), but no bug risk penalty',
+      wired: false,
+      hook: { kind: 'crunchRework', outputMul: 1.20, bugRiskMul: 1.0 } },
+    { id: 't_nihilist',          name: 'Nihilist',           desc: 'Morale doesn\'t affect output (flat 1.0\u00D7), but max morale capped at 65',
+      wired: false,
+      hook: { kind: 'moraleFlat', capMorale: 65 } },
+    { id: 't_showman',           name: 'Showman',            desc: '+40% marketing multipliers, but 1st marketing channel costs +50%',
+      wired: false,
+      hook: { kind: 'showman', mktMul: 1.40, firstChannelCostMul: 1.50 } },
+    { id: 't_coder_purist',      name: 'Coder Purist',       desc: 'Tech axis ships get +15% critic; design-heavy types get \u221210%',
+      wired: false,
+      hook: { kind: 'codePurist', techBonus: 0.15, designPenalty: 0.10 } },
+    { id: 't_serial_founder',    name: 'Serial Founder',     desc: 'First project ships 30% faster; subsequent projects normal',
+      wired: false,
+      hook: { kind: 'firstShipSpeed', mul: 0.70 } },
+    { id: 't_contrarian',        name: 'Contrarian',         desc: '+25% launch sales on types with current low market heat',
+      wired: false,
+      hook: { kind: 'contrarian', mul: 1.25 } },
   ];
+  // Traits without an explicit wired:false flag are wired. Default-wired
+  // kept implicit so the original 15 traits don't each need a flag.
+  for (const t of TRAITS) { if (t.wired === undefined) t.wired = true; }
+  // Pool used by the class-roster generator — only wired traits. Defined-
+  // but-not-wired traits still appear in TRAITS_BY_ID for docs / UI.
+  const WIRED_TRAITS = TRAITS.filter(t => t.wired);
   const TRAITS_BY_ID = Object.fromEntries(TRAITS.map(t => [t.id, t]));
 
   // ---------- Narrative flavor catalog ----------
@@ -272,7 +314,9 @@
     const passions = rollPassions(band);
     const stats = rollStats(statSumForBand(band), passions);
     const mechCount = traitCountForBand(band);
-    const mechanicalTraits = pickN(TRAITS, mechCount).map(t => t.id);
+    // Only roll from wired traits — defined-but-not-wired entries sit in
+    // TRAITS for future patches without misleading the roster UI.
+    const mechanicalTraits = pickN(WIRED_TRAITS, mechCount).map(t => t.id);
     // 1-3 narrative traits regardless of band — flavor is universal
     const narrativeCount = 1 + Math.floor(Math.random() * 3);
     const narrativeTraits = pickN(NARRATIVE_TRAITS, narrativeCount);
@@ -345,7 +389,7 @@
     if (!founder.passions) founder.passions = rollPassions(band);
     if (!Array.isArray(founder.mechanicalTraits)) {
       const mechCount = traitCountForBand(band);
-      founder.mechanicalTraits = pickN(TRAITS, mechCount).map(t => t.id);
+      founder.mechanicalTraits = pickN(WIRED_TRAITS, mechCount).map(t => t.id);
     }
     if (!Array.isArray(founder.narrativeTraits)) {
       const narrCount = 1 + Math.floor(Math.random() * 3);
@@ -461,6 +505,8 @@
   if (window.dbg) window.dbg.traits = window.tycoonTraits;
 
   console.log('[tycoon-traits] module loaded. '
-    + TRAITS.length + ' mechanical traits, '
+    + TRAITS.length + ' mechanical traits ('
+    + WIRED_TRAITS.length + ' wired, '
+    + (TRAITS.length - WIRED_TRAITS.length) + ' defined-not-wired), '
     + NARRATIVE_TRAITS.length + ' narrative traits.');
 })();

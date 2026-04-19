@@ -111,6 +111,39 @@
       title: 'Legacy Decisions Unlocked',
       body: 'One-time strategic pivots in the Studio panel. Irreversible \u2014 pick the end of the game you want.'
     },
+
+    // ----- Roguelite layer (v3, Phase 10) -----
+    {
+      id: 'rl_first_enroll', trigger: 'tick', icon: '\uD83C\uDF93',
+      // Fires on week 1 of a freshly-enrolled classmate
+      check: () => (S.school?.currentRunNumber || 0) >= 1 && (S.calendar?.week || 0) === 1 && (S.calendar?.month || 0) === 1,
+      title: 'Career begins',
+      body: 'Your classmate has graduated and founded a studio. Run-end triggers (bankruptcy, megacorp sale, wins, retirement) will bank endowment for the school.'
+    },
+    {
+      id: 'rl_first_run_end', trigger: 'event', event: 'tycoon:run-end', icon: '\uD83C\uDFEB',
+      title: 'Run complete',
+      body: 'Endowment banked at The Institute. Head to the Departments tab between runs to spend it on permanent upgrades for every future classmate.'
+    },
+    {
+      id: 'rl_first_famous', trigger: 'tick', icon: '\u2B50',
+      check: () => (S.school?.famousAlumni || []).length >= 1,
+      title: 'Famous Alumnus',
+      body: 'Your classmate joined the famous alumni list. Future runs will see their studio as a persistent rival on the market.'
+    },
+    {
+      id: 'rl_era_unlock_ready', trigger: 'tick', icon: '\u23E9',
+      // Fires when player has their first win AND enough endowment for 1985 start
+      check: () => (S.school?.lifetimeStats?.winConditionRuns || 0) >= 1 && (S.school?.endowment || 0) >= 3000,
+      title: 'Advanced Curriculum Unlocked',
+      body: 'You can now start the next classmate in 1985. Check the Admissions tab \u2014 Advanced Curriculum row. Gated by endowment + win count.'
+    },
+    {
+      id: 'rl_climbing_class', trigger: 'tick', icon: '\u2B06\uFE0F',
+      check: () => (S.school?.currentClassmateRank || 50) <= 37 && (S.school?.currentClassmateRank || 50) > 0,
+      title: 'Climbing the class',
+      body: 'You\u2019re playing a middle-ranked classmate now. Their stats are better but trait rolls are subtler. Top ranks are in sight \u2014 keep earning endowment.'
+    },
   ];
 
   // ---------- State ----------

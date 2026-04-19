@@ -17277,6 +17277,24 @@ let _clockValidated = false;
     // ----- Rare / hidden -----
     { id: 'a_bankruptcy_warn', name: 'Close Call', desc: 'Trigger a bankruptcy warning and recover.', check: () => S.warnings?.runway3mo && (S.cash || 0) > 100_000 },
     { id: 'a_synergy_triple',  name: 'Marketing Master', desc: 'Trigger 3+ marketing synergies on one launch.', check: () => (S.projects?.shipped || []).some(p => (p.marketingSynergies || []).length >= 3) },
+
+    // ----- Roguelite layer (v3, Phase 10) -----
+    // All check S.school.* which exists from schema v3 onwards.
+    { id: 'ra_enroll_first',    name: 'Freshman',          desc: 'Enroll your first classmate.',                         check: () => (S.school?.currentRunNumber || 0) >= 1 },
+    { id: 'ra_first_run_end',   name: 'Alumnus',           desc: 'Complete a run (any fate).',                           check: () => (S.school?.alumniHall || []).length >= 1 },
+    { id: 'ra_endow_1k',        name: 'Modest Endowment',  desc: 'Bank 1,000 endowment lifetime.',                       check: () => (S.school?.lifetimeEndowmentEarned || 0) >= 1000 },
+    { id: 'ra_endow_10k',       name: 'Sizable Endowment', desc: 'Bank 10,000 endowment lifetime.',                      check: () => (S.school?.lifetimeEndowmentEarned || 0) >= 10000 },
+    { id: 'ra_endow_100k',      name: 'Prestigious',       desc: 'Bank 100,000 endowment lifetime.',                     check: () => (S.school?.lifetimeEndowmentEarned || 0) >= 100000 },
+    { id: 'ra_first_famous',    name: 'Hall of Fame',      desc: 'Produce your first famous alumnus (win or megacorp).', check: () => (S.school?.famousAlumni || []).length >= 1 },
+    { id: 'ra_dept_five',       name: 'Institutional',     desc: 'Purchase 5 department upgrades across all trees.',     check: () => {
+      const d = S.school?.departments || {}; let n = 0;
+      for (const k of Object.keys(d)) n += (d[k] || []).length; return n >= 5;
+    }},
+    { id: 'ra_era_unlock',      name: 'Accelerated',       desc: 'Start a classmate in an accelerated era (1985+).',     check: () => (S.school?.alumniHall || []).some(a => (a.foundedAt || 1980) > 1980) },
+    { id: 'ra_climb_middle',    name: 'Middle of the Pack', desc: 'Play a middle-ranked classmate (rank 13-37).',        check: () => (S.school?.alumniHall || []).some(a => a.rank >= 13 && a.rank <= 37) },
+    { id: 'ra_climb_top5',      name: 'Honors Student',    desc: 'Play a top-5 classmate.',                              check: () => (S.school?.alumniHall || []).some(a => a.rank <= 5) },
+    { id: 'ra_valedictorian',   name: 'Valedictorian',     desc: 'Play the rank-1 classmate of the class.',              check: () => (S.school?.alumniHall || []).some(a => a.rank === 1) },
+    { id: 'ra_ten_alumni',      name: 'Full Cohort',       desc: 'Accumulate 10 alumni in the hall.',                    check: () => (S.school?.alumniHall || []).length >= 10 },
   ];
   window.TYCOON_ACHIEVEMENTS = ACHIEVEMENTS;
 
@@ -17662,6 +17680,39 @@ let _clockValidated = false;
       title: 'Legacy Decisions Unlocked',
       body: 'One-time strategic pivots in the Studio panel. Irreversible \u2014 pick the end of the game you want.'
     },
+
+    // ----- Roguelite layer (v3, Phase 10) -----
+    {
+      id: 'rl_first_enroll', trigger: 'tick', icon: '\uD83C\uDF93',
+      // Fires on week 1 of a freshly-enrolled classmate
+      check: () => (S.school?.currentRunNumber || 0) >= 1 && (S.calendar?.week || 0) === 1 && (S.calendar?.month || 0) === 1,
+      title: 'Career begins',
+      body: 'Your classmate has graduated and founded a studio. Run-end triggers (bankruptcy, megacorp sale, wins, retirement) will bank endowment for the school.'
+    },
+    {
+      id: 'rl_first_run_end', trigger: 'event', event: 'tycoon:run-end', icon: '\uD83C\uDFEB',
+      title: 'Run complete',
+      body: 'Endowment banked at The Institute. Head to the Departments tab between runs to spend it on permanent upgrades for every future classmate.'
+    },
+    {
+      id: 'rl_first_famous', trigger: 'tick', icon: '\u2B50',
+      check: () => (S.school?.famousAlumni || []).length >= 1,
+      title: 'Famous Alumnus',
+      body: 'Your classmate joined the famous alumni list. Future runs will see their studio as a persistent rival on the market.'
+    },
+    {
+      id: 'rl_era_unlock_ready', trigger: 'tick', icon: '\u23E9',
+      // Fires when player has their first win AND enough endowment for 1985 start
+      check: () => (S.school?.lifetimeStats?.winConditionRuns || 0) >= 1 && (S.school?.endowment || 0) >= 3000,
+      title: 'Advanced Curriculum Unlocked',
+      body: 'You can now start the next classmate in 1985. Check the Admissions tab \u2014 Advanced Curriculum row. Gated by endowment + win count.'
+    },
+    {
+      id: 'rl_climbing_class', trigger: 'tick', icon: '\u2B06\uFE0F',
+      check: () => (S.school?.currentClassmateRank || 50) <= 37 && (S.school?.currentClassmateRank || 50) > 0,
+      title: 'Climbing the class',
+      body: 'You\u2019re playing a middle-ranked classmate now. Their stats are better but trait rolls are subtler. Top ranks are in sight \u2014 keep earning endowment.'
+    },
   ];
 
   // ---------- State ----------
@@ -17924,7 +17975,49 @@ let _clockValidated = false;
       hook: { kind: 'earlyCareer', weeks: 12, outputMul: 1.30 } },
     { id: 't_prestigious',       name: 'Prestigious',        desc: '+20 Fame per ship; all costs +10%',
       hook: { kind: 'prestige', fameBonus: 20, costMul: 1.10 } },
+    // Phase 10 trait catalog expansion (15 → 25).
+    // These are DEFINED but flagged wired:false so the class-roster
+    // generator doesn't roll them into founders yet — the mechanical
+    // effects aren't hooked into the gameplay loop. They'll light up in
+    // a future patch. Keeps the founder UI honest: every rolled trait
+    // has a real effect, no dud descriptions.
+    { id: 't_polymath',          name: 'Polymath',           desc: '+10% output on ALL axes, but \u221210% to matched-axis specialty bonus',
+      wired: false,
+      hook: { kind: 'polymath', axisMul: 1.10, specialtyPenalty: 0.9 } },
+    { id: 't_lean_ops',          name: 'Lean Operator',      desc: '\u221215% monthly loan payments and payroll',
+      wired: false,
+      hook: { kind: 'leanOps', mul: 0.85 } },
+    { id: 't_trend_chaser',      name: 'Trend Chaser',       desc: '+30% launch sales on ships in the last 2 years of an era window',
+      wired: false,
+      hook: { kind: 'trendChaser', mul: 1.30, eraEndWindowYears: 2 } },
+    { id: 't_early_riser',       name: 'Early Riser',        desc: '+15% output during weeks 1\u20136 of a project',
+      wired: false,
+      hook: { kind: 'earlyPhase', weeks: 6, outputMul: 1.15 } },
+    { id: 't_crunch_addict',     name: 'Crunch Addict',      desc: 'Crunch mode: +20% output (was +30%), but no bug risk penalty',
+      wired: false,
+      hook: { kind: 'crunchRework', outputMul: 1.20, bugRiskMul: 1.0 } },
+    { id: 't_nihilist',          name: 'Nihilist',           desc: 'Morale doesn\'t affect output (flat 1.0\u00D7), but max morale capped at 65',
+      wired: false,
+      hook: { kind: 'moraleFlat', capMorale: 65 } },
+    { id: 't_showman',           name: 'Showman',            desc: '+40% marketing multipliers, but 1st marketing channel costs +50%',
+      wired: false,
+      hook: { kind: 'showman', mktMul: 1.40, firstChannelCostMul: 1.50 } },
+    { id: 't_coder_purist',      name: 'Coder Purist',       desc: 'Tech axis ships get +15% critic; design-heavy types get \u221210%',
+      wired: false,
+      hook: { kind: 'codePurist', techBonus: 0.15, designPenalty: 0.10 } },
+    { id: 't_serial_founder',    name: 'Serial Founder',     desc: 'First project ships 30% faster; subsequent projects normal',
+      wired: false,
+      hook: { kind: 'firstShipSpeed', mul: 0.70 } },
+    { id: 't_contrarian',        name: 'Contrarian',         desc: '+25% launch sales on types with current low market heat',
+      wired: false,
+      hook: { kind: 'contrarian', mul: 1.25 } },
   ];
+  // Traits without an explicit wired:false flag are wired. Default-wired
+  // kept implicit so the original 15 traits don't each need a flag.
+  for (const t of TRAITS) { if (t.wired === undefined) t.wired = true; }
+  // Pool used by the class-roster generator — only wired traits. Defined-
+  // but-not-wired traits still appear in TRAITS_BY_ID for docs / UI.
+  const WIRED_TRAITS = TRAITS.filter(t => t.wired);
   const TRAITS_BY_ID = Object.fromEntries(TRAITS.map(t => [t.id, t]));
 
   // ---------- Narrative flavor catalog ----------
@@ -18137,7 +18230,9 @@ let _clockValidated = false;
     const passions = rollPassions(band);
     const stats = rollStats(statSumForBand(band), passions);
     const mechCount = traitCountForBand(band);
-    const mechanicalTraits = pickN(TRAITS, mechCount).map(t => t.id);
+    // Only roll from wired traits — defined-but-not-wired entries sit in
+    // TRAITS for future patches without misleading the roster UI.
+    const mechanicalTraits = pickN(WIRED_TRAITS, mechCount).map(t => t.id);
     // 1-3 narrative traits regardless of band — flavor is universal
     const narrativeCount = 1 + Math.floor(Math.random() * 3);
     const narrativeTraits = pickN(NARRATIVE_TRAITS, narrativeCount);
@@ -18210,7 +18305,7 @@ let _clockValidated = false;
     if (!founder.passions) founder.passions = rollPassions(band);
     if (!Array.isArray(founder.mechanicalTraits)) {
       const mechCount = traitCountForBand(band);
-      founder.mechanicalTraits = pickN(TRAITS, mechCount).map(t => t.id);
+      founder.mechanicalTraits = pickN(WIRED_TRAITS, mechCount).map(t => t.id);
     }
     if (!Array.isArray(founder.narrativeTraits)) {
       const narrCount = 1 + Math.floor(Math.random() * 3);
@@ -18326,7 +18421,9 @@ let _clockValidated = false;
   if (window.dbg) window.dbg.traits = window.tycoonTraits;
 
   console.log('[tycoon-traits] module loaded. '
-    + TRAITS.length + ' mechanical traits, '
+    + TRAITS.length + ' mechanical traits ('
+    + WIRED_TRAITS.length + ' wired, '
+    + (TRAITS.length - WIRED_TRAITS.length) + ' defined-not-wired), '
     + NARRATIVE_TRAITS.length + ' narrative traits.');
 })();
 // ========== TYCOON SCHOOL / RUN-END (v3 roguelite) ==========
