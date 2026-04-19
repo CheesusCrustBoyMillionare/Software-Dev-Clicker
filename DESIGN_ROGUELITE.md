@@ -284,12 +284,44 @@ These exist to tie the meta-progression to actual achievements, not just endowme
 - C) Multi-department hybrid
 - D) Purely reactive / achievement-gated
 
-### Q9 — Scaling across runs
-Each new founder: same game, or harder?
-- **A) Flat** — every run is 1980, same challenge, difficulty comes from RNG traits
-- **B) Progressive unlocks** — after 3 successful runs, you can start in 1985. After 5, 1995. Opens up the late-era gameplay you earned access to.
-- **C) Rival scaling** — rivals get meaner on later runs (they've been developing during your absence)
-- **D) Traits can be positive or negative** — good runs give heirs mostly positive traits; bad runs yield heirs with handicaps
+### Q9 — Scaling across runs ✅ LOCKED: Rival scaling + era unlock
+
+Classmate progression (rank climb, stat improvements, endowment spend) makes each run more powerful by default. Q9 layers in world-side pushback:
+
+#### Piece 1 — Mild rival scaling
+Each subsequent run, the simulated rival studios start **slightly** more developed, as if time has passed between the classmates even though the calendar is always 1980:
+- Run 1: rivals operate at baseline 1980 level (as today)
+- Run 5: rivals roughly at 1982-equivalent competency — more research nodes completed, slightly higher-tier founders, average critic scores +5-8
+- Run 10: 1984-ish competency — one rival may already be at mid-80s tier
+- Run 15+: caps out at "very tough 1985 scene" — we don't want to make late runs genuinely unwinnable
+
+**Tuning dials (for Phase 1 implementation):**
+- `rivalLevelOffset = min(5, Math.floor(run_number / 3))` — rivals advance by 1 tier every 3 runs, capped
+- Rivals' starting fame, completed research count, and quarterly strategy aggressiveness all bump modestly per level
+- Player can always keep up via their own endowment-fueled head-start
+
+#### Piece 2 — Premium era unlock
+After accumulating enough endowment AND hitting milestones, the player can purchase "Advanced Curriculum" options at the character creator:
+- **Accelerated Start — 1985 kickoff** (requires 1 win-condition run completed + endowment cost)
+- **Accelerated Start — 1995 kickoff** (requires 3 win-condition runs + larger endowment cost)
+- **Accelerated Start — 2005 kickoff** (requires 5 win-condition runs + still more endowment)
+- **Accelerated Start — 2015 kickoff** (endgame content; requires 8 wins + massive endowment)
+
+These relax the Q5 "always 1980" lock as an earned privilege. The framing: **"the school has accelerated-curriculum programs for exceptional candidates"** — a grad can skip ahead through concentrated learning.
+
+Note: in later-era runs, rival scaling stacks normally (run 10 in 1995 = very aggressive competitive field). Not a victory-lap mode.
+
+**Why this shape over the alternatives:**
+- Flat (A) → late runs feel like trivial victory laps
+- D (dynamic auto-scaling) → feels punitive / invalidates progress
+- C alone → era unlock without world tension ruins the late-run feel
+- E (our pick) → maintains tension AND rewards long-term investment
+
+**Old options (for reference):**
+- A) Flat
+- B) Rival scaling alone
+- C) Progressive era unlock alone
+- D) Dynamic difficulty auto-scaling
 
 ### Q10 — UI / onramp depth
 - **A) Subtle** — new founder spawns, carry-over shown in a quick "Inheritance" modal, then normal gameplay resumes
