@@ -26,6 +26,13 @@
   let _lastScheduledAt = 0;  // performance.now() when current setTimeout was scheduled
   let _lastScheduledMs = 0;  // duration the current setTimeout was scheduled for
 
+  // Modal pause counter. Each UI modal that auto-pauses the game calls
+  // pushModalPause() on open and popModalPause() on close. This is a
+  // reference count so nested modals (e.g. an MC decision opening while
+  // the hiring fair is up) don't pollute S.paused. S.paused stays clean
+  // as "user intent only"; the effective pause = S.paused || counter > 0.
+  let _modalPauseCount = 0;
+
   function currentTickMs() {
     const sp = (S && typeof S.speed === 'number') ? S.speed : 1;
     const mult = SPEED_MULTIPLIERS[sp] || 1;
@@ -34,7 +41,7 @@
   }
 
   function isPausedNow() {
-    return S.paused === true || S.speed === 0;
+    return S.paused === true || S.speed === 0 || _modalPauseCount > 0;
   }
 
   // Roll accumulated real time into _weekFraction. Call this whenever the
@@ -127,6 +134,9 @@
       if (_tickTimer) { clearTimeout(_tickTimer); _tickTimer = null; }
       _lastScheduledAt = 0;
       _lastScheduledMs = 0;
+      // Reset modal pause counter — any modals left open when we exit
+      // should not bleed their pause state into the next tycoon session.
+      _modalPauseCount = 0;
       console.info('[tycoon-time] stopped');
     },
 
@@ -158,6 +168,30 @@
       console.info('[tycoon-time] paused = ' + S.paused);
       rescheduleTick();
     },
+
+    // Modal-pause ref counter. Call pushModalPause() when opening a modal
+    // that should freeze the game; call popModalPause() exactly once when
+    // the modal closes. Unlike writing S.paused directly, this nests
+    // correctly across overlapping modals and leaves the player's own
+    // pause intent (S.paused) untouched.
+    pushModalPause() {
+      advanceFractionFromClock();
+      _modalPauseCount++;
+      if (_modalPauseCount === 1) rescheduleTick();  // transitioned to paused
+    },
+
+    popModalPause() {
+      if (_modalPauseCount <= 0) {
+        console.warn('[tycoon-time] popModalPause called with count already at 0 — ignoring');
+        return;
+      }
+      advanceFractionFromClock();
+      _modalPauseCount--;
+      if (_modalPauseCount === 0) rescheduleTick();  // transitioned back
+    },
+
+    // Inspect modal pause count (useful for diagnostics / tests)
+    modalPauseCount() { return _modalPauseCount; },
 
     // Advance one week manually (debug / step-through testing)
     step() {

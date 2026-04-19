@@ -636,10 +636,14 @@
     const selected = new Set(proj.marketingChannels || []);
     const available = window.tycoonMarketing?.availableChannels?.(S.calendar?.year) || [];
 
-    // Auto-pause game while player decides
-    const prevPaused = S.paused;
-    S.paused = true;
+    // Auto-pause game while player decides (nested modals stay correct via
+    // tycoonTime's modal pause counter — see 12-tycoon-time.js).
+    let _marketingOwnsPause = true;
+    window.tycoonTime.pushModalPause();
     refreshTopBar();
+    const releaseMarketingPause = () => {
+      if (_marketingOwnsPause) { window.tycoonTime.popModalPause(); _marketingOwnsPause = false; }
+    };
 
     function render() {
       const totalCost = window.tycoonMarketing.totalCost([...selected]);
@@ -689,7 +693,7 @@
           h('div', { className: 't-modal-actions' },
             h('button', { className: 't-btn secondary', onclick: () => {
               // Cancel — keep no channels
-              S.paused = prevPaused;
+              releaseMarketingPause();
               refreshTopBar();
               closeMarketingModal();
             }}, 'Skip (no marketing)'),
@@ -703,7 +707,7 @@
                 proj.marketingChannels = [...selected];
                 proj.marketingSpend = totalCost;
                 markDirty();
-                S.paused = prevPaused;
+                releaseMarketingPause();
                 refreshTopBar();
                 closeMarketingModal();
                 pushToast('Marketing locked: ' + selected.size + ' channel' + (selected.size===1?'':'s') + ' · ' + fmtMoney(totalCost));
@@ -1483,15 +1487,17 @@
   }
 
   // ---------- Hiring Fair modal ----------
-  // Auto-pause while the fair is open; restore the player's prior pause
-  // state on close. Previously S.paused was set true and never restored,
-  // so after hiring the game looked frozen until the user manually hit
-  // the Pause button again.
+  // Auto-pause while the fair is open via tycoonTime's modal-pause counter,
+  // which nests correctly across overlapping modals (the MC decision
+  // modal can fire mid-hiring without polluting the restore path — a
+  // bug in the previous prev-capture scheme that left S.paused stuck
+  // true after the fair closed).
   //
   // The reopen-on-rerender path (Interview → rerenderHiringModal) strips
   // the DOM node directly rather than going through closeHiringModal, so
-  // the saved pause state only gets nulled on a *real* close.
-  let _hiringPrevPaused = null;
+  // we push the pause exactly once per open and pop exactly once per real
+  // close via _hiringOwnsPause.
+  let _hiringOwnsPause = false;
   function openHiringModal() {
     const queue = S.hiring?.queue || [];
     if (queue.length === 0) {
@@ -1501,10 +1507,12 @@
     // Tear down any existing modal without triggering the close-path pause restore
     const existing = document.getElementById('_t_hiring_modal');
     if (existing) existing.remove();
-    // Capture the pre-fair pause state on the *first* open only; rerenders
-    // keep the original captured value so Close restores correctly.
-    if (_hiringPrevPaused === null) _hiringPrevPaused = S.paused === true;
-    S.paused = true;
+    // Acquire the pause on the *first* open only; rerenders keep the
+    // original acquire so Close pops correctly.
+    if (!_hiringOwnsPause) {
+      window.tycoonTime.pushModalPause();
+      _hiringOwnsPause = true;
+    }
     refreshTopBar();
     const ov = h('div', { className: 't-modal-ov', id: '_t_hiring_modal' },
       h('div', { className: 't-modal', style: { maxWidth: '760px' } },
@@ -1525,9 +1533,9 @@
   function closeHiringModal() {
     const ov = document.getElementById('_t_hiring_modal');
     if (ov) ov.remove();
-    if (_hiringPrevPaused !== null) {
-      S.paused = _hiringPrevPaused;
-      _hiringPrevPaused = null;
+    if (_hiringOwnsPause) {
+      window.tycoonTime.popModalPause();
+      _hiringOwnsPause = false;
       refreshTopBar();
     }
   }
@@ -2126,14 +2134,16 @@
   }
 
   // ---------- MC Decision modal ----------
-  let _mcPrevPaused = null;
+  let _mcOwnsPause = false;
   function openMCModal(proj) {
     if (!proj || !proj.pendingDecision) return;
     // Close any existing modal first (idempotent — handles rapid MC transitions)
     closeMCModal();
-    // Auto-pause while decision is pending (remember prev pause state to restore)
-    _mcPrevPaused = S.paused;
-    S.paused = true;
+    // Auto-pause while decision is pending (nested-modal safe via tycoonTime)
+    if (!_mcOwnsPause) {
+      window.tycoonTime.pushModalPause();
+      _mcOwnsPause = true;
+    }
     refreshTopBar();
 
     const d = proj.pendingDecision;
@@ -2167,10 +2177,9 @@
   function closeMCModal() {
     const ov = document.getElementById('_t_mc_modal');
     if (ov) ov.remove();
-    // Restore previous pause state (unpause if it was the MC forcing the pause)
-    if (_mcPrevPaused !== null) {
-      S.paused = _mcPrevPaused;
-      _mcPrevPaused = null;
+    if (_mcOwnsPause) {
+      window.tycoonTime.popModalPause();
+      _mcOwnsPause = false;
       refreshTopBar();
     }
   }
@@ -2424,8 +2433,12 @@
   };
 
   function openVictoryModal(path) {
-    // Auto-pause
-    S.paused = true;
+    // Auto-pause (nested-modal safe)
+    let _victoryOwnsPause = true;
+    window.tycoonTime.pushModalPause();
+    const releaseVictoryPause = () => {
+      if (_victoryOwnsPause) { window.tycoonTime.popModalPause(); _victoryOwnsPause = false; }
+    };
     refreshTopBar();
     const totalWins = (S.winsAchieved || []).length;
     const ov = h('div', { className: 't-modal-ov', id: '_t_victory_modal' },
@@ -2438,11 +2451,12 @@
         h('div', { className: 't-modal-actions', style: { justifyContent:'center' } },
           h('button', { className: 't-btn', onclick: () => {
             document.getElementById('_t_victory_modal')?.remove();
-            S.paused = false;
+            releaseVictoryPause();
             refreshTopBar();
           }}, 'Keep Playing'),
           h('button', { className: 't-btn secondary', onclick: () => {
             document.getElementById('_t_victory_modal')?.remove();
+            releaseVictoryPause();
             openLegacyScreen(S.calendar?.year || 2024, 'victory');
           }}, 'End Career (Retrospective)')
         )
@@ -2961,9 +2975,12 @@
 
   // ---------- Awards ceremony modal (Phase 4G) ----------
   function openAwardsCeremony(year, winners, effects) {
-    // Auto-pause
-    const prevPaused = S.paused;
-    S.paused = true;
+    // Auto-pause (nested-modal safe)
+    let _awardsOwnsPause = true;
+    window.tycoonTime.pushModalPause();
+    const releaseAwardsPause = () => {
+      if (_awardsOwnsPause) { window.tycoonTime.popModalPause(); _awardsOwnsPause = false; }
+    };
     refreshTopBar();
 
     const renderWinnerRow = (category, winner, extra) => {
@@ -3022,7 +3039,7 @@
         h('div', { className: 't-modal-actions', style: { justifyContent:'center' } },
           h('button', { className: 't-btn', onclick: () => {
             document.getElementById('_t_awards_modal')?.remove();
-            S.paused = prevPaused;
+            releaseAwardsPause();
             refreshTopBar();
             refreshMain();
           }}, 'Continue')
@@ -3033,9 +3050,12 @@
   }
 
   function openLaunchCelebration(proj) {
-    // Auto-pause game
-    const prevPaused = S.paused;
-    S.paused = true;
+    // Auto-pause (nested-modal safe)
+    let _launchOwnsPause = true;
+    window.tycoonTime.pushModalPause();
+    const releaseLaunchPause = () => {
+      if (_launchOwnsPause) { window.tycoonTime.popModalPause(); _launchOwnsPause = false; }
+    };
     refreshTopBar();
 
     const critic = proj.criticScore;
@@ -3065,7 +3085,7 @@
         h('div', { className: 't-modal-actions', style: { justifyContent:'center' } },
           h('button', { className: 't-btn', onclick: () => {
             document.getElementById('_t_launch_modal')?.remove();
-            S.paused = prevPaused;
+            releaseLaunchPause();
             refreshTopBar();
           }}, 'Continue')
         )
