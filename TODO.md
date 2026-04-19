@@ -1,5 +1,34 @@
 # Feature TODO
 
+## Tech debt — Dead clicker code removal
+The tycoon rework left all pre-v10 clicker code in place (modules 01-11). In tycoon mode the clicker `tick()` early-returns at `09-runtime.js:297` and the chain dies — so the clicker is genuinely unreachable, but ~4,000 lines of its UI, bubble minigame, coder-pack system, and modals still parse on every page load.
+
+**Confirmed clicker-only files (0 tycoon references):**
+- `05-content.js` — bug-kill content, achievement blurbs
+- `07-minigame-pack.js` — bubble minigame, aim trainer, coder pack system, offices, `rollCoder` etc
+- `08-modals.js` — clicker roster modal, clicker achievements modal, prestige tree UI
+
+**Tycoon-used exports in otherwise-clicker files:**
+- `06-ui-core.js` — `markDirty()` (18 tycoon callers) + `log()` (35+ tycoon callers). Rest is clicker render functions.
+- `03-state.js` — save/load, `KEY`, `defaults()`, migrations. Keep entirely.
+- `04-helpers.js` — `fmt()`, some time helpers. Spot-check then trim.
+- `09-runtime.js` — the clicker main loop, **not called** but still contains the slot-screen rebuild helpers that the tycoon hijack sits atop. Audit carefully.
+- `10-boot.js` — registers resize listener, mobile tab bar, version check loop. Keep.
+
+**Cross-file coupling that blocks naive deletion:**
+- `FIRST_NAMES`/`LAST_NAMES` in `07-minigame-pack.js:296-297` are referenced by `03-state.js:453-454` inside a v1→v2 save migration. That migration never runs for a fresh tycoon save (tycoon is schema v2), but removing the arrays would break any legacy save that somehow hits the migration path.
+- `coderSVG` / `emptyDeskSVG` in `02-config.js` are used by `07` and `09`. Untangle before cutting.
+
+**Staged approach for a future session:**
+1. Delete the bubble minigame block from `07-minigame-pack.js` (lines ~1-220) — zero tycoon references, only caller (`09-runtime.js:309`) sits behind the `__tycoonMode` early-return so it's safely unreachable.
+2. Delete the coder-pack reveal/roster UI from `07-minigame-pack.js` and `08-modals.js`.
+3. Blank out `05-content.js` (bug/achievement strings) and verify no stragglers.
+4. Trim `06-ui-core.js` to just `markDirty`, `log`, `toast` (if tycoon uses it — it doesn't currently, but cheap to keep), and delete the clicker render functions.
+
+Do each in its own commit so we can bisect any regression.
+
+Projected savings: 2,500-3,500 lines removed, ~150-200 KB off the built HTML, ~50-80ms page-load parse time on a desktop machine. Mobile savings may be larger.
+
 ## Tycoon Balance — Diminishing returns per employee
 Weekly quality accrual currently scales linearly with team size: each contributor adds its own `stat × weights × multipliers` and they sum. A 4-person team generates ~4× what a solo founder does, which makes scaling mid-game feel flat and makes "hire as many as you can afford" always correct.
 
