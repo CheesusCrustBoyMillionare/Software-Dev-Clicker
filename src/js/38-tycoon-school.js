@@ -342,8 +342,305 @@
 }
 .ss-cc-stat { display: inline-block; margin-right: 14px; font-size: 0.85rem; color: #c9d1d9; }
 .ss-cc-stat .v { font-weight: 700; color: #f0f6fc; }
+
+/* Departments tab — Phase 7 */
+.ss-dept-bar {
+  display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.ss-dept-btn {
+  background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+  padding: 8px 14px; border-radius: 4px; cursor: pointer; font-family: inherit;
+  font-size: 0.8rem; font-weight: 600;
+}
+.ss-dept-btn:hover { background: #30363d; }
+.ss-dept-btn.active {
+  background: #1f6feb; border-color: #1f6feb; color: white;
+}
+.ss-dept-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.ss-dept-node {
+  padding: 12px 14px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 6px; display: flex; flex-direction: column;
+  transition: border-color 0.15s;
+}
+.ss-dept-node:hover { border-color: #484f58; }
+.ss-dept-node.owned {
+  background: rgba(46, 160, 67, 0.05); border-color: rgba(46, 160, 67, 0.4);
+}
+.ss-dept-node.locked { opacity: 0.55; }
+.ss-dept-node.unaffordable { opacity: 0.7; }
+.ss-dept-node-head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  margin-bottom: 4px;
+}
+.ss-dept-node-name { font-size: 0.9rem; font-weight: 700; color: #f0f6fc; }
+.ss-dept-node-cost { font-size: 0.8rem; color: #7ee787; font-weight: 700; white-space: nowrap; }
+.ss-dept-node.owned .ss-dept-node-cost { color: #2ea043; }
+.ss-dept-node-desc { font-size: 0.78rem; color: #8b949e; line-height: 1.4; margin-bottom: 8px; flex: 1; }
+.ss-dept-buy {
+  margin-top: 6px; padding: 6px 12px;
+  background: #238636; border: 1px solid #2ea043; color: white;
+  border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 0.8rem; font-weight: 600;
+  align-self: stretch;
+}
+.ss-dept-buy:hover:not(:disabled) { background: #2ea043; }
+.ss-dept-buy:disabled { background: #30363d; border-color: #30363d; color: #6e7681; cursor: not-allowed; }
 `;
     document.head.appendChild(s);
+  }
+
+  // ---------- Department catalog (Phase 7) ----------
+  // Each department has an array of node definitions. Nodes specify:
+  //   id, name, desc, cost, dept (filled by register),
+  //   prereqs (optional array of other node ids),
+  //   achievementGate (optional — string identifying milestone),
+  //   stackable (optional boolean — can be bought multiple times; scholarship only),
+  //   maxStack (optional integer, default 3 when stackable),
+  //   effect (optional {kind, ...params} consumed by applyDepartmentEffects).
+  // Effect kinds handled in Phase 7:
+  //   startingCash   add {amount} per purchase/stack to enrollClassmate's
+  //                  starting cash
+  //   statBoost      {axis, amount} applied to enrolled founder's stats
+  //   documentResearch  {nodeIds: [...]} added to S.school.documentedResearch
+  //   schoolLab      {hardwareIds: [...]} added to S.school.labHardware
+  //   hireAlumni     unlocks alumni hire pool flag (Phase 8 consumes it)
+  //   clientRepBonus {amount} applied to top-5 ranks (Phase 7 soft flag)
+  //   freeContract   free first-week contract on enroll (Phase 7 soft flag)
+  // Achievement-gated super-unlocks (checked via S.school.lifetimeStats +
+  // S.school.famousAlumni at purchase time) — stubbed here with a small
+  // catalog; expand in Phase 9/10 balancing.
+  const DEPARTMENT_CATALOG = {
+    academics: {
+      label: 'Academics',
+      icon: '\uD83D\uDCDA',
+      blurb: 'What the school teaches. Documenting research + endowing chairs raises the floor for every future classmate.',
+      nodes: [
+        { id: 'a_foundational', name: 'Foundational Curriculum', cost: 2000,
+          desc: 'Pre-unlocks three tier-1 research nodes for every future classmate.',
+          effect: { kind: 'documentResearch', nodeIds: ['n_2d_sprites', 'n_text_parser', 'n_sound_chip'] } },
+        { id: 'a_prof_tech', name: 'Hire Visiting Professor — Tech', cost: 2500,
+          desc: '+5 tech to every future classmate at enrollment.',
+          effect: { kind: 'statBoost', axis: 'tech', amount: 5 } },
+        { id: 'a_prof_design', name: 'Hire Visiting Professor — Design', cost: 2500,
+          desc: '+5 design to every future classmate at enrollment.',
+          effect: { kind: 'statBoost', axis: 'design', amount: 5 } },
+        { id: 'a_prof_polish', name: 'Hire Visiting Professor — Polish', cost: 2500,
+          desc: '+5 polish to every future classmate at enrollment.',
+          effect: { kind: 'statBoost', axis: 'polish', amount: 5 } },
+        { id: 'a_faculty_chair', name: 'Endow Faculty Chair', cost: 10000,
+          desc: 'Pre-unlocks three more early research nodes (on top of Foundational).',
+          prereqs: ['a_prof_tech', 'a_prof_design', 'a_prof_polish'],
+          effect: { kind: 'documentResearch', nodeIds: ['n_mouse_ui', 'n_floppy_disk', 'n_basic_audio'] } },
+        { id: 'a_llm_doc', name: 'Document the LLM Research', cost: 8000,
+          desc: 'Pre-unlocks the late-era LLM research node. Requires a past alumnus to have shipped an AI project.',
+          achievementGate: 'ai_ship',
+          effect: { kind: 'documentResearch', nodeIds: ['n_llm_research'] } },
+      ],
+    },
+    facilities: {
+      label: 'Facilities',
+      icon: '\uD83C\uDFED',
+      blurb: 'Physical hardware that used to reset each run. Once the school owns it, every classmate inherits access.',
+      nodes: [
+        { id: 'f_lab_basic', name: 'Build Computer Lab', cost: 1500,
+          desc: 'Every classmate starts with a basic dev rig pre-installed.',
+          effect: { kind: 'schoolLab', hardwareIds: [] } },  // flag-only; Phase 8 may add a specific hardware id
+        { id: 'f_lab_advanced', name: 'Upgrade Workstations', cost: 5000,
+          desc: 'Lab upgraded to professional-grade hardware.',
+          prereqs: ['f_lab_basic'],
+          effect: { kind: 'schoolLab', hardwareIds: [] } },
+        { id: 'f_hw_sgi', name: 'SGI Workstation', cost: 4000,
+          desc: 'Permanent SGI workstation in the school lab.',
+          effect: { kind: 'schoolLab', hardwareIds: ['h_sgi_workstation'] } },
+        { id: 'f_hw_cdmaster', name: 'CD Mastering Suite', cost: 3500,
+          desc: 'Permanent CD mastering rig in the school lab.',
+          effect: { kind: 'schoolLab', hardwareIds: ['h_cd_mastering'] } },
+        { id: 'f_hw_server', name: 'Server Infrastructure', cost: 4000,
+          desc: 'Permanent server rack in the school lab.',
+          effect: { kind: 'schoolLab', hardwareIds: ['h_server_infra'] } },
+        { id: 'f_hw_cloud', name: 'Cloud Credits', cost: 5000,
+          desc: 'Permanent cloud-compute credits the school shares.',
+          effect: { kind: 'schoolLab', hardwareIds: ['h_cloud_credits'] } },
+        { id: 'f_campus_expansion', name: 'Center of Innovation Wing', cost: 12000,
+          desc: 'A dedicated campus expansion. Pre-unlocks the era\u2019s best hardware. Requires a past run that reached 2020+.',
+          achievementGate: 'reached_2020',
+          effect: { kind: 'schoolLab', hardwareIds: ['h_sgi_workstation', 'h_cd_mastering', 'h_server_infra', 'h_cloud_credits'] } },
+      ],
+    },
+    alumniNetwork: {
+      label: 'Alumni Network',
+      icon: '\uD83E\uDD1D',
+      blurb: 'The professional + social capital the school builds as each cohort graduates.',
+      nodes: [
+        { id: 'n_job_board', name: 'Formalize Alumni Job Board', cost: 2500,
+          desc: 'Past alumni become hireable senior staff at premium salary.',
+          effect: { kind: 'hireAlumni' } },
+        { id: 'n_gold_diploma', name: 'Gold-Plated Diploma', cost: 4000,
+          desc: 'Top-5-ranked graduates open with +1 client-tier reputation.',
+          effect: { kind: 'clientRepBonus', amount: 1 } },
+        { id: 'n_connections', name: 'Alumni Connections', cost: 2000,
+          desc: 'Every classmate gets a guaranteed contract offer in their first in-game week.',
+          effect: { kind: 'freeContract' } },
+        { id: 'n_every_camp', name: 'Alumni in Every Camp', cost: 10000,
+          desc: 'Your reputation precedes you. All contract payouts +15%. Requires 3+ win-condition runs.',
+          achievementGate: 'three_wins',
+          effect: { kind: 'contractBonusMul', mul: 1.15 } },
+      ],
+    },
+    schoolLife: {
+      label: 'School Life',
+      icon: '\uD83C\uDF93',
+      blurb: 'Morale, rivalry, and soft culture — smaller buffs that add up.',
+      nodes: [
+        { id: 'sl_scholarship', name: 'Scholarship Fund', cost: 1000, stackable: true, maxStack: 3,
+          desc: 'Every classmate starts with +$25K cash. Stacks up to 3× for +$75K.',
+          effect: { kind: 'startingCash', amount: 25000 } },
+        { id: 'sl_rivalry', name: 'Celebrated Rivalry', cost: 3000,
+          desc: 'Adds a named antagonistic rival studio to the persistent market roster. (Phase 8 wires the rival spawn.)',
+          effect: { kind: 'spawnRival' } },
+        { id: 'sl_newsletter', name: 'School Newsletter', cost: 2500,
+          desc: 'Each shipped project gets a bonus review quote from the school\u2019s own press. (Phase 8 wires the review.)',
+          effect: { kind: 'extraReview' } },
+        { id: 'sl_legend_hall', name: 'Legend Lecture Hall', cost: 15000,
+          desc: 'A hall named after a great alumnus. Every future classmate begins with +10 Fame. Requires a past founder who won 2+ GOTY awards.',
+          achievementGate: 'goty_double',
+          effect: { kind: 'startingFame', amount: 10 } },
+      ],
+    },
+  };
+
+  // Flatten catalog for quick lookup
+  const NODE_BY_ID = {};
+  for (const [deptId, dept] of Object.entries(DEPARTMENT_CATALOG)) {
+    for (const node of dept.nodes) {
+      node.dept = deptId;
+      NODE_BY_ID[node.id] = node;
+    }
+  }
+
+  // ---------- Achievement gate checks ----------
+  function achievementGateMet(gateId) {
+    const ls = S.school?.lifetimeStats || {};
+    const alumni = S.school?.alumniHall || [];
+    switch (gateId) {
+      case 'ai_ship':
+        return alumni.some(a => {
+          // Any past run where an AI-type project shipped. We don't persist
+          // individual projects cross-run (Phase 4 only snapshots stats), so
+          // we approximate: if any shipped project type hit in any run.
+          // Phase 8 will track this more precisely.
+          return a.shippedCount > 0 && a.year >= 2020;
+        });
+      case 'three_wins':
+        return (ls.winConditionRuns || 0) >= 3;
+      case 'reached_2020':
+        return alumni.some(a => (a.year || 0) >= 2020);
+      case 'goty_double':
+        // Stub for Phase 9 — requires per-alumnus award tracking that
+        // Phase 8 adds. False for now so the node is always gated.
+        return false;
+      default:
+        return true;
+    }
+  }
+
+  // ---------- Purchase state helpers ----------
+  function purchaseCount(nodeId) {
+    const dept = NODE_BY_ID[nodeId]?.dept;
+    if (!dept) return 0;
+    const list = S.school?.departments?.[dept] || [];
+    return list.filter(id => id === nodeId).length;
+  }
+  function isPurchased(nodeId) { return purchaseCount(nodeId) > 0; }
+  function canPurchase(nodeId) {
+    const node = NODE_BY_ID[nodeId];
+    if (!node) return { ok: false, reason: 'unknown node' };
+    if (node.achievementGate && !achievementGateMet(node.achievementGate)) {
+      return { ok: false, reason: 'gated: milestone unmet' };
+    }
+    if (node.prereqs) {
+      for (const pr of node.prereqs) {
+        if (!isPurchased(pr)) return { ok: false, reason: 'prereq: ' + (NODE_BY_ID[pr]?.name || pr) };
+      }
+    }
+    if (!node.stackable && isPurchased(nodeId)) {
+      return { ok: false, reason: 'already purchased' };
+    }
+    if (node.stackable && purchaseCount(nodeId) >= (node.maxStack || 3)) {
+      return { ok: false, reason: 'max stack reached' };
+    }
+    if ((S.school?.endowment || 0) < node.cost) {
+      return { ok: false, reason: 'not enough endowment' };
+    }
+    return { ok: true };
+  }
+
+  function purchaseNode(nodeId) {
+    const check = canPurchase(nodeId);
+    if (!check.ok) return check;
+    const node = NODE_BY_ID[nodeId];
+    S.school.endowment -= node.cost;
+    if (!Array.isArray(S.school.departments?.[node.dept])) {
+      S.school.departments = S.school.departments || {};
+      S.school.departments[node.dept] = [];
+    }
+    S.school.departments[node.dept].push(nodeId);
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('\uD83C\uDFEB Purchased: ' + node.name + ' (\u2212' + node.cost + ')');
+    return { ok: true, node };
+  }
+
+  // ---------- Apply department effects (called by enrollClassmate) ----------
+  // Walks every purchased node and mutates the about-to-be-enrolled founder
+  // state accordingly. Called with the built-up S.* and S.founder — mutates
+  // them in place. Safe to call with zero purchases (no-op).
+  function applyDepartmentEffects() {
+    if (!S.school?.departments) return;
+    for (const [deptId, purchases] of Object.entries(S.school.departments)) {
+      for (const nodeId of purchases) {
+        const node = NODE_BY_ID[nodeId];
+        if (!node?.effect) continue;
+        const eff = node.effect;
+        switch (eff.kind) {
+          case 'startingCash':
+            S.cash = (S.cash || 0) + (eff.amount || 0);
+            break;
+          case 'statBoost':
+            if (S.founder?.stats && eff.axis) {
+              S.founder.stats[eff.axis] = (S.founder.stats[eff.axis] || 0) + (eff.amount || 0);
+            }
+            break;
+          case 'documentResearch':
+            for (const id of (eff.nodeIds || [])) {
+              if (!S.research.completed.includes(id)) S.research.completed.push(id);
+              // Also stamp into S.school.documentedResearch so future runs
+              // don't need the node purchase repeated
+              if (!S.school.documentedResearch.includes(id)) S.school.documentedResearch.push(id);
+            }
+            break;
+          case 'schoolLab':
+            for (const hwId of (eff.hardwareIds || [])) {
+              if (!S.school.labHardware.includes(hwId)) S.school.labHardware.push(hwId);
+              if (!(S.hardware || []).some(h => h.id === hwId)) {
+                S.hardware.push({ id: hwId, purchasedAtWeek: 0 });
+              }
+            }
+            break;
+          case 'startingFame':
+            S.fame = (S.fame || 0) + (eff.amount || 0);
+            S.tFame = (S.tFame || 0) + (eff.amount || 0);
+            break;
+          // hireAlumni / clientRepBonus / freeContract / spawnRival /
+          // extraReview / contractBonusMul are flag-only effects — the
+          // downstream systems check for their nodes on S.school.departments
+          // when they need to. Phase 8 wires those consumers.
+          default:
+            break;
+        }
+      }
+    }
   }
 
   // ---------- Specialty inference (Phase 6) ----------
@@ -405,7 +702,10 @@
     if (classmate.enrolled) return { ok: false, error: 'Classmate already played' };
 
     // Reset per-run state (preserve S.school)
-    S.cash = 50000 + ((S.school.departments?.schoolLife || []).filter(n => n === 'scholarship').length * 25000);
+    // Phase 7: starting cash is the base + any Department bonuses applied
+    // later via applyDepartmentEffects(). Start clean and let the effects
+    // pipeline add up Scholarship Fund stacks, school lab hardware, etc.
+    S.cash = 50000;
     S.tRevenue = 0;
     S.tExpenses = 0;
     S.tFame = 0;
@@ -475,6 +775,12 @@
     // the active classmate as "next up" if the player save-exits mid-run.
     classmate.enrolled = true;
     classmate.enrolledAtYear = S.calendar.year;
+
+    // Phase 7: apply all purchased Department effects now that the base
+    // founder + run state is built. Scholarship Fund stacks add to cash,
+    // Visiting Professors bump stats, curriculum adds pre-unlocked research,
+    // school lab adds hardware, etc.
+    applyDepartmentEffects();
 
     if (typeof markDirty === 'function') markDirty();
     closeSchoolScreen();
@@ -713,6 +1019,82 @@
     document.body.appendChild(ov);
   }
 
+  // ---------- Departments tab (Phase 7) ----------
+  let _activeDept = 'academics';
+  function renderDepartmentsTab() {
+    const depts = Object.entries(DEPARTMENT_CATALOG);
+    const deptBar = hEl('div', { className: 'ss-dept-bar' },
+      ...depts.map(([id, d]) => hEl('button', {
+        className: 'ss-dept-btn' + (id === _activeDept ? ' active' : ''),
+        onclick: () => { _activeDept = id; rerenderSchoolScreen(); }
+      }, d.icon + ' ' + d.label))
+    );
+    const active = DEPARTMENT_CATALOG[_activeDept];
+    if (!active) return hEl('div', null, 'No department selected');
+    const nodes = active.nodes.map(node => renderDeptNodeCard(node));
+    return hEl('div', null,
+      hEl('h2', null, active.icon + ' ' + active.label),
+      hEl('div', { style: { fontSize: '0.85rem', color: '#8b949e', marginBottom: '10px' } }, active.blurb),
+      deptBar,
+      hEl('div', { className: 'ss-dept-grid' }, ...nodes)
+    );
+  }
+
+  function renderDeptNodeCard(node) {
+    const owned = purchaseCount(node.id);
+    const maxStack = node.stackable ? (node.maxStack || 3) : 1;
+    const fullyOwned = owned >= maxStack;
+    const check = canPurchase(node.id);
+    const affordable = (S.school?.endowment || 0) >= node.cost;
+    const gated = node.achievementGate && !achievementGateMet(node.achievementGate);
+    const prereqUnmet = node.prereqs && !node.prereqs.every(isPurchased);
+
+    const cls = 'ss-dept-node'
+      + (fullyOwned ? ' owned' : '')
+      + (gated || prereqUnmet ? ' locked' : '')
+      + (!affordable && !fullyOwned && !gated && !prereqUnmet ? ' unaffordable' : '');
+
+    const header = hEl('div', { className: 'ss-dept-node-head' },
+      hEl('span', { className: 'ss-dept-node-name' }, node.name),
+      hEl('span', { className: 'ss-dept-node-cost' },
+        fullyOwned ? '\u2713 owned' : '\uD83C\uDF93 ' + node.cost.toLocaleString()),
+    );
+
+    const status = node.stackable
+      ? hEl('div', { style: { fontSize: '0.7rem', color: '#8b949e', marginTop: '4px' } },
+          'Owned: ' + owned + '/' + maxStack + (owned > 0 ? ' \u2713'.repeat(owned) : ''))
+      : null;
+
+    const prereqRow = node.prereqs && node.prereqs.length
+      ? hEl('div', { style: { fontSize: '0.7rem', color: (prereqUnmet ? '#ff7b72' : '#7ee787'), marginTop: '4px' } },
+          'Requires: ' + node.prereqs.map(pr => NODE_BY_ID[pr]?.name || pr).join(', ')
+            + (prereqUnmet ? '' : ' \u2713'))
+      : null;
+
+    const gateRow = node.achievementGate
+      ? hEl('div', { style: { fontSize: '0.7rem', color: (gated ? '#f0883e' : '#7ee787'), marginTop: '4px' } },
+          gated ? '\uD83D\uDD12 Requires milestone: ' + node.achievementGate.replace('_', ' ')
+                : '\u2713 Milestone met')
+      : null;
+
+    const btn = hEl('button', {
+      className: 'ss-dept-buy',
+      disabled: !check.ok,
+      title: check.ok ? 'Purchase for ' + node.cost.toLocaleString() + ' endowment' : check.reason,
+      onclick: () => {
+        const r = purchaseNode(node.id);
+        if (!r.ok) return;
+        rerenderSchoolScreen();
+      }
+    }, fullyOwned ? 'Purchased' : gated ? 'Locked' : prereqUnmet ? 'Locked' : !affordable ? 'Short ' + (node.cost - (S.school?.endowment || 0)) : 'Purchase');
+
+    return hEl('div', { className: cls },
+      header,
+      hEl('div', { className: 'ss-dept-node-desc' }, node.desc),
+      status, prereqRow, gateRow, btn
+    );
+  }
+
   function renderPlaceholderTab(icon, title, body) {
     return hEl('div', { className: 'ss-placeholder' },
       hEl('div', { className: 'ss-placeholder-icon' }, icon),
@@ -740,9 +1122,7 @@
 
     let content;
     if (_activeTab === 'admissions') content = renderAdmissionsTab();
-    else if (_activeTab === 'departments') content = renderPlaceholderTab(
-      '\uD83C\uDFEB', 'Departments (Phase 7)',
-      'Spend endowment on permanent upgrades across Academics, Facilities, Alumni Network, and School Life. Phase 7 turns this on.');
+    else if (_activeTab === 'departments') content = renderDepartmentsTab();
     else if (_activeTab === 'alumni') content = renderPlaceholderTab(
       '\uD83C\uDF93', 'Alumni Hall (Phase 8)',
       'Cards for every past founder with their stats, fate, signature quotes, and famous-alumni callouts. ' +
@@ -855,6 +1235,15 @@
     openClassmateDetail,
     inferSpecialty,
     rankLabel,
+    // Phase 7: departments
+    DEPARTMENT_CATALOG,
+    NODE_BY_ID,
+    purchaseNode,
+    canPurchase,
+    isPurchased,
+    purchaseCount,
+    achievementGateMet,
+    applyDepartmentEffects,
     // Debug access
     resetRunEndFlag() { delete S._runEndFired; _lastYearSeen = null; },
     state() {
