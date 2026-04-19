@@ -188,6 +188,471 @@
     _lastYearSeen = null;
   }
 
+  // ---------- School-screen UI (Phase 5 shell) ----------
+  // The school screen is the roguelite "home base" that sits between runs.
+  // Phase 5 builds the shell: top bar (school name + endowment), 4-tab
+  // layout with Admissions as the only functional tab. Phase 6/7/8 fill
+  // in Departments / Alumni Hall / Lifetime. The enroll button at the
+  // bottom launches the next classmate into a fresh tycoon career.
+
+  function injectSchoolStyles() {
+    if (document.getElementById('_t_school_styles')) return;
+    const s = document.createElement('style');
+    s.id = '_t_school_styles';
+    s.textContent = `
+.school-screen {
+  position: fixed; inset: 0; z-index: 90;
+  background: #0d1117; color: #c9d1d9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  display: flex; flex-direction: column;
+}
+.school-topbar {
+  display: flex; align-items: center; gap: 24px; padding: 12px 24px;
+  background: linear-gradient(to bottom, #1a2332, #161b22);
+  border-bottom: 2px solid #30363d; min-height: 60px;
+}
+.school-topbar .ss-brand {
+  display: flex; align-items: baseline; gap: 12px;
+}
+.school-topbar .ss-brand .ss-school-name {
+  font-size: 1.25rem; font-weight: 700; color: #f0f6fc;
+  letter-spacing: 0.02em;
+}
+.school-topbar .ss-brand .ss-school-sub {
+  font-size: 0.7rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.school-topbar .ss-stat { display: flex; flex-direction: column; align-items: flex-start; }
+.school-topbar .ss-stat-val { font-weight: 700; font-size: 1rem; color: #7ee787; }
+.school-topbar .ss-stat-lbl { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; }
+.school-topbar .ss-actions { margin-left: auto; display: flex; gap: 8px; }
+.school-topbar button {
+  background: transparent; border: 1px solid #30363d; color: #c9d1d9;
+  padding: 6px 14px; border-radius: 4px; cursor: pointer; font-family: inherit;
+  font-size: 0.85rem;
+}
+.school-topbar button:hover { background: #30363d; }
+
+.school-tabs {
+  display: flex; gap: 2px; padding: 0 24px;
+  background: #161b22; border-bottom: 1px solid #30363d;
+}
+.school-tab {
+  padding: 12px 20px; background: transparent; border: none;
+  color: #8b949e; font-family: inherit; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  letter-spacing: 0.02em;
+}
+.school-tab:hover { color: #c9d1d9; }
+.school-tab.active {
+  color: #f0f6fc; border-bottom-color: #58a6ff;
+}
+.school-tab .ss-badge {
+  margin-left: 6px; padding: 1px 6px; background: #1f6feb; color: white;
+  border-radius: 9px; font-size: 0.65rem; font-weight: 700;
+}
+
+.school-main {
+  flex: 1; padding: 24px; overflow-y: auto;
+  max-width: 1100px; width: 100%; margin: 0 auto;
+}
+.school-main h2 { font-size: 1rem; color: #f0f6fc; margin-bottom: 12px; }
+.school-main h3 { font-size: 0.85rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; font-weight: 700; }
+
+.school-footer {
+  padding: 12px 24px; background: #161b22; border-top: 1px solid #30363d;
+  display: flex; justify-content: center;
+}
+.school-footer .ss-enroll {
+  padding: 12px 32px; font-size: 1rem; font-weight: 700;
+  background: #238636; border: 1px solid #2ea043; color: white;
+  border-radius: 6px; cursor: pointer; font-family: inherit;
+}
+.school-footer .ss-enroll:hover { background: #2ea043; }
+.school-footer .ss-enroll:disabled {
+  background: #30363d; border-color: #30363d; color: #8b949e; cursor: not-allowed;
+}
+
+.ss-placeholder {
+  padding: 60px 20px; text-align: center; color: #8b949e;
+  background: #161b22; border: 1px dashed #30363d; border-radius: 8px;
+}
+.ss-placeholder .ss-placeholder-icon { font-size: 2.5rem; margin-bottom: 12px; }
+.ss-placeholder .ss-placeholder-title { font-size: 1rem; color: #c9d1d9; margin-bottom: 6px; font-weight: 700; }
+.ss-placeholder .ss-placeholder-body { font-size: 0.85rem; line-height: 1.4; max-width: 480px; margin: 0 auto; }
+
+/* Admissions roster strip */
+.ss-roster {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+.ss-roster-card {
+  padding: 10px 12px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 6px; cursor: pointer; transition: all 0.15s;
+  position: relative;
+}
+.ss-roster-card:hover { border-color: #58a6ff; transform: translateY(-2px); }
+.ss-roster-card.enrolled { opacity: 0.45; cursor: default; }
+.ss-roster-card.enrolled:hover { transform: none; border-color: #30363d; }
+.ss-roster-card.locked { opacity: 0.30; cursor: not-allowed; }
+.ss-roster-card.next-up {
+  border-color: #2ea043; background: linear-gradient(135deg, #0f2619, #161b22);
+  box-shadow: 0 0 0 2px rgba(46, 160, 67, 0.2);
+}
+.ss-roster-card .ss-rank {
+  font-size: 0.65rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.ss-roster-card .ss-name {
+  font-size: 0.85rem; font-weight: 600; color: #f0f6fc; margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ss-roster-card .ss-band {
+  font-size: 0.65rem; color: #8b949e; margin-top: 4px;
+  padding: 1px 5px; display: inline-block; background: #21262d; border-radius: 3px;
+}
+.ss-roster-card.enrolled .ss-fate {
+  position: absolute; top: 6px; right: 6px; font-size: 0.9rem;
+}
+
+.ss-current-classmate {
+  background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+  padding: 16px 20px; margin-top: 18px;
+}
+.ss-current-classmate h3 { margin-bottom: 10px; }
+.ss-cc-name { font-size: 1.15rem; font-weight: 700; color: #f0f6fc; margin-bottom: 4px; }
+.ss-cc-meta { font-size: 0.8rem; color: #8b949e; margin-bottom: 12px; }
+.ss-cc-section { margin-bottom: 10px; }
+.ss-cc-section .k { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.ss-cc-passions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ss-cc-passion {
+  padding: 4px 8px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px;
+  font-size: 0.8rem;
+}
+.ss-cc-passion.burning { border-color: rgba(248,81,73,0.5); color: #ff7b72; }
+.ss-cc-passion.interested { border-color: rgba(240,136,62,0.5); color: #f0883e; }
+.ss-cc-passion.aversion { border-color: rgba(88,96,105,0.5); color: #6e7681; }
+.ss-cc-traits { display: flex; gap: 6px; flex-wrap: wrap; }
+.ss-cc-trait {
+  padding: 3px 8px; background: rgba(88,166,255,0.08); border: 1px solid rgba(88,166,255,0.3);
+  border-radius: 3px; font-size: 0.75rem; color: #79c0ff;
+}
+.ss-cc-narr {
+  padding: 3px 8px; background: rgba(133,120,140,0.1); border: 1px dashed #484f58;
+  border-radius: 3px; font-size: 0.75rem; color: #8b949e; font-style: italic;
+  display: inline-block; margin: 2px 4px 2px 0;
+}
+.ss-cc-stat { display: inline-block; margin-right: 14px; font-size: 0.85rem; color: #c9d1d9; }
+.ss-cc-stat .v { font-weight: 700; color: #f0f6fc; }
+`;
+    document.head.appendChild(s);
+  }
+
+  // Pick the classmate that's next up — the lowest unenrolled rank.
+  // (Phase 1 starts at the bottom per Q1b, so "lowest rank number unenrolled
+  // from the bottom" = the current next. Actually: classmate.rank 50 first,
+  // then 49, then 48, etc. So "next up" = the max unenrolled rank.)
+  function nextUpRank() {
+    if (!Array.isArray(S.school?.classRoster)) return null;
+    const unenrolled = S.school.classRoster.filter(c => !c.enrolled);
+    if (unenrolled.length === 0) return null;
+    // Highest rank number = furthest from top of class = we start at bottom
+    return unenrolled.reduce((max, c) => c.rank > max ? c.rank : max, 0);
+  }
+
+  // Enroll a classmate — reset per-run state, copy classmate → founder,
+  // and enter tycoon mode. Preserves S.school (the persistent meta).
+  function enrollClassmate(rank) {
+    if (!Array.isArray(S.school?.classRoster)) return { ok: false, error: 'No class roster' };
+    const classmate = S.school.classRoster.find(c => c.rank === rank);
+    if (!classmate) return { ok: false, error: 'Classmate not found' };
+    if (classmate.enrolled) return { ok: false, error: 'Classmate already played' };
+
+    // Reset per-run state (preserve S.school)
+    S.cash = 50000 + ((S.school.departments?.schoolLife || []).filter(n => n === 'scholarship').length * 25000);
+    S.tRevenue = 0;
+    S.tExpenses = 0;
+    S.tFame = 0;
+    S.fame = 0;
+    S.calendar = { week: 1, month: 1, year: 1980 };
+    S.projects = { active: [], shipped: [], contracts: [] };
+    S.employees = [];
+    S.loans = [];
+    S.bankruptcy = { negativeWeeks: 0, triggered: false };
+    S.warnings = { runway6mo: false, runway3mo: false, runway1mo: false };
+    S.hiring = { queue: [], fairIndex: 0 };
+    S.rivals = [];
+    S.awards = { history: [] };
+    S.subsidiaries = [];
+    S.vcRounds = [];
+    S.legacyDecisions = [];
+    S.hintsShown = [];
+    S.hintsDisabled = false;
+    delete S._runEndFired;
+    S.speed = 1;
+    S.paused = false;
+
+    // Research: pre-unlocked from documented curriculum
+    S.research = { completed: [...(S.school.documentedResearch || [])], inProgress: null };
+    // Hardware: pre-installed from school lab
+    S.hardware = (S.school.labHardware || []).map(id => ({ id, purchasedAtWeek: 0 }));
+
+    // Founder built from the classmate snapshot
+    S.founder = {
+      name: classmate.name,
+      specialty: 'coder',       // Phase 6 may let player pick a focus
+      tier: 1, tierName: 'Junior Dev', exp: 0,
+      stats: {
+        tech:   classmate.stats.tech   || 10,
+        design: classmate.stats.design || 10,
+        polish: classmate.stats.polish || 10,
+        speed:  4,
+      },
+      morale: 70,
+      age: classmate.age,
+      retireAge: 57 + Math.floor(Math.random() * 12),
+      traits: [],
+      isFounder: true,
+      // Roguelite layer — copied straight from classmate
+      passions: { ...classmate.passions },
+      mechanicalTraits: [...classmate.mechanicalTraits],
+      narrativeTraits: [...classmate.narrativeTraits],
+      classmateRank: classmate.rank,
+      classmateBand: classmate.band,
+    };
+    S.careerStarted = true;
+    S.careerStartedAt = Date.now();
+    S.studioName = classmate.name.split(' ')[0] + '\u2019s Studio'; // default; player can rename later
+
+    S.school.currentClassmateRank = rank;
+    S.school.currentRunNumber = (S.school.currentRunNumber || 0) + 1;
+
+    // Mark roster slot as enrolled immediately — fate + endedAtYear are
+    // stamped later at endRun. Prevents the Admissions tab from showing
+    // the active classmate as "next up" if the player save-exits mid-run.
+    classmate.enrolled = true;
+    classmate.enrolledAtYear = S.calendar.year;
+
+    if (typeof markDirty === 'function') markDirty();
+    closeSchoolScreen();
+    if (window.tycoonUI?.enter) window.tycoonUI.enter({ skipCreator: true });
+    return { ok: true, classmate };
+  }
+
+  // ---------- Tab renderers ----------
+  // We keep renderers pure (no side effects) so the school screen can be
+  // rebuilt on each tab switch without leaking listeners.
+  function hEl(tag, attrs, ...children) {
+    const el = document.createElement(tag);
+    if (attrs) for (const k in attrs) {
+      if (k === 'className') el.className = attrs[k];
+      else if (k === 'style' && typeof attrs[k] === 'object') Object.assign(el.style, attrs[k]);
+      else if (k.startsWith('on') && typeof attrs[k] === 'function') el.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+      else if (attrs[k] != null && attrs[k] !== false) el.setAttribute(k, attrs[k]);
+    }
+    for (const c of children.flat()) {
+      if (c == null || c === false) continue;
+      el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    }
+    return el;
+  }
+
+  function fateIcon(fate) {
+    return { bankruptcy: '\uD83D\uDC80', age_retired: '\uD83D\uDC74',
+             retire_voluntary: '\uD83C\uDF93', megacorp_exit: '\uD83D\uDCB0',
+             win_condition: '\uD83C\uDFC6' }[fate] || '';
+  }
+
+  function renderAdmissionsTab() {
+    const roster = S.school?.classRoster || [];
+    const nextRank = nextUpRank();
+    const next = roster.find(c => c.rank === nextRank);
+    const unenrolled = roster.filter(c => !c.enrolled).length;
+    const enrolled = roster.length - unenrolled;
+
+    // Roster cards — ranked bottom-first since we climb up
+    const sortedRoster = roster.slice().sort((a, b) => b.rank - a.rank);
+    const rosterEls = sortedRoster.map(c => {
+      const isNext = c.rank === nextRank;
+      const cls = 'ss-roster-card' + (c.enrolled ? ' enrolled' : '')
+        + (isNext ? ' next-up' : '');
+      return hEl('div', { className: cls, title: c.name + ' — rank ' + c.rank },
+        hEl('div', { className: 'ss-rank' }, 'Rank #' + c.rank),
+        hEl('div', { className: 'ss-name' }, c.name),
+        hEl('span', { className: 'ss-band' }, c.band.replace('_', ' ')),
+        c.enrolled ? hEl('span', { className: 'ss-fate', title: c.fate || '' }, fateIcon(c.fate)) : null
+      );
+    });
+
+    const currentBlock = next ? (() => {
+      const pe = (axis) => {
+        const p = next.passions[axis];
+        return hEl('span', { className: 'ss-cc-passion ' + (p || 'none') },
+          ({ burning: '\uD83D\uDD25\uD83D\uDD25', interested: '\uD83D\uDD25', none: '\u25A1', aversion: '\u{1F6AB}' }[p] || '') + ' ' + axis);
+      };
+      return hEl('div', { className: 'ss-current-classmate' },
+        hEl('h3', null, 'Next up — Rank #' + next.rank),
+        hEl('div', { className: 'ss-cc-name' }, next.name),
+        hEl('div', { className: 'ss-cc-meta' }, 'Age ' + next.age + ' \u00B7 band: ' + next.band.replace('_', ' ')),
+        hEl('div', { className: 'ss-cc-section' },
+          hEl('div', { className: 'k' }, 'Stats'),
+          hEl('div', null,
+            hEl('span', { className: 'ss-cc-stat' }, 'Tech ',   hEl('span', { className: 'v' }, String(next.stats.tech))),
+            hEl('span', { className: 'ss-cc-stat' }, 'Design ', hEl('span', { className: 'v' }, String(next.stats.design))),
+            hEl('span', { className: 'ss-cc-stat' }, 'Polish ', hEl('span', { className: 'v' }, String(next.stats.polish)))
+          )
+        ),
+        hEl('div', { className: 'ss-cc-section' },
+          hEl('div', { className: 'k' }, 'Passions'),
+          hEl('div', { className: 'ss-cc-passions' }, pe('tech'), pe('design'), pe('polish'))
+        ),
+        next.mechanicalTraits.length ? hEl('div', { className: 'ss-cc-section' },
+          hEl('div', { className: 'k' }, 'Traits'),
+          hEl('div', { className: 'ss-cc-traits' },
+            ...next.mechanicalTraits.map(tId => {
+              const t = window.tycoonTraits?.TRAITS_BY_ID?.[tId];
+              return hEl('span', { className: 'ss-cc-trait', title: t?.desc || '' }, t?.name || tId);
+            })
+          )
+        ) : null,
+        next.narrativeTraits.length ? hEl('div', { className: 'ss-cc-section' },
+          hEl('div', { className: 'k' }, 'Personality'),
+          hEl('div', null, ...next.narrativeTraits.map(n => hEl('span', { className: 'ss-cc-narr' }, n)))
+        ) : null
+      );
+    })() : null;
+
+    return hEl('div', null,
+      hEl('h2', null, 'Admissions'),
+      hEl('div', { style: { fontSize: '0.85rem', color: '#8b949e', marginBottom: '14px' } },
+        'Class of ' + (S.school?.foundedYear || 1980) + ' \u00B7 '
+        + enrolled + ' enrolled, ' + unenrolled + ' remaining'),
+      hEl('div', { className: 'ss-roster' }, ...rosterEls),
+      currentBlock
+    );
+  }
+
+  function renderPlaceholderTab(icon, title, body) {
+    return hEl('div', { className: 'ss-placeholder' },
+      hEl('div', { className: 'ss-placeholder-icon' }, icon),
+      hEl('div', { className: 'ss-placeholder-title' }, title),
+      hEl('div', { className: 'ss-placeholder-body' }, body)
+    );
+  }
+
+  // ---------- School-screen overlay ----------
+  let _activeTab = 'admissions';
+  function renderSchoolScreen() {
+    const school = S.school || {};
+    const tabs = [
+      { id: 'admissions', label: 'Admissions' },
+      { id: 'departments', label: 'Departments' },
+      { id: 'alumni', label: 'Alumni Hall' },
+      { id: 'lifetime', label: 'Lifetime' },
+    ];
+    const tabBar = hEl('div', { className: 'school-tabs' },
+      ...tabs.map(t => hEl('button', {
+        className: 'school-tab' + (t.id === _activeTab ? ' active' : ''),
+        onclick: () => { _activeTab = t.id; rerenderSchoolScreen(); }
+      }, t.label))
+    );
+
+    let content;
+    if (_activeTab === 'admissions') content = renderAdmissionsTab();
+    else if (_activeTab === 'departments') content = renderPlaceholderTab(
+      '\uD83C\uDFEB', 'Departments (Phase 7)',
+      'Spend endowment on permanent upgrades across Academics, Facilities, Alumni Network, and School Life. Phase 7 turns this on.');
+    else if (_activeTab === 'alumni') content = renderPlaceholderTab(
+      '\uD83C\uDF93', 'Alumni Hall (Phase 8)',
+      'Cards for every past founder with their stats, fate, signature quotes, and famous-alumni callouts. ' +
+      'Currently tracking ' + (school.alumniHall?.length || 0) + ' alumni behind the scenes.');
+    else content = renderPlaceholderTab(
+      '\uD83D\uDCCA', 'Lifetime Stats (Phase 8)',
+      'Cumulative totals across all runs: revenue, ships, hires, win-condition runs, etc. ' +
+      'Current run count: ' + (school.lifetimeStats?.runsCompleted || 0) + '.');
+
+    const nextRank = nextUpRank();
+    const nextClassmate = S.school?.classRoster?.find(c => c.rank === nextRank);
+    const enrollDisabled = !nextClassmate;
+
+    const topBar = hEl('div', { className: 'school-topbar' },
+      hEl('div', { className: 'ss-brand' },
+        hEl('span', { className: 'ss-school-name' }, school.name || 'The Institute'),
+        hEl('span', { className: 'ss-school-sub' }, 'Est. ' + (school.foundedYear || 1980))
+      ),
+      hEl('div', { className: 'ss-stat' },
+        hEl('div', { className: 'ss-stat-val' }, (school.endowment || 0).toLocaleString()),
+        hEl('div', { className: 'ss-stat-lbl' }, 'Endowment')
+      ),
+      hEl('div', { className: 'ss-stat' },
+        hEl('div', { className: 'ss-stat-val' }, String(school.classRoster?.filter(c => c.enrolled).length || 0) + '/' + (school.classRoster?.length || 0)),
+        hEl('div', { className: 'ss-stat-lbl' }, 'Class Enrolled')
+      ),
+      hEl('div', { className: 'ss-actions' },
+        hEl('button', {
+          title: 'Save and return to the slot screen',
+          onclick: () => {
+            try { if (typeof save === 'function') save(); } catch(e){}
+            closeSchoolScreen();
+            const slotsEl = document.getElementById('slots');
+            const gameEl = document.getElementById('G');
+            if (slotsEl) slotsEl.style.display = '';
+            if (gameEl) gameEl.style.display = 'none';
+            window.__tycoonMode = false;
+            // Reload for a fully clean slot screen
+            location.reload();
+          }
+        }, '\uD83D\uDCBE Save & Quit')
+      )
+    );
+
+    const footer = hEl('div', { className: 'school-footer' },
+      hEl('button', {
+        className: 'ss-enroll',
+        disabled: enrollDisabled,
+        onclick: () => {
+          if (!nextClassmate) return;
+          enrollClassmate(nextClassmate.rank);
+        }
+      }, enrollDisabled
+        ? 'Class fully graduated'
+        : 'Enroll Next Classmate \u2192 ' + nextClassmate.name + ' (Rank #' + nextClassmate.rank + ')')
+    );
+
+    return hEl('div', { className: 'school-screen', id: '_t_school_screen' },
+      topBar, tabBar,
+      hEl('div', { className: 'school-main' }, content),
+      footer
+    );
+  }
+
+  function rerenderSchoolScreen() {
+    const old = document.getElementById('_t_school_screen');
+    if (!old) return;
+    const fresh = renderSchoolScreen();
+    old.replaceWith(fresh);
+  }
+
+  function openSchoolScreen() {
+    injectSchoolStyles();
+    if (window.tycoonTraits?.ensureRoster) window.tycoonTraits.ensureRoster();
+    // Hide clicker + tycoon UIs
+    const slotsEl = document.getElementById('slots');
+    const gameEl = document.getElementById('G');
+    const tycoonEl = document.getElementById('tycoon-overlay');
+    if (slotsEl) slotsEl.style.display = 'none';
+    if (gameEl) gameEl.style.display = 'none';
+    if (tycoonEl) tycoonEl.remove();
+    window.__tycoonMode = true;  // blocks clicker loop
+    // Remove any existing school screen first
+    document.getElementById('_t_school_screen')?.remove();
+    document.body.appendChild(renderSchoolScreen());
+    _activeTab = 'admissions';  // reset on open
+  }
+
+  function closeSchoolScreen() {
+    const el = document.getElementById('_t_school_screen');
+    if (el) el.remove();
+  }
+
   // ---------- Public API ----------
   window.tycoonSchool = {
     endRun,
@@ -197,6 +662,12 @@
     voluntaryRetire,
     startTick,
     stopTick,
+    // Phase 5: school screen UI
+    openSchoolScreen,
+    closeSchoolScreen,
+    rerenderSchoolScreen,
+    enrollClassmate,
+    nextUpRank,
     // Debug access
     resetRunEndFlag() { delete S._runEndFired; _lastYearSeen = null; },
     state() {
@@ -207,6 +678,8 @@
         famousCount: (S.school?.famousAlumni || []).length,
         runEndFired: !!S._runEndFired,
         canRetire: canVoluntaryRetire(),
+        nextUpRank: nextUpRank(),
+        classSize: (S.school?.classRoster || []).length,
       };
     },
   };

@@ -2403,6 +2403,23 @@
     };
     pushToast((labels[type] || 'Run ended') +
       '  ·  +' + (endowEarned || 0).toLocaleString() + ' endowment banked', 'win');
+
+    // v3 roguelite: after a retrospective beat, tear down the tycoon overlay
+    // and open the school screen. Existing legacy/victory modals (if any)
+    // get dismissed in the process — Phase 5's school-screen admissions tab
+    // shows the run's alumnus joined the hall. Phase 8 will replace the
+    // per-run retrospective with a richer in-school one.
+    setTimeout(() => {
+      if (!window.tycoonSchool?.openSchoolScreen) return;
+      // Dismiss any legacy/victory modals still open
+      document.getElementById('_t_legacy_modal')?.remove();
+      document.getElementById('_t_victory_modal')?.remove();
+      // Save the run's result before tearing down tycoon
+      try { if (typeof save === 'function') save(); } catch (e) {}
+      // Tear down tycoon overlay without reloading the page
+      if (window.tycoonUI?.exit) window.tycoonUI.exit({ noReload: true });
+      window.tycoonSchool.openSchoolScreen();
+    }, 2500);
   });
 
   // v3 roguelite: voluntary retire button — opens a confirmation. Gated
@@ -2749,12 +2766,19 @@
       window.S = defaults();
       load(); // mutates S if valid v2 save exists
 
-      // Route based on career state
-      if (S.careerStarted && S.founder) {
-        // Resume existing career
+      // v3 roguelite routing:
+      //  - Active run (careerStarted, founder set, no run-end pending) → resume in tycoon
+      //  - Fresh save / between runs (run-end fired, or never started) → school screen
+      //  - Very old saves with no school container → ensureRoster seeds it
+      if (window.tycoonTraits?.ensureRoster) window.tycoonTraits.ensureRoster();
+      const activeRun = S.careerStarted && S.founder && !S._runEndFired;
+      if (activeRun) {
         tycoonUI.enter({ skipCreator: true });
+      } else if (window.tycoonSchool?.openSchoolScreen) {
+        // Between-runs or fresh save — school screen is the roguelite home base.
+        window.tycoonSchool.openSchoolScreen();
       } else {
-        // Fresh slot — show creator
+        // Fallback: classic creator if school module missing.
         tycoonUI.enter();
       }
     }, true); // capture phase — fires before bubble-phase clicker handler
@@ -2788,12 +2812,14 @@
   }
   setTimeout(initSlotHijack, 250);
 
-  // If user exits tycoon, reload the page (cleanest — avoids clicker-state bleed)
+  // If user exits tycoon, reload the page (cleanest — avoids clicker-state bleed).
+  // Pass { noReload: true } to exit in-place (used by the school-screen
+  // transition so we can replace the tycoon overlay with the school UI
+  // without losing the browser tab state).
   const origExit = tycoonUI.exit;
-  tycoonUI.exit = function() {
+  tycoonUI.exit = function(opts) {
     origExit();
-    // Full reload — clicker loop, stale state, timers all reset cleanly
-    location.reload();
+    if (!opts?.noReload) location.reload();
   };
 
   // Hook: hijack shipProject to show a launch celebration modal with reviews
