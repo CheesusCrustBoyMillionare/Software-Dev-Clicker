@@ -60,8 +60,28 @@ Ordered by priority: Q1-Q5 set the architecture; Q6-Q7 layer gameplay texture; Q
 **Things to think about later:**
 - School name (placeholder: "The Institute" / "Sunnyvale Tech" / you pick)
 - What does "class rank" specifically translate to in starting stats/traits? (Q6 will nail this)
-- Can a founder's success add to "famous alumni" list and be referenced by later runs? (this is the narrative hook the bloodline-based systems give; need a different hook here)
-- Are later runs also drawn from the SAME class as prior runs (so you can be "the guy who was ranked #12 in the class where #1 became a tycoon genius")? Or each run is a fresh graduating year?
+
+### Q1a — Stat/trait distribution by rank ✅ LOCKED: Bell curve
+Middle-of-class ranks produce "normal" founders — average stats, few or no notable traits. Both **extremes** of the ranking produce quirkier rolls with archetypal flavor:
+- **Top 5 ("class president" archetype):** high stats + polished traits (Networker, Ambitious, Workaholic) but high-expectation drawbacks (Perfectionist, Imposter Syndrome)
+- **Middle (25-75 percentile):** unremarkable — solid baseline, 0-1 traits, play the game mostly on merit
+- **Bottom 5 ("dark academia" / hidden-genius archetype):** lower base stats BUT more numerous/wilder traits (Insomniac, Eccentric, Chip-on-Shoulder, 10×'ed Work Ethic, Unorthodox) — compensates with style
+
+Base stat shape by rank: smooth U-curve? Inverted U? Probably roughly:
+- Top 5: stat sum ~50-55 (high), 3-4 traits (half positive, half double-edged)
+- Top 6-25: ~45-50, 1-2 traits
+- Middle (25-75%): ~40-45, 0-1 traits
+- Bottom 5-25%: ~35-40, 1-2 traits
+- Bottom 5: ~30-35 (low), 3-4 traits (disproportionately positive to compensate — chaos energy)
+
+### Q1b — Class cohort structure ✅ LOCKED: Single class, start at bottom, climb up
+- One graduating class (Class of '80) is the pool for an entire save's runs
+- **Run 1 = bottom-ranked member of the class** (the underdog who everyone thought wouldn't amount to anything)
+- Subsequent runs unlock higher-ranked classmates as you accumulate school endowment / meta-progression
+- Your past runs' founders become famous alumni (or infamous flops) referenced in the current run — rivals, cameos, "that guy from your class is now running MegaCorp"
+- Class size TBD — probably 20-50. Too many = never reach the top; too few = game ends when you run out. Target: roughly 10-20 runs per "save slot" to feel like a full arc.
+
+**Implication:** progression is automatic difficulty scaling. Your early runs have bottom-of-class quirky underdogs; your mid runs are middle-of-class "normies"; your late runs (if you've earned the endowment) are top-of-class stars who come with both high stats AND their own baggage.
 
 ---
 
