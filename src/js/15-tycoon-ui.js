@@ -2209,22 +2209,14 @@
 
   // ---------- Week progress bar rAF loop ----------
   // Fills the bar under the week label from 0% → 100% over the duration of
-  // one game week at the current speed, resets on each week tick. Pauses
-  // cleanly and restarts on speed change (setSpeed reschedules the tick
-  // timer from now, so our local clock needs to reset to stay in sync).
-  const _WEEK_BASE_MS = 12500;
-  let _weekElapsedMs = 0;
-  let _weekLastFrameMs = 0;
+  // one game week at the current speed. Reads the authoritative fraction
+  // directly from tycoonTime.weekFraction() so speed changes preserve
+  // mid-week progress (tycoonTime reschedules its setTimeout for the
+  // remaining fraction × new tickMs; this bar matches that schedule).
   let _weekRafHandle = null;
-  let _weekTickResetUnsub = null;
-  let _weekLastSpeedSeen = null;
 
   function startCalProgressLoop() {
     if (_weekRafHandle != null) return;
-    _weekElapsedMs = 0;
-    _weekLastFrameMs = performance.now();
-    _weekLastSpeedSeen = S.speed;
-    _weekTickResetUnsub = window.tycoonTime.onTick(() => { _weekElapsedMs = 0; });
 
     // Cache the fill element — the top bar is rebuilt by refreshTopBar(),
     // which replaces the node, so we re-query only when our cached node
@@ -2232,26 +2224,10 @@
     let fill = null;
 
     const loop = () => {
-      const now = performance.now();
-      const dt = now - _weekLastFrameMs;
-      _weekLastFrameMs = now;
-
-      // Speed change mid-week: the underlying setTimeout resets to a fresh
-      // tickMs from "now", so our elapsed counter should reset too.
-      if (S.speed !== _weekLastSpeedSeen) {
-        _weekElapsedMs = 0;
-        _weekLastSpeedSeen = S.speed;
-      }
-
-      const paused = S.paused === true || S.speed === 0;
-      if (!paused) _weekElapsedMs += dt;
-
-      const tickMs = _WEEK_BASE_MS / Math.max(1, S.speed || 1);
-      const pct = Math.min(100, (_weekElapsedMs / tickMs) * 100);
-
+      const frac = window.tycoonTime?.weekFraction?.() || 0;
+      const pct = Math.min(100, frac * 100);
       if (!fill || !fill.isConnected) fill = document.querySelector('.t-cal-progress-fill');
       if (fill) fill.style.width = pct.toFixed(1) + '%';
-
       _weekRafHandle = requestAnimationFrame(loop);
     };
     _weekRafHandle = requestAnimationFrame(loop);
@@ -2259,9 +2235,6 @@
 
   function stopCalProgressLoop() {
     if (_weekRafHandle != null) { cancelAnimationFrame(_weekRafHandle); _weekRafHandle = null; }
-    if (_weekTickResetUnsub) { _weekTickResetUnsub(); _weekTickResetUnsub = null; }
-    _weekElapsedMs = 0;
-    _weekLastSpeedSeen = null;
   }
 
   // Listen for MC pending events (fired by 14-tycoon-mc.js)
