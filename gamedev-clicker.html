@@ -11519,7 +11519,12 @@ let _clockValidated = false;
       e.preventDefault();
 
       const n = slotBtn.dataset.slot;
-      window.KEY = 'gdc_save_' + n;
+      // Phase 6D fix: KEY is a module-scoped `let` in 03-state.js — not a
+      // window property. Assigning window.KEY created a stray window prop
+      // while load()/save() still targeted slot 1, so every click loaded
+      // slot 1's data regardless of which slot was clicked. The IIFE's
+      // closure can read/write the outer `let KEY`, so drop the window. prefix.
+      KEY = 'gdc_save_' + n;
 
       // Load existing save (will wipe v1 via SCHEMA_MIGRATIONS[1])
       window.S = defaults();
@@ -11889,6 +11894,34 @@ let _clockValidated = false;
       'Block Puzzler', 'Math Drill', 'Typing Tutor', 'Educational Adventure',
       'Office Bowling', 'Card Shark', 'Number Cruncher', 'Memory Master',
       'Calendar Crisis', 'Conference Room Defender', 'Break Room Brawler'
+    ],
+    web: [
+      'Company Homepage', 'Product Launch Site', 'Employee Portal',
+      'Online Store', 'Booking System', 'Customer Portal', 'Marketing Site',
+      'Blog Platform', 'Support Hub', 'Event Landing Page',
+      'Partner Directory', 'Press Kit Portal', 'Career Portal',
+      'Knowledge Base', 'Newsletter Archive', 'Community Forum'
+    ],
+    mobile: [
+      'Field Service App', 'Fitness Tracker', 'Loyalty Rewards App',
+      'Delivery Tracker', 'Mobile Banking', 'Restaurant Ordering',
+      'Parking Finder', 'Ticketing App', 'Calendar Sync',
+      'Workout Coach', 'Expense Scanner', 'Badge Scanner',
+      'Inventory Counter', 'Training Companion', 'Inspection Logger'
+    ],
+    saas: [
+      'Helpdesk Platform', 'Analytics Suite', 'CRM Connector',
+      'Workflow Engine', 'Billing Platform', 'Audit Trail System',
+      'Team Collaboration', 'Feature Flagging', 'Monitoring Dashboard',
+      'Integration Hub', 'Customer Insights', 'Schema Registry',
+      'Access Governance', 'Dev Productivity Suite', 'Data Pipeline Manager'
+    ],
+    ai: [
+      'Content Summarizer', 'Support Copilot', 'Fraud Detector',
+      'Resume Screener', 'Meeting Note Assistant', 'Contract Reviewer',
+      'Ticket Triage Bot', 'Demand Forecaster', 'Compliance Classifier',
+      'Knowledge Indexer', 'Code Review Assistant', 'Vision QA Tool',
+      'Customer Segmenter', 'Incident Responder', 'Retrieval Search'
     ]
   };
 
@@ -11996,6 +12029,7 @@ let _clockValidated = false;
   }
 
   function randomFromArray(arr) {
+    if (!arr || arr.length === 0) return null;
     return arr[Math.floor(Math.random() * arr.length)];
   }
 
@@ -16368,12 +16402,29 @@ let _clockValidated = false;
 
   window.TYCOON_SCENARIOS = SCENARIOS;
 
+  // Phase 6D: Pre-initialize state containers that scenarios mutate directly.
+  // The relevant module ensureState() helpers aren't called until their startTick
+  // runs (inside tycoonUI.enter()), which is *after* applyBonus(). Without this,
+  // research/hardware/employee pre-seeding in the advanced scenarios silently
+  // no-ops because the arrays don't exist yet.
+  function preinitStateForScenario() {
+    if (!S.research) S.research = { completed: [], inProgress: null };
+    if (!Array.isArray(S.hardware)) S.hardware = [];
+    if (!Array.isArray(S.employees)) S.employees = [];
+    if (!Array.isArray(S.subsidiaries)) S.subsidiaries = [];
+    if (!Array.isArray(S.vcRounds)) S.vcRounds = [];
+    if (!Array.isArray(S.legacyDecisions)) S.legacyDecisions = [];
+    if (!S.projects) S.projects = { active: [], shipped: [] };
+    if (!S.capTable) S.capTable = { founderEquity: 1.0, vcEquity: {} };
+  }
+
   window.tycoonScenarios = {
     SCENARIOS,
     getById(id) { return SCENARIOS.find(s => s.id === id); },
     apply(id) {
       const s = SCENARIOS.find(x => x.id === id);
       if (!s) return { ok: false, error: 'Unknown scenario' };
+      preinitStateForScenario();
       if (typeof s.applyBonus === 'function') s.applyBonus();
       return { ok: true, scenario: s };
     }

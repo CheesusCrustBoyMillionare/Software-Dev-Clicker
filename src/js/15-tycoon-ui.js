@@ -2026,7 +2026,12 @@
       e.preventDefault();
 
       const n = slotBtn.dataset.slot;
-      window.KEY = 'gdc_save_' + n;
+      // Phase 6D fix: KEY is a module-scoped `let` in 03-state.js — not a
+      // window property. Assigning window.KEY created a stray window prop
+      // while load()/save() still targeted slot 1, so every click loaded
+      // slot 1's data regardless of which slot was clicked. The IIFE's
+      // closure can read/write the outer `let KEY`, so drop the window. prefix.
+      KEY = 'gdc_save_' + n;
 
       // Load existing save (will wipe v1 via SCHEMA_MIGRATIONS[1])
       window.S = defaults();

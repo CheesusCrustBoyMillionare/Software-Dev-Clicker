@@ -33,6 +33,34 @@
       'Block Puzzler', 'Math Drill', 'Typing Tutor', 'Educational Adventure',
       'Office Bowling', 'Card Shark', 'Number Cruncher', 'Memory Master',
       'Calendar Crisis', 'Conference Room Defender', 'Break Room Brawler'
+    ],
+    web: [
+      'Company Homepage', 'Product Launch Site', 'Employee Portal',
+      'Online Store', 'Booking System', 'Customer Portal', 'Marketing Site',
+      'Blog Platform', 'Support Hub', 'Event Landing Page',
+      'Partner Directory', 'Press Kit Portal', 'Career Portal',
+      'Knowledge Base', 'Newsletter Archive', 'Community Forum'
+    ],
+    mobile: [
+      'Field Service App', 'Fitness Tracker', 'Loyalty Rewards App',
+      'Delivery Tracker', 'Mobile Banking', 'Restaurant Ordering',
+      'Parking Finder', 'Ticketing App', 'Calendar Sync',
+      'Workout Coach', 'Expense Scanner', 'Badge Scanner',
+      'Inventory Counter', 'Training Companion', 'Inspection Logger'
+    ],
+    saas: [
+      'Helpdesk Platform', 'Analytics Suite', 'CRM Connector',
+      'Workflow Engine', 'Billing Platform', 'Audit Trail System',
+      'Team Collaboration', 'Feature Flagging', 'Monitoring Dashboard',
+      'Integration Hub', 'Customer Insights', 'Schema Registry',
+      'Access Governance', 'Dev Productivity Suite', 'Data Pipeline Manager'
+    ],
+    ai: [
+      'Content Summarizer', 'Support Copilot', 'Fraud Detector',
+      'Resume Screener', 'Meeting Note Assistant', 'Contract Reviewer',
+      'Ticket Triage Bot', 'Demand Forecaster', 'Compliance Classifier',
+      'Knowledge Indexer', 'Code Review Assistant', 'Vision QA Tool',
+      'Customer Segmenter', 'Incident Responder', 'Retrieval Search'
     ]
   };
 
@@ -140,6 +168,7 @@
   }
 
   function randomFromArray(arr) {
+    if (!arr || arr.length === 0) return null;
     return arr[Math.floor(Math.random() * arr.length)];
   }
 

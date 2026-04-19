@@ -182,12 +182,29 @@
 
   window.TYCOON_SCENARIOS = SCENARIOS;
 
+  // Phase 6D: Pre-initialize state containers that scenarios mutate directly.
+  // The relevant module ensureState() helpers aren't called until their startTick
+  // runs (inside tycoonUI.enter()), which is *after* applyBonus(). Without this,
+  // research/hardware/employee pre-seeding in the advanced scenarios silently
+  // no-ops because the arrays don't exist yet.
+  function preinitStateForScenario() {
+    if (!S.research) S.research = { completed: [], inProgress: null };
+    if (!Array.isArray(S.hardware)) S.hardware = [];
+    if (!Array.isArray(S.employees)) S.employees = [];
+    if (!Array.isArray(S.subsidiaries)) S.subsidiaries = [];
+    if (!Array.isArray(S.vcRounds)) S.vcRounds = [];
+    if (!Array.isArray(S.legacyDecisions)) S.legacyDecisions = [];
+    if (!S.projects) S.projects = { active: [], shipped: [] };
+    if (!S.capTable) S.capTable = { founderEquity: 1.0, vcEquity: {} };
+  }
+
   window.tycoonScenarios = {
     SCENARIOS,
     getById(id) { return SCENARIOS.find(s => s.id === id); },
     apply(id) {
       const s = SCENARIOS.find(x => x.id === id);
       if (!s) return { ok: false, error: 'Unknown scenario' };
+      preinitStateForScenario();
       if (typeof s.applyBonus === 'function') s.applyBonus();
       return { ok: true, scenario: s };
     }
