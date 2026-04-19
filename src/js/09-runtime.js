@@ -798,8 +798,17 @@ function buildSlots() {
     let info = t('empty');
     if (data) {
       const parts = [];
-      if (data.fame) parts.push(data.fame + ' ' + t('fame'));
-      if (data.shipped) parts.push(data.shipped + ' ' + t('softwareShipped'));
+      // v10+ tycoon save — prefer tycoon fields (founder, year, shipped count)
+      if (data.v >= 2 && data.careerStarted && data.founder) {
+        parts.push(data.founder.name || data.founder.tierName || 'Founder');
+        if (data.calendar?.year) parts.push(String(data.calendar.year));
+        const shippedN = data.projects?.shipped?.length || 0;
+        if (shippedN > 0) parts.push(shippedN + ' ' + t('softwareShipped'));
+      } else {
+        // Legacy clicker save — will be wiped on click (SCHEMA_MIGRATIONS[1])
+        if (data.fame) parts.push(data.fame + ' ' + t('fame'));
+        if (data.shipped) parts.push(data.shipped + ' ' + t('softwareShipped'));
+      }
       if (!parts.length) parts.push(t('inProgress'));
       info = parts.join(' \u2022 ');
     }

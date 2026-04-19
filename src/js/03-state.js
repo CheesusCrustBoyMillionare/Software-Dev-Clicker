@@ -534,7 +534,13 @@ function load() { loadSlot(localStorage.getItem(KEY)); }
 function peekSlot(n) {
   try {
     const d = JSON.parse(localStorage.getItem('gdc_save_' + n));
-    if (!d || d.v !== 1) return null;
+    if (!d) return null;
+    // v1 (clicker) saves still count as "populated" — the slot-click
+    // hijack in 15-tycoon-ui.js will wipe them via SCHEMA_MIGRATIONS[1]
+    // when the user enters. Accepting only v === SCHEMA_VERSION would
+    // hide the slot's existence so the player sees "Empty" for their
+    // own save (v10.0 bug).
+    if (typeof d.v !== 'number' || d.v < 1) return null;
     return d;
   } catch { return null; }
 }
