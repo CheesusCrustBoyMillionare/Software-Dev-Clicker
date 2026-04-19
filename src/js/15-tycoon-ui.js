@@ -152,6 +152,45 @@
 .t-finance-row .val { color: #f0f6fc; font-weight: 700; font-variant-numeric: tabular-nums; }
 .t-finance-row.positive .val { color: #7ee787; }
 .t-finance-row.negative .val { color: #f85149; }
+
+.t-candidate-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.t-candidate-card {
+  padding: 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.t-candidate-card .c-top { display: flex; justify-content: space-between; align-items: baseline; }
+.t-candidate-card .c-name { font-weight: 700; color: #f0f6fc; font-size: 0.95rem; }
+.t-candidate-card .c-tier { color: #79c0ff; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.t-candidate-card .c-salary { color: #f0883e; font-weight: 700; font-size: 0.9rem; }
+.t-candidate-card .c-meta { color: #8b949e; font-size: 0.72rem; }
+.t-candidate-card .c-trait { color: #c9d1d9; font-size: 0.75rem; font-style: italic; }
+.t-candidate-card .c-trait .hidden { color: #6e7681; }
+.t-candidate-card .c-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; font-size: 0.7rem; margin-top: 4px; }
+.t-candidate-card .c-stats .s { background: #161b22; border: 1px solid #21262d; padding: 4px 6px; border-radius: 3px; text-align: center; }
+.t-candidate-card .c-stats .s.hidden { color: #484f58; font-style: italic; }
+.t-candidate-card .c-stats .s .v { color: #f0f6fc; font-weight: 700; display: block; }
+.t-candidate-card .c-stats .s .l { color: #8b949e; font-size: 0.6rem; text-transform: uppercase; }
+.t-candidate-card .c-actions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.t-candidate-card .c-actions button {
+  flex: 1; min-width: 0; padding: 5px 8px; font-size: 0.7rem;
+}
+.t-candidate-card.interviewed { border-color: #58a6ff; }
+
+.t-employee-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 12px; background: #0d1117; border: 1px solid #21262d;
+  border-radius: 4px; margin-bottom: 6px;
+}
+.t-employee-row .e-info { flex: 1; min-width: 0; }
+.t-employee-row .e-name { font-weight: 700; color: #f0f6fc; font-size: 0.9rem; }
+.t-employee-row .e-meta { color: #8b949e; font-size: 0.72rem; }
+.t-employee-row .e-stats { color: #c9d1d9; font-size: 0.72rem; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.t-employee-row .e-salary { color: #f0883e; font-weight: 700; font-size: 0.85rem; text-align: right; }
+.t-employee-row .e-morale-bar {
+  width: 60px; height: 4px; background: #21262d; border-radius: 2px; margin-top: 2px;
+  overflow: hidden;
+}
+.t-employee-row .e-morale-fill { height: 100%; background: #7ee787; transition: width 0.3s; }
 `;
 
   function injectStyles() {
@@ -256,6 +295,26 @@
     );
   }
 
+  // ---------- Employee row ----------
+  function renderEmployeeRow(emp) {
+    const s = emp.stats;
+    const moralePct = Math.max(0, Math.min(100, emp.morale || 70));
+    return h('div', { className: 't-employee-row' },
+      h('div', { className: 'e-info' },
+        h('div', { className: 'e-name' }, emp.name),
+        h('div', { className: 'e-meta' }, emp.tierName + ' · ' + emp.specialty +
+          (emp.traits?.length ? ' · ' + emp.traits[0] : '')),
+        h('div', { className: 'e-stats' },
+          'D ' + s.design + ' · T ' + s.tech + ' · S ' + s.speed + ' · P ' + s.polish),
+        h('div', { className: 'e-morale-bar' },
+          h('div', { className: 'e-morale-fill', style: { width: moralePct + '%' } }))
+      ),
+      h('div', null,
+        h('div', { className: 'e-salary' }, fmtMoney(emp.salary) + '/yr')
+      )
+    );
+  }
+
   // ---------- Project card ----------
   function renderProjectCard(proj, isShipped) {
     const progEl = (() => {
@@ -287,6 +346,113 @@
       qRow,
       criticEl
     );
+  }
+
+  // ---------- Hiring Fair modal ----------
+  function openHiringModal() {
+    const queue = S.hiring?.queue || [];
+    if (queue.length === 0) {
+      pushToast('No candidates currently on the market. Wait for the next Hiring Fair.');
+      return;
+    }
+    closeHiringModal();
+    const ov = h('div', { className: 't-modal-ov', id: '_t_hiring_modal' },
+      h('div', { className: 't-modal', style: { maxWidth: '760px' } },
+        h('h2', null, '🎪 Hiring Fair'),
+        h('div', { style: { color:'#8b949e', fontSize:'0.8rem', marginBottom:'12px' } },
+          queue.length + ' candidate' + (queue.length===1?'':'s') +
+          ' available · Interview $' + window.tycoonHiring.INTERVIEW_COST +
+          ' (reveals stats + hidden trait)'),
+        h('div', { className: 't-candidate-grid' }, ...queue.map(renderCandidateCard)),
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn', onclick: closeHiringModal }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
+  }
+
+  function closeHiringModal() {
+    const ov = document.getElementById('_t_hiring_modal');
+    if (ov) ov.remove();
+  }
+
+  function rerenderHiringModal() {
+    if (document.getElementById('_t_hiring_modal')) {
+      closeHiringModal();
+      openHiringModal();
+    }
+  }
+
+  function renderCandidateCard(c) {
+    const card = h('div', { className: 't-candidate-card' + (c.interviewed ? ' interviewed' : '') },
+      h('div', { className: 'c-top' },
+        h('div', null,
+          h('div', { className: 'c-name' }, c.name),
+          h('div', { className: 'c-tier' }, c.tierName + ' · ' + c.specialty)
+        ),
+        h('div', { className: 'c-salary' }, fmtMoney(c.askingSalary) + '/yr')
+      ),
+      h('div', { className: 'c-meta' }, '🎓 ' + c.education.flavor + ' · Age ' + c.age),
+      h('div', { className: 'c-trait' },
+        c.interviewed && c.traits ?
+          '✨ ' + c.traits.join(' · ') + ' (' + (c.personality || 'Fair') + ')' :
+          '✨ ' + c.visibleTrait + ' + ',
+        c.interviewed ? '' : h('span', { className: 'hidden' }, '?')),
+      renderCandidateStats(c),
+      renderCandidateActions(c)
+    );
+    return card;
+  }
+
+  function renderCandidateStats(c) {
+    if (!c.interviewed) {
+      return h('div', { className: 'c-stats' },
+        h('div', { className: 's hidden' }, h('span', { className: 'v' }, '?'), h('span', { className: 'l' }, 'DESIGN')),
+        h('div', { className: 's hidden' }, h('span', { className: 'v' }, '?'), h('span', { className: 'l' }, 'TECH')),
+        h('div', { className: 's hidden' }, h('span', { className: 'v' }, '?'), h('span', { className: 'l' }, 'SPEED')),
+        h('div', { className: 's hidden' }, h('span', { className: 'v' }, '?'), h('span', { className: 'l' }, 'POLISH'))
+      );
+    }
+    const s = c.stats;
+    return h('div', { className: 'c-stats' },
+      h('div', { className: 's' }, h('span', { className: 'v' }, String(s.design)), h('span', { className: 'l' }, 'DESIGN')),
+      h('div', { className: 's' }, h('span', { className: 'v' }, String(s.tech)), h('span', { className: 'l' }, 'TECH')),
+      h('div', { className: 's' }, h('span', { className: 'v' }, String(s.speed)), h('span', { className: 'l' }, 'SPEED')),
+      h('div', { className: 's' }, h('span', { className: 'v' }, String(s.polish)), h('span', { className: 'l' }, 'POLISH'))
+    );
+  }
+
+  function renderCandidateActions(c) {
+    const btns = [];
+    if (!c.interviewed) {
+      btns.push(h('button', { className: 't-btn secondary', onclick: () => {
+        const r = window.tycoonHiring.interview(c.id);
+        if (!r.ok) pushToast(r.error);
+        else rerenderHiringModal();
+      } }, 'Interview $1K'));
+    }
+    btns.push(h('button', { className: 't-btn', onclick: () => {
+      const r = window.tycoonHiring.hire(c.id);
+      if (!r.ok) { pushToast(r.error); return; }
+      pushToast('Hired: ' + r.employee.name);
+      refreshMain();
+      rerenderHiringModal();
+    } }, 'Hire'));
+    if (!c.negotiated) {
+      btns.push(h('button', { className: 't-btn secondary', onclick: () => {
+        const r = window.tycoonHiring.negotiate(c.id, 'soft');
+        if (!r.ok) { pushToast(r.error); return; }
+        if (r.outcome === 'walked') pushToast(r.candidateName + ' walked away');
+        else pushToast('Negotiated — new salary');
+        rerenderHiringModal();
+      } }, 'Negotiate'));
+    }
+    btns.push(h('button', { className: 't-btn secondary', onclick: () => {
+      window.tycoonHiring.pass(c.id);
+      rerenderHiringModal();
+    } }, 'Pass'));
+    return h('div', { className: 'c-actions' }, ...btns);
   }
 
   // ---------- Contract offer card ----------
@@ -323,12 +489,18 @@
   function renderMainPanels() {
     const main = h('div', { className: 'tycoon-main' });
 
-    // Left: Founder + controls + Finance button
+    // Left: Founder + employees + controls
+    const employees = S.employees || [];
+    const queueSize = S.hiring?.queue?.length || 0;
     const leftPanel = h('div', { className: 'tycoon-panel', style: { maxWidth: '340px' } },
       h('h2', null, 'Studio'),
       renderFounderCard(),
+      employees.length > 0 && h('h2', { style: { marginTop: '16px' } }, 'Team (' + employees.length + ')'),
+      employees.length > 0 && h('div', null, ...employees.map(renderEmployeeRow)),
       h('div', { style: { marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
         h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project'),
+        h('button', { className: 't-btn secondary', onclick: () => openHiringModal() },
+          '🎪 Hiring' + (queueSize > 0 ? ' (' + queueSize + ' available)' : '')),
         h('button', { className: 't-btn secondary', onclick: () => openFinanceModal() }, '💰 Finance')
       )
     );
@@ -595,6 +767,21 @@
   document.addEventListener('tycoon:contract-accepted', () => refreshMain());
   document.addEventListener('tycoon:contract-declined', () => refreshMain());
 
+  // Hiring Fair triggers — auto-pause + open modal
+  document.addEventListener('tycoon:hiring-fair', (e) => {
+    pushToast('🎪 Hiring Fair: ' + (e.detail.candidates?.length || 0) + ' candidates available', 'win');
+    // Auto-pause to give player time to review
+    if (window.tycoonTime && !S.paused) {
+      S.paused = true;
+      refreshTopBar();
+    }
+    refreshMain();
+    openHiringModal();
+  });
+  document.addEventListener('tycoon:employee-hired', () => refreshMain());
+  document.addEventListener('tycoon:employee-fired', () => refreshMain());
+  document.addEventListener('tycoon:payroll', () => { refreshTopBar(); });
+
   // ---------- Character creator modal ----------
   function openCharacterCreator(onConfirm) {
     injectStyles();
@@ -728,6 +915,7 @@
       window.tycoonProjects.startTick();
       if (window.tycoonContracts) window.tycoonContracts.startTick();
       if (window.tycoonEmployees) window.tycoonEmployees.startTick();
+      if (window.tycoonHiring) window.tycoonHiring.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -737,6 +925,7 @@
       window.tycoonProjects.stopTick();
       if (window.tycoonContracts) window.tycoonContracts.stopTick();
       if (window.tycoonEmployees) window.tycoonEmployees.stopTick();
+      if (window.tycoonHiring) window.tycoonHiring.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
