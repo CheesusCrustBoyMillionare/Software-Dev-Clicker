@@ -132,12 +132,28 @@ One mode only. Bankruptcy (and every other run-terminating event) spawns the nex
 
 Schema migration: existing classic saves need to be auto-wrapped with a default empty `S.school` block. No data loss.
 
-### Q4 — Run-end triggers (when does a run end?)
-What causes a run to end + spawn a new founder?
-- **A) Only bankruptcy** — stay focused, keep game-over meaningful
-- **B) Bankruptcy + founder retirement (age-out)** — forced rotation even for successful runs; adds "legacy through time" feel
-- **C) Bankruptcy + retirement + megacorp exit** — megacorp currently ends the game with a retrospective; convert that into a "cash out, pass the torch" moment too
-- **D) Player choice at any point** — "Retire early" button that triggers heir selection
+### Q4 — Run-end triggers ✅ LOCKED: Five trigger types; all contribute endowment
+
+Every one of these ends the current run and spawns the next classmate. The **endowment bonus** each one grants to the school scales with the quality of the exit — but even bankruptcy contributes something (no null-score runs).
+
+| Trigger | Endowment tier | Notes |
+|---|---|---|
+| **Bankruptcy** (4 consecutive weeks negative cash) | **Small** | Even failure teaches the school something. Minimum floor. |
+| **Age retirement** (~60-70, founder's rolled `retireAge`) | Medium | Automatic forced rotation. Fires even on successful runs to keep the class-climb moving. |
+| **Voluntary "Retire & hand off"** (button, gated by Fame ≥ 50) | Medium (scales with Fame + lifetime revenue at time of retirement) | Player-initiated mid-run exit. Fame gate prevents insta-skip exploits. |
+| **Megacorp exit** (Sell to Megacorp legacy decision) | Large | Voluntary cash-out. Converts to big endowment + cash payout banked at studio-close. |
+| **Win condition** (Industry Titan, IPO Exit, Catalog Master, The Acquirer, Reach 2024) | **Largest** | Triumphant exit. Founder joins "famous alumni" permanently; maxes out endowment bonus + unlocks a commemorative classroom/building (flavor). |
+
+**Design intent:**
+- Five distinct ways to end a run → five distinct *vibes* and tempo.
+- Quality-of-exit gradient prevents "bankruptcy-farm" strategies (where dying fast would earn more per-hour than playing carefully).
+- Specific endowment amounts are tuned in Q8 (meta-currency).
+
+**Old options (for reference):**
+- A) Only bankruptcy
+- B) Bankruptcy + retirement
+- C) Bankruptcy + retirement + megacorp
+- D) Player choice at any point
 
 ### Q5 — Calendar on new run (timeline behavior)
 - **A) Always restart at 1980** — new career, fresh history
