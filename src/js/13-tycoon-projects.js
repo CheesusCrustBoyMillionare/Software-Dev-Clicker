@@ -407,6 +407,11 @@
     S.projects.active = S.projects.active.filter(p => p.id !== proj.id);
     S.projects.shipped.push(proj);
 
+    // Market heat bump (Phase 4B)
+    if (typeof window._tycoonOnPlayerShip === 'function') {
+      window._tycoonOnPlayerShip(proj);
+    }
+
     // Macro event revenue modifier (Phase 3G)
     const macroMult = window.tycoonMacro?.revenueMultiplier?.(proj.type) || 1;
 

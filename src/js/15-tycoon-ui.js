@@ -371,6 +371,102 @@
     );
   }
 
+  // ---------- Market panel modal (Phase 4B) ----------
+  function openMarketModal() {
+    closeMarketModal();
+    const activeRivals = (S.rivals || []).filter(r => r.status === 'active');
+    const upcoming = window.tycoonRivals?.upcomingRivalReleases?.(8) || [];
+    const heat = window.tycoonMarket?.state?.() || {};
+    const recentReleases = (S.rivalShippedTitles || []).slice(-6).reverse();
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_market_modal' },
+      h('div', { className: 't-modal', style: { maxWidth: '720px' } },
+        h('h2', null, '📊 Market & Rivals'),
+
+        // ----- Genre Heat -----
+        h('div', { style:{ marginBottom: '16px' } },
+          h('div', { className: 't-era-band', style: { marginTop: 0 } }, 'Genre Heat'),
+          h('div', null, ...window.tycoonMarket.TRACKED_TYPES
+            .filter(t => window.isProjectTypeAvailable ? window.isProjectTypeAvailable(t) : true)
+            .map(type => {
+              const typeDef = window.PROJECT_TYPES[type];
+              const h_ = heat[type] || { icons:'🔥', trend:'→', heat:0 };
+              return h('div', { className: 't-finance-row' },
+                h('span', { className: 'lbl' }, (typeDef?.icon || '') + ' ' + (typeDef?.label || type)),
+                h('span', { className: 'val' }, h_.icons + ' ' + h_.trend)
+              );
+            })
+          )
+        ),
+
+        // ----- Active Rivals -----
+        h('div', { style:{ marginBottom: '16px' } },
+          h('div', { className: 't-era-band' }, 'Active Rivals (' + activeRivals.length + ')'),
+          h('div', null, ...activeRivals.map(renderRivalRow))
+        ),
+
+        // ----- Upcoming rival releases -----
+        upcoming.length > 0 && h('div', { style:{ marginBottom: '16px' } },
+          h('div', { className: 't-era-band' }, 'Upcoming Rival Releases'),
+          h('div', null, ...upcoming.map(r =>
+            h('div', { className: 't-finance-row' },
+              h('span', { className: 'lbl' }, r.rivalIcon + ' ' + r.rivalName + ' — ' + r.title),
+              h('span', { className: 'val' }, 'in ' + r.weeksUntil + 'wk')
+            )
+          ))
+        ),
+
+        // ----- Recent releases (player + rival context) -----
+        recentReleases.length > 0 && h('div', { style:{ marginBottom: '8px' } },
+          h('div', { className: 't-era-band' }, 'Recent Rival Releases'),
+          h('div', null, ...recentReleases.map(r =>
+            h('div', { className: 't-finance-row' },
+              h('span', { className: 'lbl' }, r.rivalIcon + ' ' + r.title + ' · ' + r.year),
+              h('span', { className: 'val' }, 'critic ' + r.critic)
+            )
+          ))
+        ),
+
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn', onclick: closeMarketModal }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
+  }
+
+  function closeMarketModal() {
+    const ov = document.getElementById('_t_market_modal');
+    if (ov) ov.remove();
+  }
+
+  function renderRivalRow(rival) {
+    const tierLbl = 'T' + rival.tier;
+    const revLbl = fmtMoney(rival.revenue);
+    const trajArrow = rival.trajectory > 0.05 ? '↗' : rival.trajectory < -0.05 ? '↘' : '→';
+    const trajColor = rival.trajectory > 0.05 ? '#7ee787' : rival.trajectory < -0.05 ? '#f85149' : '#8b949e';
+    const researching = rival.inProgress ?
+      ' · 🔬 ' + (window.tycoonResearch?.NODE_BY_ID?.[rival.inProgress.nodeId]?.name || '?') : '';
+    const nextRelease = rival.nextProject ?
+      ' · 🚀 ' + rival.nextProject.name + ' (' + Math.max(0, rival.nextProject.releaseAtWeek - (window.tycoonProjects?.absoluteWeek?.() || 0)) + 'wk)' : '';
+    return h('div', { style:{
+      padding: '10px 12px', background:'#0d1117', border:'1px solid #21262d',
+      borderRadius:'4px', marginBottom:'6px'
+    } },
+      h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'baseline'} },
+        h('div', { style:{ fontWeight:'700', color:'#f0f6fc', fontSize:'0.85rem' } },
+          rival.icon + ' ' + rival.name),
+        h('div', { style:{color: trajColor, fontSize:'0.85rem', fontWeight:'700'} },
+          tierLbl + ' ' + revLbl + '/yr ' + trajArrow)
+      ),
+      h('div', { style:{ color:'#8b949e', fontSize:'0.72rem', marginTop:'2px' } },
+        'Focus: ' + (rival.focus || []).join(', ') +
+        ' · ' + (rival.shippedCount || 0) + ' shipped' +
+        ' · quality ~' + rival.quality +
+        researching + nextRelease)
+    );
+  }
+
   // ---------- Teams modal (Phase 3F) ----------
   function openTeamsModal() {
     closeTeamsModal();
@@ -760,6 +856,7 @@
           const ip = st?.inProgress;
           return '🔬 Research' + (ip ? ' (active)' : st ? ' (' + st.completedCount + ')' : '');
         })()),
+        h('button', { className: 't-btn secondary', onclick: () => openMarketModal() }, '📊 Market'),
         h('button', { className: 't-btn secondary', onclick: () => openFinanceModal() }, '💰 Finance')
       )
     );
@@ -1308,6 +1405,7 @@
       if (window.tycoonHardware) window.tycoonHardware.startTick();
       if (window.tycoonRivals) window.tycoonRivals.startTick();
       if (window.tycoonMacro) window.tycoonMacro.startTick();
+      if (window.tycoonMarket) window.tycoonMarket.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -1324,6 +1422,7 @@
       if (window.tycoonHardware) window.tycoonHardware.stopTick();
       if (window.tycoonRivals) window.tycoonRivals.stopTick();
       if (window.tycoonMacro) window.tycoonMacro.stopTick();
+      if (window.tycoonMarket) window.tycoonMarket.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
