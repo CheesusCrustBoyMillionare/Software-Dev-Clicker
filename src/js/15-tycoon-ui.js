@@ -1229,8 +1229,6 @@
     const leftPanel = h('div', { className: 'tycoon-panel', style: { maxWidth: '340px' } },
       h('h2', null, 'Studio'),
       renderFounderCard(),
-      employees.length > 0 && h('h2', { style: { marginTop: '16px' } }, 'Team (' + employees.length + ')'),
-      employees.length > 0 && h('div', null, ...employees.map(renderEmployeeRow)),
       h('div', { style: { marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
         h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project'),
         h('button', { className: 't-btn secondary', onclick: () => openHiringModal() },
@@ -1244,7 +1242,9 @@
         h('button', { className: 't-btn secondary', onclick: () => openMarketModal() }, '📊 Market'),
         h('button', { className: 't-btn secondary', onclick: () => openFinanceModal() }, '💰 Finance'),
         h('button', { className: 't-btn secondary', onclick: () => openLegacyScreen(S.calendar?.year || 1980, 'retrospective') }, '📜 Hall of Fame')
-      )
+      ),
+      employees.length > 0 && h('h2', { style: { marginTop: '16px' } }, 'Team (' + employees.length + ')'),
+      employees.length > 0 && h('div', null, ...employees.map(renderEmployeeRow))
     );
 
     // Middle: Contracts + Active Projects
