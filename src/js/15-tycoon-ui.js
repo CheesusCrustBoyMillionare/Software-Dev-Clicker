@@ -31,6 +31,34 @@
   background: linear-gradient(90deg, #1f6feb, #58a6ff);
   border-radius: 2px;
 }
+
+/* Bankruptcy countdown — only shown when S.bankruptcy.negativeWeeks > 0 */
+.tycoon-topbar .t-bankrupt {
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 4px 10px; background: rgba(248, 81, 73, 0.12);
+  border: 1px solid rgba(248, 81, 73, 0.5); border-radius: 4px;
+  animation: tBankruptPulse 1.8s ease-in-out infinite;
+}
+.tycoon-topbar .t-bankrupt-lbl {
+  color: #f85149; font-size: 0.65rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.tycoon-topbar .t-bankrupt-val {
+  color: #ff7b72; font-size: 0.9rem; font-weight: 700;
+}
+.tycoon-topbar .t-bankrupt-bar {
+  margin-top: 3px; width: 110px; height: 4px;
+  background: #21262d; border-radius: 2px; overflow: hidden;
+}
+.tycoon-topbar .t-bankrupt-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #da3633, #f85149);
+  border-radius: 2px; transition: width 0.4s ease-out;
+}
+@keyframes tBankruptPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.35); }
+  50% { box-shadow: 0 0 8px 2px rgba(248, 81, 73, 0.5); }
+}
 .tycoon-topbar .t-speed { margin-left: auto; display: flex; gap: 4px; }
 .tycoon-topbar .t-speed button {
   background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 10px;
@@ -302,6 +330,22 @@
       h('div', { className: 't-stat-lbl' }, 'Shipped')
     );
 
+    // Bankruptcy countdown — only when cash has been negative for 1+ weeks
+    const negWeeks = S.bankruptcy?.negativeWeeks || 0;
+    const bkTotal = window.tycoonFinance?.BANKRUPTCY_WEEKS || 4;
+    const bankruptBlock = (!S.bankruptcy?.triggered && negWeeks > 0)
+      ? h('div', {
+          className: 't-bankrupt',
+          title: negWeeks + ' of ' + bkTotal + ' consecutive negative-cash weeks \u2014 studio closes at ' + bkTotal + '. Recover cash above $0 to reset the counter.'
+        },
+          h('div', { className: 't-bankrupt-lbl' }, '\u{1F480} Bankruptcy in'),
+          h('div', { className: 't-bankrupt-val' }, (bkTotal - negWeeks) + ' week' + ((bkTotal - negWeeks) === 1 ? '' : 's')),
+          h('div', { className: 't-bankrupt-bar' },
+            h('div', { className: 't-bankrupt-bar-fill', style: { width: (Math.min(100, (negWeeks / bkTotal) * 100)) + '%' } })
+          )
+        )
+      : null;
+
     const speedBtns = h('div', { className: 't-speed' });
     const speeds = [{ s: 0, lbl: 'Pause' }, { s: 1, lbl: '1×' }, { s: 2, lbl: '2×' }, { s: 4, lbl: '4×' }, { s: 8, lbl: '8×' }];
     for (const sp of speeds) {
@@ -324,7 +368,9 @@
       onclick: () => { tycoonUI.exit(); }
     }, 'Exit Tycoon');
 
-    topbar.append(cal, cash, revenue, shipped, speedBtns, optionsBtn, exitBtn);
+    topbar.append(cal, cash, revenue, shipped);
+    if (bankruptBlock) topbar.append(bankruptBlock);
+    topbar.append(speedBtns, optionsBtn, exitBtn);
     return topbar;
   }
 

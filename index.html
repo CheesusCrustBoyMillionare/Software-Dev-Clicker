@@ -9524,6 +9524,34 @@ let _clockValidated = false;
   background: linear-gradient(90deg, #1f6feb, #58a6ff);
   border-radius: 2px;
 }
+
+/* Bankruptcy countdown — only shown when S.bankruptcy.negativeWeeks > 0 */
+.tycoon-topbar .t-bankrupt {
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 4px 10px; background: rgba(248, 81, 73, 0.12);
+  border: 1px solid rgba(248, 81, 73, 0.5); border-radius: 4px;
+  animation: tBankruptPulse 1.8s ease-in-out infinite;
+}
+.tycoon-topbar .t-bankrupt-lbl {
+  color: #f85149; font-size: 0.65rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.tycoon-topbar .t-bankrupt-val {
+  color: #ff7b72; font-size: 0.9rem; font-weight: 700;
+}
+.tycoon-topbar .t-bankrupt-bar {
+  margin-top: 3px; width: 110px; height: 4px;
+  background: #21262d; border-radius: 2px; overflow: hidden;
+}
+.tycoon-topbar .t-bankrupt-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #da3633, #f85149);
+  border-radius: 2px; transition: width 0.4s ease-out;
+}
+@keyframes tBankruptPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.35); }
+  50% { box-shadow: 0 0 8px 2px rgba(248, 81, 73, 0.5); }
+}
 .tycoon-topbar .t-speed { margin-left: auto; display: flex; gap: 4px; }
 .tycoon-topbar .t-speed button {
   background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 10px;
@@ -9795,6 +9823,22 @@ let _clockValidated = false;
       h('div', { className: 't-stat-lbl' }, 'Shipped')
     );
 
+    // Bankruptcy countdown — only when cash has been negative for 1+ weeks
+    const negWeeks = S.bankruptcy?.negativeWeeks || 0;
+    const bkTotal = window.tycoonFinance?.BANKRUPTCY_WEEKS || 4;
+    const bankruptBlock = (!S.bankruptcy?.triggered && negWeeks > 0)
+      ? h('div', {
+          className: 't-bankrupt',
+          title: negWeeks + ' of ' + bkTotal + ' consecutive negative-cash weeks \u2014 studio closes at ' + bkTotal + '. Recover cash above $0 to reset the counter.'
+        },
+          h('div', { className: 't-bankrupt-lbl' }, '\u{1F480} Bankruptcy in'),
+          h('div', { className: 't-bankrupt-val' }, (bkTotal - negWeeks) + ' week' + ((bkTotal - negWeeks) === 1 ? '' : 's')),
+          h('div', { className: 't-bankrupt-bar' },
+            h('div', { className: 't-bankrupt-bar-fill', style: { width: (Math.min(100, (negWeeks / bkTotal) * 100)) + '%' } })
+          )
+        )
+      : null;
+
     const speedBtns = h('div', { className: 't-speed' });
     const speeds = [{ s: 0, lbl: 'Pause' }, { s: 1, lbl: '1×' }, { s: 2, lbl: '2×' }, { s: 4, lbl: '4×' }, { s: 8, lbl: '8×' }];
     for (const sp of speeds) {
@@ -9817,7 +9861,9 @@ let _clockValidated = false;
       onclick: () => { tycoonUI.exit(); }
     }, 'Exit Tycoon');
 
-    topbar.append(cal, cash, revenue, shipped, speedBtns, optionsBtn, exitBtn);
+    topbar.append(cal, cash, revenue, shipped);
+    if (bankruptBlock) topbar.append(bankruptBlock);
+    topbar.append(speedBtns, optionsBtn, exitBtn);
     return topbar;
   }
 
@@ -13057,15 +13103,26 @@ let _clockValidated = false;
   function runLoanPayments() {
     if (!Array.isArray(S.loans) || S.loans.length === 0) return;
     let totalPaid = 0;
+    let missedPayments = 0;
     const toRemove = [];
     for (const loan of S.loans) {
-      const pay = Math.min(loan.monthlyPayment, S.cash || 0);
+      // Clamp available cash to >= 0 before capping. Previously
+      // Math.min(monthlyPayment, S.cash) returned a negative when cash was
+      // already underwater, and subtracting a negative added free cash —
+      // players past bankruptcy threshold were getting bailed out by their
+      // own loans. Treat underwater cash as $0 available for payments.
+      const available = Math.max(0, S.cash || 0);
+      const pay = Math.min(loan.monthlyPayment, available);
       S.cash = (S.cash || 0) - pay;
       S.tExpenses = (S.tExpenses || 0) + pay;
       totalPaid += pay;
-      loan.monthsRemaining -= 1;
-      if (loan.monthsRemaining <= 0) {
-        toRemove.push(loan.id);
+      // Only decrement remaining term if the full payment cleared; a missed
+      // or partial payment doesn't shorten the loan.
+      if (pay >= loan.monthlyPayment) {
+        loan.monthsRemaining -= 1;
+        if (loan.monthsRemaining <= 0) toRemove.push(loan.id);
+      } else {
+        missedPayments += 1;
       }
     }
     for (const id of toRemove) {
@@ -13074,6 +13131,9 @@ let _clockValidated = false;
     }
     if (totalPaid > 0 && typeof log === 'function') {
       log('🏦 Loan payment: $' + totalPaid.toLocaleString());
+    }
+    if (missedPayments > 0 && typeof log === 'function') {
+      log('🏦 Missed ' + missedPayments + ' loan payment' + (missedPayments > 1 ? 's' : '') + ' \u2014 insufficient cash');
     }
     if (typeof markDirty === 'function') markDirty();
   }
@@ -13424,6 +13484,7 @@ let _clockValidated = false;
     takeIPO,
     // Bankruptcy (Phase 5C)
     triggerBankruptcy,           // debug
+    BANKRUPTCY_WEEKS,            // consecutive negative-cash weeks until game over
     defunctCount,
     defunctCashBonus,
     startTick: startFinanceTick,

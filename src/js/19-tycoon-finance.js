@@ -76,15 +76,26 @@
   function runLoanPayments() {
     if (!Array.isArray(S.loans) || S.loans.length === 0) return;
     let totalPaid = 0;
+    let missedPayments = 0;
     const toRemove = [];
     for (const loan of S.loans) {
-      const pay = Math.min(loan.monthlyPayment, S.cash || 0);
+      // Clamp available cash to >= 0 before capping. Previously
+      // Math.min(monthlyPayment, S.cash) returned a negative when cash was
+      // already underwater, and subtracting a negative added free cash —
+      // players past bankruptcy threshold were getting bailed out by their
+      // own loans. Treat underwater cash as $0 available for payments.
+      const available = Math.max(0, S.cash || 0);
+      const pay = Math.min(loan.monthlyPayment, available);
       S.cash = (S.cash || 0) - pay;
       S.tExpenses = (S.tExpenses || 0) + pay;
       totalPaid += pay;
-      loan.monthsRemaining -= 1;
-      if (loan.monthsRemaining <= 0) {
-        toRemove.push(loan.id);
+      // Only decrement remaining term if the full payment cleared; a missed
+      // or partial payment doesn't shorten the loan.
+      if (pay >= loan.monthlyPayment) {
+        loan.monthsRemaining -= 1;
+        if (loan.monthsRemaining <= 0) toRemove.push(loan.id);
+      } else {
+        missedPayments += 1;
       }
     }
     for (const id of toRemove) {
@@ -93,6 +104,9 @@
     }
     if (totalPaid > 0 && typeof log === 'function') {
       log('🏦 Loan payment: $' + totalPaid.toLocaleString());
+    }
+    if (missedPayments > 0 && typeof log === 'function') {
+      log('🏦 Missed ' + missedPayments + ' loan payment' + (missedPayments > 1 ? 's' : '') + ' \u2014 insufficient cash');
     }
     if (typeof markDirty === 'function') markDirty();
   }
@@ -443,6 +457,7 @@
     takeIPO,
     // Bankruptcy (Phase 5C)
     triggerBankruptcy,           // debug
+    BANKRUPTCY_WEEKS,            // consecutive negative-cash weeks until game over
     defunctCount,
     defunctCashBonus,
     startTick: startFinanceTick,
