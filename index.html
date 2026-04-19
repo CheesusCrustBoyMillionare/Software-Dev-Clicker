@@ -9378,6 +9378,26 @@ let _clockValidated = false;
 @keyframes t-toast-in { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 .t-empty { color: #8b949e; font-style: italic; padding: 20px; text-align: center; }
+
+.t-contract-card {
+  padding: 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px;
+  border-left: 3px solid #f0883e;
+}
+.t-contract-card .t-c-hdr { display: flex; justify-content: space-between; align-items: center; }
+.t-contract-card .t-c-client { font-weight: 700; color: #f0f6fc; font-size: 0.9rem; }
+.t-contract-card .t-c-pay { color: #7ee787; font-weight: 700; font-size: 0.95rem; }
+.t-contract-card .t-c-proj { color: #c9d1d9; margin-top: 2px; font-size: 0.85rem; }
+.t-contract-card .t-c-spec { color: #8b949e; font-size: 0.7rem; margin-top: 4px; line-height: 1.4; }
+.t-contract-card .t-c-deadline { color: #f0883e; font-size: 0.7rem; margin-top: 4px; }
+.t-contract-card .t-c-expires { color: #8b949e; font-size: 0.65rem; font-style: italic; margin-top: 2px; }
+.t-contract-card .t-c-actions { display: flex; gap: 8px; margin-top: 10px; }
+.t-contract-card .t-c-actions button { flex: 1; padding: 6px 10px; font-size: 0.8rem; }
+
+.t-finance-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #21262d; }
+.t-finance-row .lbl { color: #8b949e; }
+.t-finance-row .val { color: #f0f6fc; font-weight: 700; font-variant-numeric: tabular-nums; }
+.t-finance-row.positive .val { color: #7ee787; }
+.t-finance-row.negative .val { color: #f85149; }
 `;
 
   function injectStyles() {
@@ -9515,33 +9535,117 @@ let _clockValidated = false;
     );
   }
 
+  // ---------- Contract offer card ----------
+  function renderContractCard(contract) {
+    const currentWeek = window.tycoonProjects.absoluteWeek();
+    const expiresIn = contract.expiresAtWeek - currentWeek;
+    const deadlineWeeksFromNow = contract.deadline - currentWeek;
+    return h('div', { className: 't-contract-card' },
+      h('div', { className: 't-c-hdr' },
+        h('div', { className: 't-c-client' }, contract.clientName),
+        h('div', { className: 't-c-pay' }, fmtMoney(contract.payment))
+      ),
+      h('div', { className: 't-c-proj' }, contract.projectName),
+      h('div', { className: 't-c-spec' }, contract.spec),
+      h('div', { className: 't-c-deadline' },
+        '⏱ Deadline: ' + deadlineWeeksFromNow + ' weeks after acceptance'),
+      h('div', { className: 't-c-expires' },
+        'Offer expires in ' + expiresIn + ' week' + (expiresIn === 1 ? '' : 's')),
+      h('div', { className: 't-c-actions' },
+        h('button', { className: 't-btn', onclick: () => {
+          window.tycoonContracts.accept(contract.id);
+          refreshMain();
+          pushToast('Accepted: ' + contract.projectName);
+        }}, 'Accept'),
+        h('button', { className: 't-btn secondary', onclick: () => {
+          window.tycoonContracts.decline(contract.id);
+          refreshMain();
+        }}, 'Decline')
+      )
+    );
+  }
+
   // ---------- Main layout ----------
   function renderMainPanels() {
     const main = h('div', { className: 'tycoon-main' });
 
-    // Left: Founder + controls
+    // Left: Founder + controls + Finance button
     const leftPanel = h('div', { className: 'tycoon-panel', style: { maxWidth: '340px' } },
       h('h2', null, 'Studio'),
       renderFounderCard(),
-      h('div', { style: { marginTop: '16px' } },
-        h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project')
+      h('div', { style: { marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
+        h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project'),
+        h('button', { className: 't-btn secondary', onclick: () => openFinanceModal() }, '💰 Finance')
       )
     );
 
-    // Right: Projects (active + shipped)
+    // Middle: Contracts + Active Projects
+    const contracts = S.projects?.contracts || [];
     const active = S.projects?.active || [];
     const shipped = S.projects?.shipped || [];
     const projectsPanel = h('div', { className: 'tycoon-panel' },
+      contracts.length > 0 && h('h2', null, 'Contract Offers (' + contracts.length + ')'),
+      contracts.length > 0 && h('div', { className: 't-projects-list', style: { marginBottom: '18px' } },
+        ...contracts.map(c => renderContractCard(c))),
+
       h('h2', null, 'Active Projects (' + active.length + ')'),
       active.length === 0
-        ? h('div', { className: 't-empty' }, 'No active projects. Click "+ New Project" to start.')
+        ? h('div', { className: 't-empty' },
+            contracts.length > 0
+              ? 'Accept a contract above, or click "+ New Project" for own IP.'
+              : 'No active projects. Click "+ New Project" or wait for a contract offer.')
         : h('div', { className: 't-projects-list' }, ...active.map(p => renderProjectCard(p, false))),
+
       shipped.length > 0 && h('h2', { style: { marginTop: '24px' } }, 'Shipped (' + shipped.length + ')'),
-      shipped.length > 0 && h('div', { className: 't-projects-list' }, ...shipped.slice().reverse().slice(0, 5).map(p => renderProjectCard(p, true)))
+      shipped.length > 0 && h('div', { className: 't-projects-list' },
+        ...shipped.slice().reverse().slice(0, 5).map(p => renderProjectCard(p, true)))
     );
 
     main.append(leftPanel, projectsPanel);
     return main;
+  }
+
+  // ---------- Finance modal ----------
+  function openFinanceModal() {
+    const shipped = S.projects?.shipped || [];
+    const contractRev = shipped.filter(p => p.isContract).reduce((s,p) => s + (p.payment||0), 0);
+    const ipRev = shipped.filter(p => !p.isContract).reduce((s,p) => s + (p.launchSales||0), 0);
+    const netProfit = (S.tRevenue || 0) - (S.tExpenses || 0);
+    const runwayMonths = S.cash > 0 ? '∞' : '0'; // no recurring costs yet in Phase 1
+
+    const row = (lbl, val, kind) => h('div', { className: 't-finance-row' + (kind ? ' ' + kind : '') },
+      h('span', { className: 'lbl' }, lbl),
+      h('span', { className: 'val' }, val)
+    );
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_finance_modal' },
+      h('div', { className: 't-modal' },
+        h('h2', null, '💰 Finance'),
+        h('div', { style: { marginBottom: '16px' } },
+          row('Current Cash', fmtMoney(S.cash), 'positive'),
+          row('Runway', runwayMonths + ' months'),
+          row('Difficulty', (S.difficulty || 'normal').toUpperCase())
+        ),
+        h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Lifetime'),
+        h('div', null,
+          row('Total Revenue', fmtMoney(S.tRevenue), 'positive'),
+          row('  · Contract income', fmtMoney(contractRev)),
+          row('  · Own-IP sales', fmtMoney(ipRev)),
+          row('Total Expenses', fmtMoney(S.tExpenses), 'negative'),
+          row('Net Profit', fmtMoney(netProfit), netProfit >= 0 ? 'positive' : 'negative')
+        ),
+        h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Titles Shipped'),
+        h('div', null,
+          row('Total shipped', String(shipped.length)),
+          row('  · Contracts delivered', String(shipped.filter(p => p.isContract).length)),
+          row('  · Own IP', String(shipped.filter(p => !p.isContract).length))
+        ),
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn', onclick: () => document.getElementById('_t_finance_modal')?.remove() }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
   }
 
   function refreshMain() {
@@ -9732,6 +9836,11 @@ let _clockValidated = false;
     refreshMain();
   });
 
+  // Refresh when contract offers arrive/resolve
+  document.addEventListener('tycoon:contract-offered', () => refreshMain());
+  document.addEventListener('tycoon:contract-accepted', () => refreshMain());
+  document.addEventListener('tycoon:contract-declined', () => refreshMain());
+
   // ---------- Character creator modal ----------
   function openCharacterCreator(onConfirm) {
     injectStyles();
@@ -9855,6 +9964,7 @@ let _clockValidated = false;
       root.append(renderTopBar(), renderMainPanels());
       document.body.appendChild(root);
       window.tycoonProjects.startTick();
+      if (window.tycoonContracts) window.tycoonContracts.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -9862,6 +9972,7 @@ let _clockValidated = false;
     exit() {
       window.tycoonTime.stop();
       window.tycoonProjects.stopTick();
+      if (window.tycoonContracts) window.tycoonContracts.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
@@ -9935,6 +10046,265 @@ let _clockValidated = false;
 
   console.log('[tycoon-ui] module loaded. Call %cdbg.ui.enter()%c or %ctycoonUI.enter()%c to activate.',
     'color:#f0883e;font-weight:bold', 'color:inherit', 'color:#f0883e;font-weight:bold', 'color:inherit');
+})();
+// ========== TYCOON CONTRACTS (v2) ==========
+// Phase 1E: contract offer queue. Clients send briefs every ~8 game-weeks.
+// Accepting a contract creates a project with isContract:true, payment on delivery.
+// Fuller client-tier system (Enterprise → Tech Giant → Government) in Phase 2.
+(function(){
+  'use strict';
+
+  // ---------- Client name pool ----------
+  // Era-flavored (1980s-early-90s, since Phase 1 starts in 1980)
+  const CLIENT_NAMES = [
+    'Compute Inc', 'DataSys Corp', 'Ledger Labs', 'Acme Publishing',
+    'Midwest Industrial', 'BBS Systems', 'Pinnacle Software', 'Reliable Tech',
+    'First National Database', 'Quantum Labs', 'Pioneer Press', 'Metro Cable Co',
+    'Sunrise Accounting', 'Prestige Retail', 'BlueCollar Tools',
+    'Granite State Banking', 'Tri-State Logistics', 'Widget Works Ltd',
+    'Evergreen Publishing', 'Paramount Services', 'Copperfield Insurance',
+    'Standard Inventory Co', 'Velocity Sales', 'Hamilton Manufacturing',
+    'Sierra Hardware', 'Clearwater Realty', 'Mercury Shipping'
+  ];
+
+  // ---------- Project name templates per project type ----------
+  const PROJECT_NAME_TEMPLATES = {
+    business: [
+      'Payroll Calculator', 'Inventory Tracker', 'Mailing List Manager',
+      'Budget Planner', 'Time Tracker', 'Customer Database', 'Tax Prep Helper',
+      'Invoice Generator', 'Financial Reports', 'Shipping Label Printer',
+      'Ledger Manager', 'Order Entry System', 'Schedule Organizer',
+      'Contact Directory', 'Expense Tracker', 'Sales Dashboard',
+      'Document Archive', 'Warehouse Manager', 'Quote Generator'
+    ],
+    game: [
+      'Maze Runner', 'Space Blaster', 'Word Challenge', 'Trivia Quest',
+      'Block Puzzler', 'Math Drill', 'Typing Tutor', 'Educational Adventure',
+      'Office Bowling', 'Card Shark', 'Number Cruncher', 'Memory Master',
+      'Calendar Crisis', 'Conference Room Defender', 'Break Room Brawler'
+    ]
+  };
+
+  // ---------- Contract specifications per project type ----------
+  // Defines typical features the client wants, scope, payment range.
+  // Phase 1: Small scope only (Contract + Medium/Large in Phase 2+).
+  const CONTRACT_SPECS = {
+    business: {
+      scopes: ['small'],                     // Phase 1: small only
+      requiredFeatures: {
+        small: ['f_save', 'f_print']         // always required on small business contracts
+      },
+      suggestedFeatures: {
+        small: ['f_import', 'f_reports', 'f_templates', 'f_help']  // nice-to-haves
+      },
+      paymentRange: { small: [12000, 28000] },
+      deadlineMult: 1.4,                     // 40% more weeks than minimum dev time
+      weights: {                             // relative likelihood of each client tier requesting this
+        smallBiz: 1.0
+      }
+    },
+    game: {
+      scopes: ['small'],
+      requiredFeatures: {
+        small: ['f_save']
+      },
+      suggestedFeatures: {
+        small: ['f_sound', 'f_diff', 'f_tutorial', 'f_ach', 'f_help']
+      },
+      paymentRange: { small: [8000, 22000] },  // games pay less on contract (risk)
+      deadlineMult: 1.5,
+      weights: {
+        smallBiz: 0.3                          // few small biz clients want games
+      }
+    }
+  };
+
+  // ---------- Generator ----------
+  let _contractIdCounter = 0;
+  function newContractId() {
+    _contractIdCounter += 1;
+    return 'c_' + Date.now().toString(36) + '_' + _contractIdCounter;
+  }
+
+  function randomFromArray(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function randomInRange([lo, hi]) {
+    return Math.round(lo + Math.random() * (hi - lo));
+  }
+
+  function pickProjectType() {
+    // Weighted roll across types based on their smallBiz weights
+    const entries = Object.entries(CONTRACT_SPECS).map(([type, spec]) => [type, spec.weights.smallBiz]);
+    const total = entries.reduce((s, [,w]) => s + w, 0);
+    let roll = Math.random() * total;
+    for (const [type, w] of entries) {
+      roll -= w;
+      if (roll <= 0) return type;
+    }
+    return entries[0][0];
+  }
+
+  function generateContract() {
+    const currentWeek = window.tycoonProjects.absoluteWeek();
+    const type = pickProjectType();
+    const spec = CONTRACT_SPECS[type];
+    const scope = randomFromArray(spec.scopes);
+    const scopeDef = window.PROJECT_SCOPES[scope];
+
+    // Pick required features + 0-2 suggested features
+    const required = [...(spec.requiredFeatures[scope] || [])];
+    const suggestedPool = spec.suggestedFeatures[scope] || [];
+    const suggestedCount = Math.floor(Math.random() * 3);
+    const suggested = [];
+    for (let i = 0; i < suggestedCount && suggestedPool.length > 0; i++) {
+      const pick = randomFromArray(suggestedPool);
+      if (!suggested.includes(pick) && !required.includes(pick)) suggested.push(pick);
+    }
+    const allFeatures = [...required, ...suggested];
+
+    // Scope-based payment with slight variance
+    const payment = randomInRange(spec.paymentRange[scope]);
+
+    // Deadline: enough time to complete + buffer
+    const minWeeks = scopeDef.phaseWeeks.design + scopeDef.phaseWeeks.development + scopeDef.phaseWeeks.polish;
+    const deadline = currentWeek + Math.ceil(minWeeks * spec.deadlineMult);
+
+    // Project name + client name
+    const projectName = randomFromArray(PROJECT_NAME_TEMPLATES[type]);
+    const clientName = randomFromArray(CLIENT_NAMES);
+
+    // Offer expires 8 game-weeks from now (or on deadline - whichever comes first)
+    const expiresAtWeek = Math.min(currentWeek + 8, deadline - 4);
+
+    return {
+      id: newContractId(),
+      clientName,
+      clientTier: 'small_biz',
+      projectType: type,
+      projectName,
+      scope,
+      payment,
+      deadline,
+      requiredFeatures: required,
+      suggestedFeatures: suggested,
+      allFeatures,
+      offeredAtWeek: currentWeek,
+      expiresAtWeek,
+      spec: buildSpecString(type, scope, required, suggested),
+    };
+  }
+
+  function buildSpecString(type, scope, required, suggested) {
+    const featureNames = (ids) => ids.map(id => window.TYCOON_FEATURES_BY_ID[id]?.name).filter(Boolean).join(', ');
+    const typeLbl = window.PROJECT_TYPES[type]?.label || type;
+    let s = typeLbl + ' (' + scope + ' scope). ';
+    if (required.length) s += 'Required: ' + featureNames(required) + '. ';
+    if (suggested.length) s += 'Nice to have: ' + featureNames(suggested) + '. ';
+    return s.trim();
+  }
+
+  // ---------- Queue management ----------
+  // Triggered by tick subscription. Every ~8 weeks, maybe add a new contract.
+  // Also expires old offers.
+  let _weeksUntilNextOffer = 2; // first offer quickly to get player going
+  const OFFER_INTERVAL_MIN = 6;
+  const OFFER_INTERVAL_MAX = 10;
+  const MAX_OFFERS_IN_QUEUE = 3;
+
+  function onWeekTick() {
+    if (!S.projects) S.projects = { active: [], shipped: [], contracts: [] };
+    if (!Array.isArray(S.projects.contracts)) S.projects.contracts = [];
+
+    // Expire old offers
+    const currentWeek = window.tycoonProjects.absoluteWeek();
+    const beforeCount = S.projects.contracts.length;
+    S.projects.contracts = S.projects.contracts.filter(c => c.expiresAtWeek >= currentWeek);
+    const expired = beforeCount - S.projects.contracts.length;
+    if (expired > 0 && typeof log === 'function') {
+      log('📪 ' + expired + ' contract offer' + (expired > 1 ? 's' : '') + ' expired');
+    }
+
+    // New offer rolling
+    _weeksUntilNextOffer -= 1;
+    if (_weeksUntilNextOffer <= 0 && S.projects.contracts.length < MAX_OFFERS_IN_QUEUE) {
+      const c = generateContract();
+      S.projects.contracts.push(c);
+      _weeksUntilNextOffer = OFFER_INTERVAL_MIN + Math.floor(Math.random() * (OFFER_INTERVAL_MAX - OFFER_INTERVAL_MIN + 1));
+      if (typeof markDirty === 'function') markDirty();
+      if (typeof log === 'function') log('📬 Contract offer: ' + c.clientName + ' — ' + c.projectName + ' ($' + c.payment.toLocaleString() + ')');
+      document.dispatchEvent(new CustomEvent('tycoon:contract-offered', { detail: { contractId: c.id } }));
+    }
+  }
+
+  // ---------- Accept / decline ----------
+  function acceptContract(contractId) {
+    const contract = (S.projects?.contracts || []).find(c => c.id === contractId);
+    if (!contract) { console.warn('Contract not found: ' + contractId); return null; }
+    // Create project from contract
+    const proj = window.tycoonProjects.create({
+      name: contract.projectName,
+      type: contract.projectType,
+      scope: contract.scope,
+      features: contract.allFeatures,
+      isContract: true,
+      clientId: contract.clientName,
+      payment: contract.payment,
+      deadline: contract.deadline,
+    });
+    // Remove from queue
+    S.projects.contracts = S.projects.contracts.filter(c => c.id !== contractId);
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('✓ Accepted: ' + contract.projectName);
+    document.dispatchEvent(new CustomEvent('tycoon:contract-accepted', { detail: { contractId, projectId: proj.id } }));
+    return proj;
+  }
+
+  function declineContract(contractId) {
+    if (!S.projects?.contracts) return;
+    S.projects.contracts = S.projects.contracts.filter(c => c.id !== contractId);
+    if (typeof markDirty === 'function') markDirty();
+    document.dispatchEvent(new CustomEvent('tycoon:contract-declined', { detail: { contractId } }));
+  }
+
+  // ---------- Tick subscription ----------
+  let _unsub = null;
+  function startContractsTick() {
+    if (_unsub) return;
+    if (!window.tycoonTime) { console.warn('[contracts] tycoonTime not available'); return; }
+    _unsub = window.tycoonTime.onTick(onWeekTick);
+  }
+  function stopContractsTick() {
+    if (_unsub) { _unsub(); _unsub = null; }
+  }
+
+  // ---------- Public API ----------
+  window.tycoonContracts = {
+    generate: generateContract,
+    accept: acceptContract,
+    decline: declineContract,
+    startTick: startContractsTick,
+    stopTick: stopContractsTick,
+    state() {
+      return {
+        queue: S.projects?.contracts || [],
+        weeksUntilNext: _weeksUntilNextOffer
+      };
+    },
+    // Force-add an offer (debug)
+    forceOffer() {
+      _weeksUntilNextOffer = 0;
+      onWeekTick();
+      return (S.projects?.contracts || []).slice(-1)[0];
+    },
+    CLIENT_NAMES,
+    PROJECT_NAME_TEMPLATES,
+    CONTRACT_SPECS
+  };
+  if (window.dbg) window.dbg.contracts = window.tycoonContracts;
+
+  console.log('[tycoon-contracts] module loaded. ' + Object.keys(CONTRACT_SPECS).length + ' project types, ' + CLIENT_NAMES.length + ' clients.');
 })();
 </script>
 </body>

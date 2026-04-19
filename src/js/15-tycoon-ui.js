@@ -132,6 +132,26 @@
 @keyframes t-toast-in { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 .t-empty { color: #8b949e; font-style: italic; padding: 20px; text-align: center; }
+
+.t-contract-card {
+  padding: 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px;
+  border-left: 3px solid #f0883e;
+}
+.t-contract-card .t-c-hdr { display: flex; justify-content: space-between; align-items: center; }
+.t-contract-card .t-c-client { font-weight: 700; color: #f0f6fc; font-size: 0.9rem; }
+.t-contract-card .t-c-pay { color: #7ee787; font-weight: 700; font-size: 0.95rem; }
+.t-contract-card .t-c-proj { color: #c9d1d9; margin-top: 2px; font-size: 0.85rem; }
+.t-contract-card .t-c-spec { color: #8b949e; font-size: 0.7rem; margin-top: 4px; line-height: 1.4; }
+.t-contract-card .t-c-deadline { color: #f0883e; font-size: 0.7rem; margin-top: 4px; }
+.t-contract-card .t-c-expires { color: #8b949e; font-size: 0.65rem; font-style: italic; margin-top: 2px; }
+.t-contract-card .t-c-actions { display: flex; gap: 8px; margin-top: 10px; }
+.t-contract-card .t-c-actions button { flex: 1; padding: 6px 10px; font-size: 0.8rem; }
+
+.t-finance-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #21262d; }
+.t-finance-row .lbl { color: #8b949e; }
+.t-finance-row .val { color: #f0f6fc; font-weight: 700; font-variant-numeric: tabular-nums; }
+.t-finance-row.positive .val { color: #7ee787; }
+.t-finance-row.negative .val { color: #f85149; }
 `;
 
   function injectStyles() {
@@ -269,33 +289,117 @@
     );
   }
 
+  // ---------- Contract offer card ----------
+  function renderContractCard(contract) {
+    const currentWeek = window.tycoonProjects.absoluteWeek();
+    const expiresIn = contract.expiresAtWeek - currentWeek;
+    const deadlineWeeksFromNow = contract.deadline - currentWeek;
+    return h('div', { className: 't-contract-card' },
+      h('div', { className: 't-c-hdr' },
+        h('div', { className: 't-c-client' }, contract.clientName),
+        h('div', { className: 't-c-pay' }, fmtMoney(contract.payment))
+      ),
+      h('div', { className: 't-c-proj' }, contract.projectName),
+      h('div', { className: 't-c-spec' }, contract.spec),
+      h('div', { className: 't-c-deadline' },
+        '⏱ Deadline: ' + deadlineWeeksFromNow + ' weeks after acceptance'),
+      h('div', { className: 't-c-expires' },
+        'Offer expires in ' + expiresIn + ' week' + (expiresIn === 1 ? '' : 's')),
+      h('div', { className: 't-c-actions' },
+        h('button', { className: 't-btn', onclick: () => {
+          window.tycoonContracts.accept(contract.id);
+          refreshMain();
+          pushToast('Accepted: ' + contract.projectName);
+        }}, 'Accept'),
+        h('button', { className: 't-btn secondary', onclick: () => {
+          window.tycoonContracts.decline(contract.id);
+          refreshMain();
+        }}, 'Decline')
+      )
+    );
+  }
+
   // ---------- Main layout ----------
   function renderMainPanels() {
     const main = h('div', { className: 'tycoon-main' });
 
-    // Left: Founder + controls
+    // Left: Founder + controls + Finance button
     const leftPanel = h('div', { className: 'tycoon-panel', style: { maxWidth: '340px' } },
       h('h2', null, 'Studio'),
       renderFounderCard(),
-      h('div', { style: { marginTop: '16px' } },
-        h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project')
+      h('div', { style: { marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
+        h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project'),
+        h('button', { className: 't-btn secondary', onclick: () => openFinanceModal() }, '💰 Finance')
       )
     );
 
-    // Right: Projects (active + shipped)
+    // Middle: Contracts + Active Projects
+    const contracts = S.projects?.contracts || [];
     const active = S.projects?.active || [];
     const shipped = S.projects?.shipped || [];
     const projectsPanel = h('div', { className: 'tycoon-panel' },
+      contracts.length > 0 && h('h2', null, 'Contract Offers (' + contracts.length + ')'),
+      contracts.length > 0 && h('div', { className: 't-projects-list', style: { marginBottom: '18px' } },
+        ...contracts.map(c => renderContractCard(c))),
+
       h('h2', null, 'Active Projects (' + active.length + ')'),
       active.length === 0
-        ? h('div', { className: 't-empty' }, 'No active projects. Click "+ New Project" to start.')
+        ? h('div', { className: 't-empty' },
+            contracts.length > 0
+              ? 'Accept a contract above, or click "+ New Project" for own IP.'
+              : 'No active projects. Click "+ New Project" or wait for a contract offer.')
         : h('div', { className: 't-projects-list' }, ...active.map(p => renderProjectCard(p, false))),
+
       shipped.length > 0 && h('h2', { style: { marginTop: '24px' } }, 'Shipped (' + shipped.length + ')'),
-      shipped.length > 0 && h('div', { className: 't-projects-list' }, ...shipped.slice().reverse().slice(0, 5).map(p => renderProjectCard(p, true)))
+      shipped.length > 0 && h('div', { className: 't-projects-list' },
+        ...shipped.slice().reverse().slice(0, 5).map(p => renderProjectCard(p, true)))
     );
 
     main.append(leftPanel, projectsPanel);
     return main;
+  }
+
+  // ---------- Finance modal ----------
+  function openFinanceModal() {
+    const shipped = S.projects?.shipped || [];
+    const contractRev = shipped.filter(p => p.isContract).reduce((s,p) => s + (p.payment||0), 0);
+    const ipRev = shipped.filter(p => !p.isContract).reduce((s,p) => s + (p.launchSales||0), 0);
+    const netProfit = (S.tRevenue || 0) - (S.tExpenses || 0);
+    const runwayMonths = S.cash > 0 ? '∞' : '0'; // no recurring costs yet in Phase 1
+
+    const row = (lbl, val, kind) => h('div', { className: 't-finance-row' + (kind ? ' ' + kind : '') },
+      h('span', { className: 'lbl' }, lbl),
+      h('span', { className: 'val' }, val)
+    );
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_finance_modal' },
+      h('div', { className: 't-modal' },
+        h('h2', null, '💰 Finance'),
+        h('div', { style: { marginBottom: '16px' } },
+          row('Current Cash', fmtMoney(S.cash), 'positive'),
+          row('Runway', runwayMonths + ' months'),
+          row('Difficulty', (S.difficulty || 'normal').toUpperCase())
+        ),
+        h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Lifetime'),
+        h('div', null,
+          row('Total Revenue', fmtMoney(S.tRevenue), 'positive'),
+          row('  · Contract income', fmtMoney(contractRev)),
+          row('  · Own-IP sales', fmtMoney(ipRev)),
+          row('Total Expenses', fmtMoney(S.tExpenses), 'negative'),
+          row('Net Profit', fmtMoney(netProfit), netProfit >= 0 ? 'positive' : 'negative')
+        ),
+        h('h2', { style: { marginTop: '20px', fontSize: '0.85rem' } }, 'Titles Shipped'),
+        h('div', null,
+          row('Total shipped', String(shipped.length)),
+          row('  · Contracts delivered', String(shipped.filter(p => p.isContract).length)),
+          row('  · Own IP', String(shipped.filter(p => !p.isContract).length))
+        ),
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn', onclick: () => document.getElementById('_t_finance_modal')?.remove() }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
   }
 
   function refreshMain() {
@@ -486,6 +590,11 @@
     refreshMain();
   });
 
+  // Refresh when contract offers arrive/resolve
+  document.addEventListener('tycoon:contract-offered', () => refreshMain());
+  document.addEventListener('tycoon:contract-accepted', () => refreshMain());
+  document.addEventListener('tycoon:contract-declined', () => refreshMain());
+
   // ---------- Character creator modal ----------
   function openCharacterCreator(onConfirm) {
     injectStyles();
@@ -609,6 +718,7 @@
       root.append(renderTopBar(), renderMainPanels());
       document.body.appendChild(root);
       window.tycoonProjects.startTick();
+      if (window.tycoonContracts) window.tycoonContracts.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -616,6 +726,7 @@
     exit() {
       window.tycoonTime.stop();
       window.tycoonProjects.stopTick();
+      if (window.tycoonContracts) window.tycoonContracts.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
