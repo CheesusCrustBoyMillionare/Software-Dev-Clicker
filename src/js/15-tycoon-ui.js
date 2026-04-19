@@ -727,6 +727,7 @@
       document.body.appendChild(root);
       window.tycoonProjects.startTick();
       if (window.tycoonContracts) window.tycoonContracts.startTick();
+      if (window.tycoonEmployees) window.tycoonEmployees.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -735,6 +736,7 @@
       window.tycoonTime.stop();
       window.tycoonProjects.stopTick();
       if (window.tycoonContracts) window.tycoonContracts.stopTick();
+      if (window.tycoonEmployees) window.tycoonEmployees.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();

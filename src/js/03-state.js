@@ -64,6 +64,8 @@ const defaults = () => ({
   projects: { active: [], shipped: [], contracts: [] },
   // Founder — persistent engineer (set on career start). Simplified in Phase 1 — fuller model in Phase 3.
   founder: null,
+  // Employees — hired team beyond founder (Phase 2+)
+  employees: [],
   // Time control
   speed: 1,                        // 0 (paused) | 1 | 2 | 4 | 8
   paused: false,                   // distinct from speed=0 — user-initiated pause
