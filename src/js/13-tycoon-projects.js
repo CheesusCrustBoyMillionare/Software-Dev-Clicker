@@ -156,38 +156,92 @@
     return proj;
   }
 
-  // ---------- Per-tick development work ----------
-  // Called by the tick subscription below. Accumulates quality per week during development.
-  // Phase 1 simplification: solo founder, fixed per-week output.
-  function developOneWeek(proj) {
-    if (proj.phase !== 'development') return;
-    if (proj.pendingDecision) return; // paused awaiting player MC answer
-    const f = S.founder;
-    if (!f) return;
-    // Per-week output = founder stats (with crunch modifier)
-    const crunchMul = proj.crunching ? 1.30 : 1.0;
-    const bugRisk   = proj.crunching ? 1.50 : 1.0;
-    const typeDef = PROJECT_TYPES[proj.type];
-    const w = typeDef.weights;
-    // Distribute founder effort per project-type weights
-    proj.quality.tech    += (f.stats.tech    * w.tech    * 0.8 * crunchMul);
-    proj.quality.design  += (f.stats.design  * w.design  * 0.8 * crunchMul);
-    proj.quality.polish  += (f.stats.polish  * w.polish  * 0.6 * crunchMul);
-    proj.bugs += (bugRisk * 0.4); // baseline bug accumulation
-    // Crunch morale cost
-    if (proj.crunching && f.morale) f.morale = Math.max(0, f.morale - 3);
+  // ---------- Team contributors ----------
+  // Phase 2C: founder + all hired employees contribute. No manual team assignment
+  // yet (that's the Phase 3 Teams panel) — everyone works on all active projects,
+  // split evenly across them.
+  function getContributors() {
+    const list = [];
+    if (S.founder) list.push(S.founder);
+    if (Array.isArray(S.employees)) list.push(...S.employees);
+    return list;
   }
 
-  // Per-tick polish work — reduces bugs
+  // Specialty → primary quality axis (used for specialty match bonus)
+  const SPECIALTY_AXIS = {
+    coder: 'tech', frontend: 'design', backend: 'tech', network: 'tech',
+    webdev: 'design', gamedev: 'design', mobile: 'polish',
+    devops: 'polish', cloud: 'tech', agent: 'design'
+  };
+
+  // Apply trait effects to stats for this week's calculation
+  function effectiveStats(c) {
+    const base = { ...(c.stats || { tech:0, design:0, speed:0, polish:0 }) };
+    const traits = c.traits || [];
+    for (const t of traits) {
+      const def = window.TYCOON_TRAITS?.[t];
+      if (!def?.effect) continue;
+      for (const k of ['tech','design','polish','speed']) {
+        if (def.effect[k]) base[k] = Math.max(0, (base[k] || 0) + def.effect[k]);
+      }
+    }
+    return base;
+  }
+
+  // Morale affects productivity — below 40 = -20%, above 85 = +15% "Flow state"
+  function moraleMultiplier(m) {
+    if (m == null) return 1;
+    if (m < 25) return 0.5;     // quit risk
+    if (m < 40) return 0.8;     // discontent
+    if (m >= 85) return 1.15;   // flow
+    return 1;
+  }
+
+  // ---------- Per-tick development work ----------
+  function developOneWeek(proj) {
+    if (proj.phase !== 'development') return;
+    if (proj.pendingDecision) return;
+    const contributors = getContributors();
+    if (contributors.length === 0) return;
+    const typeDef = PROJECT_TYPES[proj.type];
+    const w = typeDef.weights;
+    const crunchMul = proj.crunching ? 1.30 : 1.0;
+    const bugRisk   = proj.crunching ? 1.50 : 1.0;
+    // Dilute contribution if multiple active projects running (everyone splits time)
+    const activeCount = Math.max(1, (S.projects?.active || []).length);
+    const perProjMul = 1 / activeCount;
+
+    for (const c of contributors) {
+      const es = effectiveStats(c);
+      const mm = moraleMultiplier(c.morale);
+      const specAxis = SPECIALTY_AXIS[c.specialty];
+      const bonus = (axis) => (axis === specAxis ? 1.3 : 1.0);
+      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * bonus('tech')   * perProjMul);
+      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * bonus('design') * perProjMul);
+      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * bonus('polish') * perProjMul);
+      proj.bugs += (bugRisk * 0.3 * perProjMul); // slightly less per-person (team reviews)
+      if (proj.crunching) {
+        c.morale = Math.max(0, (c.morale || 70) - 3);
+      }
+    }
+  }
+
+  // ---------- Per-tick polish work ----------
   function polishOneWeek(proj) {
     if (proj.phase !== 'polish') return;
     if (proj.pendingDecision) return;
-    const f = S.founder;
-    if (!f) return;
-    // Polish work primarily reduces bugs + bumps polish axis
+    const contributors = getContributors();
+    if (contributors.length === 0) return;
+    const activeCount = Math.max(1, (S.projects?.active || []).length);
+    const perProjMul = 1 / activeCount;
     const crunchMul = proj.crunching ? 1.30 : 1.0;
-    proj.bugs = Math.max(0, proj.bugs - (f.stats.polish * 0.6 * crunchMul));
-    proj.quality.polish += (f.stats.polish * 0.4 * crunchMul);
+    for (const c of contributors) {
+      const es = effectiveStats(c);
+      const mm = moraleMultiplier(c.morale);
+      const specBonus = SPECIALTY_AXIS[c.specialty] === 'polish' ? 1.3 : 1.0;
+      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * specBonus * perProjMul));
+      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * specBonus * perProjMul);
+    }
   }
 
   // Check if current phase is complete (enough weeks elapsed)
