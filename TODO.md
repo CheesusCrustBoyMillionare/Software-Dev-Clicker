@@ -1,5 +1,49 @@
 # Feature TODO
 
+## Tycoon Balance — Diminishing returns per employee
+Weekly quality accrual currently scales linearly with team size: each contributor adds its own `stat × weights × multipliers` and they sum. A 4-person team generates ~4× what a solo founder does, which makes scaling mid-game feel flat and makes "hire as many as you can afford" always correct.
+
+Rework so per-project contribution scales on `mean(stat) × f(N)` where `f(N)` is sub-linear — second hire worth more than third, third more than fourth, etc.
+
+**Candidate curve:** `f(N) = N^0.75` (logarithmic-ish)
+- N=1: 1.00
+- N=2: 1.68 (+0.68)
+- N=3: 2.28 (+0.60)
+- N=4: 2.83 (+0.55)
+- N=5: 3.34 (+0.51)
+- N=8: 4.76 (+~0.47 per hire)
+
+**Or:** harmonic-style per-hire additions: hire 2 adds `1/2`, hire 3 adds `1/3`, … (very steep diminishing returns).
+
+**Why mean not sum:** a mediocre senior dragging down your rockstar team should matter. `mean × f(N)` makes a 3-person team of 80s outperform a 10-person team of 50s, which rewards curating the roster.
+
+**Touches:**
+- `developOneWeek` and `polishOneWeek` in `13-tycoon-projects.js` (the per-contributor `proj.quality.X +=` loops)
+- Need to decide: do morale/specialty/crunch multipliers apply to the team mean, or per-contributor before averaging? Leaning per-contributor then average.
+- Team Productivity research nodes currently multiply the team-wide output — make sure they still feel meaningful with the new curve.
+
+## Tycoon Balance — Review scores too easy to max
+Getting 90+ critic is routine; 100 happens often enough that it loses its meaning. Players hit the ceiling mid-game and subsequent hires / research / features don't visibly improve reviews.
+
+**Causes to audit:**
+- `computeCriticScore` normalize caps: `scope.phaseWeeks.development × 2.5` (tech/design) and `× 3.25` (polish). With enough research multipliers, a solo 80-stat founder saturates the cap in half the design weeks. Raise caps 50–100%, or make them non-linear (`sqrt`-like rolloff).
+- Feature bonus: `Σ impact × 0.05` uncapped — picking all 5 suggested features can add 15–25 points on top of an already-90 project. Cap at ~8 points total.
+- Luck band is `±5` — harmless but compresses the perceived skill range. Keep.
+- Type-mismatch penalty is zero — shipping a game with a tech-heavy team should cost more than it does. Consider reducing the effective stat by 30% on mismatched axes.
+- Research-stacking: multiple quality-multiplier nodes of the same axis compound (e.g., `qualityMultiplierFor('tech')`). Audit whether they should cap or diminish.
+
+**Target distribution after rebalance:**
+- 50-60: undermanned / wrong team fit
+- 60-75: solid, most ships land here
+- 75-85: strong team, good research, right genre
+- 85-92: genre mastery + polish + awards-candidate territory
+- 93-98: legendary ship, requires crunch + SR team + all research in that axis
+- 99-100: once-per-career event, not "every 3 ships"
+
+**Touches:**
+- `computeCriticScore` caps + feature bonus formula in `13-tycoon-projects.js`
+- `computeLaunchSales` exponent (^2.2) may need a small bump to keep 90+ games feeling special if the cap raises
+
 ## Upgrade Evolutions (Vampire Survivors)
 Owning two specific fame upgrades combines them into a super version. Players discover combos organically.
 
