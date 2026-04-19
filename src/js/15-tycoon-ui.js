@@ -1055,7 +1055,8 @@
           return '🔬 Research' + (ip ? ' (active)' : st ? ' (' + st.completedCount + ')' : '');
         })()),
         h('button', { className: 't-btn secondary', onclick: () => openMarketModal() }, '📊 Market'),
-        h('button', { className: 't-btn secondary', onclick: () => openFinanceModal() }, '💰 Finance')
+        h('button', { className: 't-btn secondary', onclick: () => openFinanceModal() }, '💰 Finance'),
+        h('button', { className: 't-btn secondary', onclick: () => openLegacyScreen(S.calendar?.year || 1980, 'retrospective') }, '📜 Hall of Fame')
       )
     );
 
@@ -1961,6 +1962,37 @@
     };
   }
 
+  // Share card summary (Phase 5F) — plain text for clipboard
+  function buildShareCard(founderName, studio, startYear, endYear, years, shipped, hits, awards) {
+    const lines = [];
+    lines.push('🏢 ' + studio + ' (' + startYear + '–' + endYear + ')');
+    lines.push('👤 Founded by ' + founderName);
+    lines.push('');
+    lines.push('📊 ' + years + ' years · ' + shipped.length + ' titles · ' + fmtMoney(S.tRevenue || 0) + ' lifetime rev');
+    lines.push('⭐ Peak Fame: ' + (S.tFame || 0));
+    if (hits.length > 0) lines.push('🏆 Legacy games (critic 90+): ' + hits.length);
+    if (S.ipo?.completed) lines.push('📈 IPO ' + S.ipo.closedAtYear + ' at ' + fmtMoney(S.ipo.valuation));
+    if ((S.winsAchieved || []).length > 0) {
+      const names = S.winsAchieved.map(id => (window.tycoonWins?.WIN_PATHS?.find(p => p.id === id)?.label) || id);
+      lines.push('✅ Wins: ' + names.join(', '));
+    }
+    if (awards.length > 0) {
+      lines.push('');
+      lines.push('🏅 Awards (' + awards.length + '):');
+      for (const a of awards.slice(0, 5)) lines.push('  ' + a);
+    }
+    if (hits.length > 0) {
+      lines.push('');
+      lines.push('💎 Legacy games:');
+      for (const h of hits.slice(0, 5)) {
+        lines.push('  ' + (window.PROJECT_TYPES[h.type]?.icon || '') + ' ' + h.name + ' (critic ' + h.criticScore + ')');
+      }
+    }
+    lines.push('');
+    lines.push('— Software Dev Tycoon v2');
+    return lines.join('\n');
+  }
+
   // ---------- Legacy screen (Phase 5C / 5F) ----------
   // Shown on bankruptcy (game-over) or on-demand retrospective.
   // kind: 'bankruptcy' | 'victory' | 'retrospective'
@@ -2044,7 +2076,17 @@
         bankrupt && h('div', { style:{background:'#3b1519', border:'1px solid #f85149', borderRadius:'4px', padding:'10px', marginBottom:'14px', color:'#ffa198', fontSize:'0.8rem'} },
           'Your save slot is now marked DEFUNCT. Next career will start with +5% cash.'),
 
-        h('div', { className: 't-modal-actions', style:{justifyContent:'center'} },
+        h('div', { className: 't-modal-actions', style:{justifyContent:'center', flexWrap:'wrap'} },
+          // Share card button — copies a text summary to clipboard
+          h('button', { className: 't-btn secondary', onclick: () => {
+            const summary = buildShareCard(founderName, studio, startYear, endYear || S.calendar?.year, years, shipped, hits, awards);
+            try {
+              navigator.clipboard.writeText(summary);
+              pushToast('📋 Career summary copied to clipboard!');
+            } catch (err) {
+              alert(summary);
+            }
+          }}, '📋 Copy Share Card'),
           h('button', { className: 't-btn', onclick: () => {
             document.getElementById('_t_legacy_modal')?.remove();
             if (bankrupt) {
