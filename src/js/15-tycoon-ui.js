@@ -1529,6 +1529,11 @@
     openAwardsCeremony(e.detail.year, e.detail.winners, e.detail.effects);
   });
 
+  // Bankruptcy (Phase 5C) — game over
+  document.addEventListener('tycoon:bankruptcy', (e) => {
+    openLegacyScreen(e.detail.year, 'bankruptcy');
+  });
+
   // Polish phase started — prompt player for marketing channels (Phase 4E)
   document.addEventListener('tycoon:project-polish-started', (e) => {
     // Only auto-prompt for own IP (contracts don't get marketing)
@@ -1635,9 +1640,14 @@
           S.difficulty = config.difficulty;
           // Create the founder
           window.createFounder(config.founderName, config.specialty, config.trait);
-          // Set starting cash per difficulty
+          // Set starting cash per difficulty + defunct bonus
           const cashByDiff = { easy: 100000, normal: 50000, hard: 25000 };
-          S.cash = cashByDiff[config.difficulty] || 50000;
+          const baseCash = cashByDiff[config.difficulty] || 50000;
+          const bonus = window.tycoonFinance?.defunctCashBonus?.() || 0;
+          S.cash = Math.round(baseCash * (1 + bonus));
+          if (bonus > 0) {
+            console.info('[career] Defunct bonus applied: +' + Math.round(bonus * 100) + '% cash');
+          }
           S.careerStarted = true;
           S.careerStartedAt = (typeof trustedNow === 'function') ? trustedNow() : Date.now();
           if (typeof markDirty === 'function') markDirty();
@@ -1807,6 +1817,107 @@
       }
       return proj;
     };
+  }
+
+  // ---------- Legacy screen (Phase 5C / 5F) ----------
+  // Shown on bankruptcy (game-over) or on-demand retrospective.
+  // kind: 'bankruptcy' | 'victory' | 'retrospective'
+  function openLegacyScreen(endYear, kind) {
+    kind = kind || 'retrospective';
+    // Hard-pause
+    window.tycoonTime?.stop();
+
+    const founderName = S.founder?.name || 'Founder';
+    const studio = S.studioName || 'Studio';
+    const startYear = 1980;
+    const years = (endYear || S.calendar?.year || startYear) - startYear;
+    const shipped = S.projects?.shipped || [];
+    const hits = shipped.filter(p => !p.isContract && (p.criticScore || 0) >= 90);
+    const contractCount = shipped.filter(p => p.isContract).length;
+    const ipCount = shipped.filter(p => !p.isContract).length;
+    const awards = (S.awards?.history || []).flatMap(h => {
+      const w = [];
+      if (h.winners.goty?.source === 'player') w.push('🏆 Game of the Year ' + h.year + ' — ' + h.winners.goty.title);
+      if (h.winners.studioOfYear?.key === 'player') w.push('🏛️ Studio of the Year ' + h.year);
+      if (h.winners.risingStar?.source === 'player') w.push('🚀 Rising Star ' + h.year);
+      if (h.winners.innovation?.source === 'player') w.push('💡 Innovation Award ' + h.year);
+      return w;
+    });
+    const bankrupt = kind === 'bankruptcy';
+    const titleText = bankrupt ? '💀 BANKRUPTCY' :
+                      kind === 'victory' ? '🏆 VICTORY' : '📜 CAREER SUMMARY';
+    const subtitle = bankrupt ? 'Your studio closed its doors in ' + endYear :
+                     kind === 'victory' ? 'You built something legendary' :
+                     'Looking back at ' + studio;
+
+    const mainColor = bankrupt ? '#f85149' : kind === 'victory' ? '#f0883e' : '#7ee787';
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_legacy_modal' },
+      h('div', { className: 't-modal', style:{maxWidth: '680px', textAlign:'center'} },
+        h('h2', { style:{fontSize:'1.4rem', color: mainColor} }, titleText),
+        h('div', { style:{color:'#8b949e', fontSize:'0.9rem', marginBottom:'16px'} }, subtitle),
+
+        h('div', { style:{ background:'#0d1117', border:'1px solid #30363d', borderRadius:'6px', padding:'14px', marginBottom:'14px', textAlign:'left' } },
+          h('div', { style:{color:'#f0f6fc', fontWeight:'700', marginBottom:'8px'} },
+            '👤 ' + founderName + ' · ' + studio + ' · ' + startYear + '–' + (endYear || S.calendar?.year)),
+          h('div', { className: 't-finance-row' },
+            h('span', { className: 'lbl' }, 'Years operated'),
+            h('span', { className: 'val' }, years + ' years')),
+          h('div', { className: 't-finance-row' },
+            h('span', { className: 'lbl' }, 'Titles shipped'),
+            h('span', { className: 'val' }, shipped.length + ' total (' + ipCount + ' IP + ' + contractCount + ' contracts)')),
+          h('div', { className: 't-finance-row' },
+            h('span', { className: 'lbl' }, 'Legacy hits (critic 90+)'),
+            h('span', { className: 'val' }, hits.length + ' title' + (hits.length === 1 ? '' : 's'))),
+          h('div', { className: 't-finance-row' },
+            h('span', { className: 'lbl' }, 'Peak Fame'),
+            h('span', { className: 'val' }, String(S.tFame || 0))),
+          h('div', { className: 't-finance-row' },
+            h('span', { className: 'lbl' }, 'Lifetime revenue'),
+            h('span', { className: 'val' }, fmtMoney(S.tRevenue || 0))),
+          h('div', { className: 't-finance-row' },
+            h('span', { className: 'lbl' }, 'Lifetime expenses'),
+            h('span', { className: 'val' }, fmtMoney(S.tExpenses || 0))),
+          S.ipo?.completed && h('div', { className: 't-finance-row' },
+            h('span', { className: 'lbl' }, 'IPO'),
+            h('span', { className: 'val' }, S.ipo.closedAtYear + ' · ' + fmtMoney(S.ipo.valuation) + ' valuation'))
+        ),
+
+        // Legacy hits
+        hits.length > 0 && h('div', { style:{textAlign:'left', marginBottom:'14px'} },
+          h('div', { className: 't-era-band', style:{marginTop:0} }, 'Legacy Games'),
+          ...hits.slice(0, 5).map(p => h('div', { className:'t-finance-row' },
+            h('span', { className:'lbl' }, (window.PROJECT_TYPES[p.type]?.icon || '') + ' ' + p.name),
+            h('span', { className:'val' }, 'Critic ' + p.criticScore)
+          ))
+        ),
+
+        // Awards
+        awards.length > 0 && h('div', { style:{textAlign:'left', marginBottom:'14px'} },
+          h('div', { className: 't-era-band', style:{marginTop:0} }, 'Awards'),
+          ...awards.slice(0, 8).map(a => h('div', { style:{color:'#c9d1d9', fontSize:'0.8rem', padding:'2px 0'} }, a))
+        ),
+
+        // Bankruptcy note
+        bankrupt && h('div', { style:{background:'#3b1519', border:'1px solid #f85149', borderRadius:'4px', padding:'10px', marginBottom:'14px', color:'#ffa198', fontSize:'0.8rem'} },
+          'Your save slot is now marked DEFUNCT. Next career will start with +5% cash.'),
+
+        h('div', { className: 't-modal-actions', style:{justifyContent:'center'} },
+          h('button', { className: 't-btn', onclick: () => {
+            document.getElementById('_t_legacy_modal')?.remove();
+            if (bankrupt) {
+              // Wipe save + reload for fresh career
+              try { localStorage.removeItem(KEY); } catch (e) {}
+              location.reload();
+            } else {
+              // Resume play (retrospective path)
+              window.tycoonTime?.start();
+            }
+          }}, bankrupt ? 'Start New Career' : 'Continue')
+        )
+      )
+    );
+    document.body.appendChild(ov);
   }
 
   // ---------- Awards ceremony modal (Phase 4G) ----------

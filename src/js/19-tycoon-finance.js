@@ -295,12 +295,61 @@
     }
   }
 
-  // Hook earnings tick alongside existing ones
+  // ========== HARD BANKRUPTCY (Phase 5C) ==========
+  const BANKRUPTCY_WEEKS = 4; // consecutive weeks negative cash = game over
+
+  function ensureBankruptcy() {
+    if (!S.bankruptcy) S.bankruptcy = { negativeWeeks: 0, triggered: false };
+  }
+
+  function onBankruptcyTick() {
+    ensureBankruptcy();
+    if (S.bankruptcy.triggered) return;
+    if ((S.cash || 0) < 0) {
+      S.bankruptcy.negativeWeeks += 1;
+      if (S.bankruptcy.negativeWeeks >= BANKRUPTCY_WEEKS) {
+        triggerBankruptcy();
+      }
+    } else {
+      S.bankruptcy.negativeWeeks = 0;
+    }
+  }
+
+  function triggerBankruptcy() {
+    ensureBankruptcy();
+    if (S.bankruptcy.triggered) return;
+    S.bankruptcy.triggered = true;
+    S.bankruptcy.triggeredAtWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    S.bankruptcy.triggeredAtYear = S.calendar?.year || 1980;
+    // Mark save slot defunct (global counter across all slots)
+    try {
+      const raw = localStorage.getItem('gdc_defunct_count') || '0';
+      const n = parseInt(raw, 10) + 1;
+      localStorage.setItem('gdc_defunct_count', String(n));
+      S.bankruptcy.defunctIndex = n;
+    } catch (e) {}
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('💀 BANKRUPTCY — studio closed. Career ended ' + S.bankruptcy.triggeredAtYear);
+    document.dispatchEvent(new CustomEvent('tycoon:bankruptcy', { detail: { year: S.bankruptcy.triggeredAtYear } }));
+  }
+
+  // Hook earnings + bankruptcy ticks alongside existing ones
   const _origOnWeekTick = onWeekTick;
   onWeekTick = function() {
     _origOnWeekTick();
     onEarningsTick();
+    onBankruptcyTick();
   };
+
+  function defunctCount() {
+    try { return parseInt(localStorage.getItem('gdc_defunct_count') || '0', 10); }
+    catch { return 0; }
+  }
+
+  function defunctCashBonus() {
+    // +5% per defunct career, capped at 50%
+    return Math.min(0.5, defunctCount() * 0.05);
+  }
 
   function ensureCapTable() {
     if (!S.capTable) {
@@ -392,6 +441,10 @@
     currentValuation,
     canIPO,
     takeIPO,
+    // Bankruptcy (Phase 5C)
+    triggerBankruptcy,           // debug
+    defunctCount,
+    defunctCashBonus,
     startTick: startFinanceTick,
     stopTick: stopFinanceTick,
     state() {
