@@ -34,6 +34,28 @@
   padding: 6px 10px; border-radius: 4px; cursor: pointer; font-family: inherit;
 }
 .tycoon-topbar .t-exit:hover { color: #f85149; border-color: #f85149; }
+.tycoon-topbar .t-options-btn {
+  background: transparent; border: 1px solid #30363d; color: #c9d1d9;
+  padding: 4px 10px; margin-left: 4px; border-radius: 4px; cursor: pointer;
+  font-family: inherit; font-size: 0.95rem; line-height: 1;
+}
+.tycoon-topbar .t-options-btn:hover { background: #30363d; border-color: #484f58; }
+
+.t-opt-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid #21262d;
+}
+.t-opt-row:last-child { border-bottom: none; }
+.t-opt-label { flex: 1; color: #c9d1d9; font-size: 0.85rem; }
+.t-opt-label .t-opt-sub { display: block; color: #8b949e; font-size: 0.7rem; margin-top: 2px; }
+.t-opt-toggle {
+  background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
+  padding: 5px 14px; border-radius: 4px; cursor: pointer; font-family: inherit;
+  font-size: 0.8rem; font-weight: 600; min-width: 64px;
+}
+.t-opt-toggle.on { background: #238636; border-color: #238636; color: white; }
+.t-opt-toggle:hover { background: #30363d; }
+.t-opt-toggle.on:hover { background: #2ea043; }
 
 .tycoon-main { flex: 1; display: flex; padding: 18px; gap: 18px; overflow: hidden; }
 .tycoon-panel {
@@ -277,12 +299,19 @@
       speedBtns.appendChild(btn);
     }
 
+    const optionsBtn = h('button', {
+      className: 't-options-btn',
+      title: 'Options',
+      'aria-label': 'Options',
+      onclick: () => openOptionsModal()
+    }, '\u2699\uFE0F');
+
     const exitBtn = h('button', {
       className: 't-exit',
       onclick: () => { tycoonUI.exit(); }
     }, 'Exit Tycoon');
 
-    topbar.append(cal, cash, revenue, shipped, speedBtns, exitBtn);
+    topbar.append(cal, cash, revenue, shipped, speedBtns, optionsBtn, exitBtn);
     return topbar;
   }
 
@@ -291,6 +320,63 @@
     if (!root) return;
     const old = root.querySelector('.t-topbar');
     if (old) { const fresh = renderTopBar(); old.replaceWith(fresh); }
+  }
+
+  // ---------- Options modal (Phase 6C) ----------
+  function openOptionsModal() {
+    const existing = document.getElementById('_t_options_modal');
+    if (existing) { existing.remove(); return; }
+    const hintsState = window.tycoonHints?.state?.() || { disabled: false, shown: [], total: 0 };
+
+    const tipsBtn = h('button', {
+      className: 't-opt-toggle' + (hintsState.disabled ? '' : ' on'),
+      onclick: () => {
+        if (!window.tycoonHints) return;
+        if (S.hintsDisabled) window.tycoonHints.enable();
+        else window.tycoonHints.disable();
+        const ov = document.getElementById('_t_options_modal');
+        if (ov) { ov.remove(); openOptionsModal(); }
+      }
+    }, hintsState.disabled ? 'Off' : 'On');
+
+    const resetTipsBtn = h('button', {
+      className: 't-opt-toggle',
+      onclick: () => {
+        if (!window.tycoonHints) return;
+        window.tycoonHints.reset();
+        if (typeof log === 'function') log('\u{1F4A1} Tips reset \u2014 will show again as you play.');
+        const ov = document.getElementById('_t_options_modal');
+        if (ov) { ov.remove(); openOptionsModal(); }
+      }
+    }, 'Reset');
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_options_modal',
+      onclick: (e) => { if (e.target.id === '_t_options_modal') ov.remove(); }
+    },
+      h('div', { className: 't-modal', style: { maxWidth: '460px' } },
+        h('h2', null, '\u2699\uFE0F Options'),
+        h('div', { className: 't-opt-row' },
+          h('div', { className: 't-opt-label' },
+            'Contextual tips',
+            h('span', { className: 't-opt-sub' },
+              hintsState.shown.length + '/' + hintsState.total + ' tips seen this career'
+            )
+          ),
+          tipsBtn
+        ),
+        h('div', { className: 't-opt-row' },
+          h('div', { className: 't-opt-label' },
+            'Reset tip history',
+            h('span', { className: 't-opt-sub' }, 'Clear seen tips so they can fire again.')
+          ),
+          resetTipsBtn
+        ),
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn secondary', onclick: () => ov.remove() }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
   }
 
   // ---------- Founder card ----------

@@ -40,7 +40,9 @@
     },
     {
       id: 'low_cash', trigger: 'tick', icon: '\u26A0\uFE0F',
-      check: () => (S.cash || 0) < 10_000 && (S.cash || 0) > 0 && !S.bankruptcy?.triggered,
+      // Threshold is ~1 quarter of average tier-2 salary so the hint lands
+      // with real runway headroom rather than 2-3 weeks before bankruptcy.
+      check: () => (S.cash || 0) < 25_000 && (S.cash || 0) > 0 && !S.bankruptcy?.triggered,
       title: 'Cash Running Low',
       body: 'Consider accepting a contract or taking a bank loan from the Finance panel before payroll hits.'
     },
@@ -80,6 +82,11 @@
     },
 
     // ----- Market / Rivals -----
+    {
+      id: 'first_rival_spawn', trigger: 'event', event: 'tycoon:rival-spawned', icon: '\u{1F3AE}',
+      title: 'New Rival Studio',
+      body: 'A competitor just entered the market. Open the Market panel to see who they are and what they\u2019re working on.'
+    },
     {
       id: 'first_rival_ship', trigger: 'event', event: 'tycoon:rival-shipped', icon: '\u{1F3CE}\uFE0F',
       title: 'Rival Shipped',
