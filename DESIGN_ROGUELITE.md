@@ -111,14 +111,26 @@ One mode only. Bankruptcy (and every other run-terminating event) spawns the nex
 - B) Two modes at slot screen
 - C) Difficulty toggle per career
 
-### Q3 — What carries over vs what resets (foundational: save schema)
-**Always resets:** cash, team, projects, calendar year (?)
-**Decisions to make:**
-- Research nodes → reset fully, keep some percentage, or keep "discovery" permanently?
-- Fame → reset, keep accumulated lifetime Fame, or convert to a meta-currency?
-- Hardware → reset or inherited?
-- Achievements → persist across runs (obvious) or per-founder?
-- Studio name → reset (new founder, new studio) or keep ("Acme Software" is an institution)?
+### Q3 — What carries over vs what resets ✅ LOCKED
+
+| Field | Behavior |
+|---|---|
+| Cash, active/shipped projects, contracts, current run state | Reset |
+| Calendar (→ always 1980) | Reset (locked in Q5) |
+| **Q3a Research nodes** | Endowment-paid curriculum: player spends meta-currency to **permanently** document research nodes into the school's curriculum; every future classmate starts with those nodes pre-unlocked. Un-documented research resets each run. |
+| **Q3b Fame (tFame)** | Converts to endowment meta-currency at run-end. Nothing carries directly as "fame" — it's cashed in. |
+| **Q3c Hardware** | "School lab" carryover — once any alumnus buys a piece of hardware, it becomes part of the school's lab and every future classmate starts with access. One-time investment, permanent benefit. |
+| **Q3d Studio name** | Resets every run — each classmate names their own studio at the creator. The school persists; the company doesn't. |
+| **Q3e Achievements** | Persist across all runs (trophy cabinet). |
+| **Q3f Lifetime stats** (total revenue, ships, hires, etc.) | School-wide cumulative ("Sunnyvale Tech alumni have shipped 247 projects across 8 founders") — on top of per-run tracking that drives the Hall of Fame entries. |
+| **Q3g Employees** | Alumni hire pool — past founders become hireable senior staff in later runs at premium salary. Your current team does NOT carry over; everyone scatters when the studio folds. |
+| **Q3h Rivals** | Famous alumni bleed-in — if a past founder's run ended with IPO / Megacorp exit / Industry Titan win, their studio becomes a persistent rival entity in future runs. Failed runs don't bleed in (those alumni are just hireable or referenced narratively). |
+
+**Key architectural consequence:** save schema gets two layers.
+- **Per-run state** (`S.*` as we have it today) — resets on classmate transition
+- **Per-save meta state** (new `S.school = {...}`) — persists across all runs in this save: endowment balance, documented research nodes, school lab hardware, alumni roster with their final stats, persistent rival studios spawned from past winners, lifetime cumulative stats
+
+Schema migration: existing classic saves need to be auto-wrapped with a default empty `S.school` block. No data loss.
 
 ### Q4 — Run-end triggers (when does a run end?)
 What causes a run to end + spawn a new founder?
