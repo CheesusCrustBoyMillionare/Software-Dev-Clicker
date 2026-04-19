@@ -287,15 +287,21 @@
     const activeCount = Math.max(1, (S.projects?.active || []).length);
     const perProjMul = 1 / activeCount;
 
+    // Research bonuses (Phase 3C): quality multipliers per axis + global team productivity
+    const researchTech    = window.tycoonResearch?.qualityMultiplierFor?.('tech', proj.type) || 1;
+    const researchDesign  = window.tycoonResearch?.qualityMultiplierFor?.('design', proj.type) || 1;
+    const researchPolish  = window.tycoonResearch?.qualityMultiplierFor?.('polish', proj.type) || 1;
+    const teamMult = window.tycoonResearch?.teamProductivityMultiplier?.() || 1;
+    const devSpeedMult = window.tycoonResearch?.devSpeedMultiplierForType?.(proj.type) || 1;
     for (const c of contributors) {
       const es = effectiveStats(c);
       const mm = moraleMultiplier(c.morale);
       const specAxis = SPECIALTY_AXIS[c.specialty];
       const bonus = (axis) => (axis === specAxis ? 1.3 : 1.0);
-      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * bonus('tech')   * perProjMul);
-      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * bonus('design') * perProjMul);
-      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * bonus('polish') * perProjMul);
-      proj.bugs += (bugRisk * 0.3 * perProjMul); // slightly less per-person (team reviews)
+      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * bonus('tech')   * perProjMul * teamMult * researchTech   * devSpeedMult);
+      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * bonus('design') * perProjMul * teamMult * researchDesign * devSpeedMult);
+      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * bonus('polish') * perProjMul * teamMult * researchPolish * devSpeedMult);
+      proj.bugs += (bugRisk * 0.3 * perProjMul);
       if (proj.crunching) {
         c.morale = Math.max(0, (c.morale || 70) - 3);
       }

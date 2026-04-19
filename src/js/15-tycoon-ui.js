@@ -191,6 +191,23 @@
   overflow: hidden;
 }
 .t-employee-row .e-morale-fill { height: 100%; background: #7ee787; transition: width 0.3s; }
+
+.t-era-band { margin-top: 14px; margin-bottom: 6px; color: #8957e5; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+.t-era-band:first-child { margin-top: 0; }
+.t-research-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 8px 10px; background: #0d1117; border: 1px solid #21262d;
+  border-radius: 4px; margin-bottom: 4px;
+}
+.t-research-row.completed { border-color: #238636; opacity: 0.75; }
+.t-research-row.inprogress { border-color: #1f6feb; background: #0c2d4e; }
+.t-research-row.locked { opacity: 0.5; }
+.t-research-row .r-name { font-weight: 600; color: #f0f6fc; font-size: 0.85rem; }
+.t-research-row .r-meta { color: #8b949e; font-size: 0.7rem; margin-top: 2px; }
+.t-research-row .r-prog { font-size: 0.7rem; color: #58a6ff; font-variant-numeric: tabular-nums; }
+.t-research-row button { padding: 4px 10px; font-size: 0.7rem; }
+.t-research-row.completed .r-status { color: #7ee787; font-size: 0.75rem; font-weight: 600; }
+.t-research-row.locked .r-status { color: #f0883e; font-size: 0.7rem; }
 `;
 
   function injectStyles() {
@@ -354,6 +371,97 @@
     );
   }
 
+  // ---------- Research panel modal ----------
+  function openResearchModal() {
+    if (!window.tycoonResearch) return;
+    closeResearchModal();
+    const nodes = window.tycoonResearch.NODES;
+    // Group by era bucket
+    const byEra = {};
+    for (const n of nodes) {
+      const era = window.tycoonEra?.current(n.era) || { label: 'Era ' + n.era };
+      const key = era.id || era.label;
+      if (!byEra[key]) byEra[key] = { era, nodes: [] };
+      byEra[key].nodes.push(n);
+    }
+    // Sort eras by first node's era year
+    const eraKeys = Object.keys(byEra).sort((a,b) => byEra[a].nodes[0].era - byEra[b].nodes[0].era);
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_research_modal' },
+      h('div', { className: 't-modal', style: { maxWidth: '720px' } },
+        h('h2', null, '🔬 Research'),
+        h('div', { style: { color:'#8b949e', fontSize:'0.8rem', marginBottom:'10px' } },
+          (window.tycoonResearch.state().completedCount) + ' completed · ' +
+          (S.research?.inProgress ? 'Researching ' + window.tycoonResearch.NODE_BY_ID[S.research.inProgress.nodeId]?.name : 'No active research')),
+        ...eraKeys.map(key => {
+          const group = byEra[key];
+          return h('div', null,
+            h('div', { className: 't-era-band' }, (group.era.icon || '') + ' ' + group.era.label),
+            ...group.nodes.map(n => renderResearchRow(n))
+          );
+        }),
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn', onclick: closeResearchModal }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
+  }
+
+  function closeResearchModal() {
+    const ov = document.getElementById('_t_research_modal');
+    if (ov) ov.remove();
+  }
+
+  function renderResearchRow(node) {
+    const R = window.tycoonResearch;
+    const isDone = R.isCompleted(node.id);
+    const ip = S.research?.inProgress;
+    const isInProg = ip?.nodeId === node.id;
+    const avail = R.isAvailable(node.id);
+    const categoryIcons = { tech:'🛠️', genre:'🎮', efficiency:'⚙️', platform:'💻', business:'💼' };
+
+    const rowClass = 't-research-row' + (isDone ? ' completed' : isInProg ? ' inprogress' : avail.ok ? '' : ' locked');
+
+    const leftSide = h('div', { style: { flex:1, minWidth: 0 } },
+      h('div', { className: 'r-name' },
+        (categoryIcons[node.category] || '') + ' ' + node.name),
+      h('div', { className: 'r-meta' },
+        node.rpCost + ' RP · ' + (node.category) + (node.era > 1980 ? ' · ' + node.era + '+' : '') +
+        (node.hardware ? ' · ⚙ hw:' + node.hardware : '') +
+        (node.desc ? ' — ' + node.desc : ''))
+    );
+    let rightSide;
+    if (isDone) {
+      rightSide = h('div', { className: 'r-status' }, '✓ Complete');
+    } else if (isInProg) {
+      rightSide = h('div', null,
+        h('div', { className: 'r-prog' }, ip.rpEarned.toFixed(0) + '/' + node.rpCost + ' RP'),
+        h('button', { className: 't-btn secondary', onclick: () => {
+          R.stop();
+          rerenderResearchModal();
+        }}, 'Stop')
+      );
+    } else if (avail.ok) {
+      rightSide = h('button', { className: 't-btn', onclick: () => {
+        const r = R.start(node.id, 'founder');
+        if (!r.ok) pushToast(r.error);
+        rerenderResearchModal();
+      }}, 'Start');
+    } else {
+      rightSide = h('div', { className: 'r-status' }, '🔒 ' + avail.reason);
+    }
+
+    return h('div', { className: rowClass }, leftSide, rightSide);
+  }
+
+  function rerenderResearchModal() {
+    if (document.getElementById('_t_research_modal')) {
+      closeResearchModal();
+      openResearchModal();
+    }
+  }
+
   // ---------- Hiring Fair modal ----------
   function openHiringModal() {
     const queue = S.hiring?.queue || [];
@@ -510,6 +618,11 @@
         h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project'),
         h('button', { className: 't-btn secondary', onclick: () => openHiringModal() },
           '🎪 Hiring' + (queueSize > 0 ? ' (' + queueSize + ' available)' : '')),
+        h('button', { className: 't-btn secondary', onclick: () => openResearchModal() }, (() => {
+          const st = window.tycoonResearch?.state?.();
+          const ip = st?.inProgress;
+          return '🔬 Research' + (ip ? ' (active)' : st ? ' (' + st.completedCount + ')' : '');
+        })()),
         h('button', { className: 't-btn secondary', onclick: () => openFinanceModal() }, '💰 Finance')
       )
     );
@@ -892,6 +1005,15 @@
     refreshMain();
   });
 
+  // Research completion (Phase 3C/3E)
+  document.addEventListener('tycoon:research-completed', (e) => {
+    const node = window.tycoonResearch.NODE_BY_ID[e.detail.nodeId];
+    if (node) pushToast('✅ Research done: ' + node.name, 'win');
+    refreshMain();
+    rerenderResearchModal();
+  });
+  document.addEventListener('tycoon:research-started', () => refreshMain());
+
   // ---------- Character creator modal ----------
   function openCharacterCreator(onConfirm) {
     injectStyles();
@@ -1028,6 +1150,7 @@
       if (window.tycoonHiring) window.tycoonHiring.startTick();
       if (window.tycoonFinance) window.tycoonFinance.startTick();
       if (window.tycoonEra) window.tycoonEra.startTick();
+      if (window.tycoonResearch) window.tycoonResearch.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -1040,6 +1163,7 @@
       if (window.tycoonHiring) window.tycoonHiring.stopTick();
       if (window.tycoonFinance) window.tycoonFinance.stopTick();
       if (window.tycoonEra) window.tycoonEra.stopTick();
+      if (window.tycoonResearch) window.tycoonResearch.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
