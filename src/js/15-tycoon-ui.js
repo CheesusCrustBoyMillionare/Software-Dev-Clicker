@@ -992,13 +992,29 @@
   }
 
   // ---------- Hiring Fair modal ----------
+  // Auto-pause while the fair is open; restore the player's prior pause
+  // state on close. Previously S.paused was set true and never restored,
+  // so after hiring the game looked frozen until the user manually hit
+  // the Pause button again.
+  //
+  // The reopen-on-rerender path (Interview → rerenderHiringModal) strips
+  // the DOM node directly rather than going through closeHiringModal, so
+  // the saved pause state only gets nulled on a *real* close.
+  let _hiringPrevPaused = null;
   function openHiringModal() {
     const queue = S.hiring?.queue || [];
     if (queue.length === 0) {
       pushToast('No candidates currently on the market. Wait for the next Hiring Fair.');
       return;
     }
-    closeHiringModal();
+    // Tear down any existing modal without triggering the close-path pause restore
+    const existing = document.getElementById('_t_hiring_modal');
+    if (existing) existing.remove();
+    // Capture the pre-fair pause state on the *first* open only; rerenders
+    // keep the original captured value so Close restores correctly.
+    if (_hiringPrevPaused === null) _hiringPrevPaused = S.paused === true;
+    S.paused = true;
+    refreshTopBar();
     const ov = h('div', { className: 't-modal-ov', id: '_t_hiring_modal' },
       h('div', { className: 't-modal', style: { maxWidth: '760px' } },
         h('h2', null, '🎪 Hiring Fair'),
@@ -1018,6 +1034,11 @@
   function closeHiringModal() {
     const ov = document.getElementById('_t_hiring_modal');
     if (ov) ov.remove();
+    if (_hiringPrevPaused !== null) {
+      S.paused = _hiringPrevPaused;
+      _hiringPrevPaused = null;
+      refreshTopBar();
+    }
   }
 
   function rerenderHiringModal() {
@@ -1708,14 +1729,10 @@
   document.addEventListener('tycoon:contract-accepted', () => refreshMain());
   document.addEventListener('tycoon:contract-declined', () => refreshMain());
 
-  // Hiring Fair triggers — auto-pause + open modal
+  // Hiring Fair triggers — openHiringModal owns the auto-pause (captures
+  // pre-fair pause state and restores it on close).
   document.addEventListener('tycoon:hiring-fair', (e) => {
     pushToast('🎪 Hiring Fair: ' + (e.detail.candidates?.length || 0) + ' candidates available', 'win');
-    // Auto-pause to give player time to review
-    if (window.tycoonTime && !S.paused) {
-      S.paused = true;
-      refreshTopBar();
-    }
     refreshMain();
     openHiringModal();
   });
