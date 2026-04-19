@@ -160,12 +160,73 @@ Every one of these ends the current run and spawns the next classmate. The **end
 - **B) Continue the in-universe timeline** — you went broke in 1994, heir starts in 1994. Game keeps the same era/rivals/platforms but you're re-entering mid-game
 - **C) Time skip option** — heir starts "10 years later" so you can choose a different era
 
-### Q6 — Traits model (core gameplay feel)
-How traits shape each founder:
-- **Rogue-Legacy-lite**: 1-2 quirky traits per founder, mostly mechanical effects ("Night Owl: +20% output at 2× speed, −20% at 1×")
-- **Rogue-Legacy-full**: 3-5 traits, some are pure flavor ("Ambidextrous — no effect, just personality"), some are gameplay-swingy
-- **RimWorld-inspired**: full passion system — each of the 3 axes (design/tech/polish) can have "burning passion" (big bonus), "interested" (normal), or "none" (big penalty). Plus 2-3 character traits on top.
-- **Mix**: RimWorld-style passions + Rogue-Legacy-style flavor traits. "Night Owl" + "Burning design passion" + "Interested in tech" + "No polish passion" → shapes playstyle AND narrative.
+### Q6 — Traits model ✅ LOCKED: Passions + Mechanical traits + Narrative flavor traits
+
+Every founder is built from **three layers** of characterization:
+
+#### Layer 1: Passions (gameplay backbone — one per axis)
+Each of the 3 quality axes (design / tech / polish) gets a passion level:
+
+| Level | Output mult | Icon |
+|---|---|---|
+| 🔥🔥 **Burning** | **+40%** | red flame pair |
+| 🔥 **Interested** | +15% | single flame |
+| ⬜ **None** | baseline (0%) | empty circle |
+| 🚫 **Aversion** | **−25%** | stop symbol |
+
+**Passion distribution rule** (initial proposal, tunable):
+- Every founder gets exactly **one passion of each flavor category** across their 3 axes:
+  - One **high** (Burning or Interested)
+  - One **mid** (Interested or None)
+  - One **low** (None or Aversion)
+- Top-ranked graduates tend to roll higher-tier picks (double Burning possible for top 5); bottom-ranked graduates tend to roll one Burning + one Aversion (intense in one area, allergic to another).
+- Middle-ranked graduates tend to roll three Interested / None (consistent generalist).
+
+#### Layer 2: Mechanical character traits (count scales with rank-distance from middle)
+From a catalog of ~30-40 traits. Trait count per founder follows the bell curve locked in Q1a:
+
+| Rank band | Trait count |
+|---|---|
+| Top 5 | 3-4 |
+| Top 6-25 | 1-2 |
+| Middle (25-75%) | 0-1 |
+| Bottom 5-25% | 1-2 |
+| Bottom 5 | 3-4 |
+
+Each trait has a concrete mechanical effect. Examples to seed the catalog:
+- **Night Owl**: +20% output at speed 2×+, −20% at speed 1×
+- **Perfectionist**: Polish phase +15% quality, +50% longer duration
+- **Networker**: −20% hire cost, +10% to interview reveal quality
+- **Workaholic**: +15% output, −1 morale/week
+- **Eccentric**: 25% of MC decisions surface a 4th "unorthodox" option
+- **Imposter Syndrome**: −morale on critic < 80 ship
+- **Caffeinated**: +10% speed during development only
+- **Chip on Shoulder**: +10% output when current project is behind schedule
+- **Visionary**: Feature-picking UI shows one additional suggested feature
+- **Recluse**: Can't use marketing channels; no launch multiplier — but hiring costs −40%
+- **Deal-Maker**: Contracts pay +25%, but own-IP launch sales −10%
+
+(Full catalog to be expanded in Phase 1 implementation — Phase 0 design doc just needs ~10-12 exemplars to establish the style.)
+
+#### Layer 3: Narrative flavor traits (pure personality, no mechanical effect)
+On top of Layers 1 and 2, every founder also gets **1-3 flavor traits** drawn from a separate narrative catalog. These appear in the founder's bio, occasional log entries, review quotes, dialogue — but touch nothing mechanical.
+
+Examples:
+- *"Left-handed"* / *"Avid chess player"* / *"Vegetarian"* / *"Fluent in 3 languages"*
+- *"Former garage-band drummer"* / *"Rescue dog owner"* / *"Always drinks iced coffee"*
+- *"Wrote the school newspaper"* / *"Was on the debate team"* / *"Has a twin sibling"*
+- *"Hates the Oxford comma"* / *"Known for awful shirts"* / *"Collects vintage calculators"*
+
+**Why include these?** Three reasons:
+1. **Identity texture** — two founders with the same passions + mechanical traits still feel distinct because one is "that guy who collects vintage calculators" and the other is "former chess champion."
+2. **Easy to scale** — a pool of 100+ flavor traits is cheap to write and doesn't need balance testing.
+3. **Future hooks** — down the line, narrative traits could enable dialogue-specific scenes ("Known for awful shirts" gives a flavor log entry when the founder is mentioned in a NYT article).
+
+**Old options (for reference):**
+- A) Rogue-Legacy-lite (1-2 mechanical only)
+- B) Rogue-Legacy-full (3-5 mix)
+- C) RimWorld-inspired (passions + 2-3 traits)
+- D) Mix of C + narrative ← ✅ picked
 
 ### Q7 — Trait inheritance model (depends on Q1 + Q6)
 When a new founder spawns:
