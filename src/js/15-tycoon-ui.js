@@ -1405,6 +1405,11 @@
     rerenderResearchModal();
   });
 
+  // Annual Awards Ceremony (Phase 4G)
+  document.addEventListener('tycoon:awards-ceremony', (e) => {
+    openAwardsCeremony(e.detail.year, e.detail.winners, e.detail.effects);
+  });
+
   // Polish phase started — prompt player for marketing channels (Phase 4E)
   document.addEventListener('tycoon:project-polish-started', (e) => {
     // Only auto-prompt for own IP (contracts don't get marketing)
@@ -1554,6 +1559,7 @@
       if (window.tycoonRivals) window.tycoonRivals.startTick();
       if (window.tycoonMacro) window.tycoonMacro.startTick();
       if (window.tycoonMarket) window.tycoonMarket.startTick();
+      if (window.tycoonAwards) window.tycoonAwards.startTick();
       window.tycoonTime.start();
       startUITick();
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
@@ -1571,6 +1577,7 @@
       if (window.tycoonRivals) window.tycoonRivals.stopTick();
       if (window.tycoonMacro) window.tycoonMacro.stopTick();
       if (window.tycoonMarket) window.tycoonMarket.stopTick();
+      if (window.tycoonAwards) window.tycoonAwards.stopTick();
       if (_uiTickUnsub) { _uiTickUnsub(); _uiTickUnsub = null; }
       const root = getRootEl();
       if (root) root.remove();
@@ -1681,6 +1688,79 @@
       }
       return proj;
     };
+  }
+
+  // ---------- Awards ceremony modal (Phase 4G) ----------
+  function openAwardsCeremony(year, winners, effects) {
+    // Auto-pause
+    const prevPaused = S.paused;
+    S.paused = true;
+    refreshTopBar();
+
+    const renderWinnerRow = (category, winner, extra) => {
+      if (!winner) return null;
+      const sourceLabel = winner.source === 'player' ?
+        '⭐ Your Studio' :
+        ((winner.sourceIcon || '') + ' ' + (winner.sourceName || 'Rival'));
+      const detail = winner.studioName ? winner.studioName : (winner.title || '—');
+      const criticStr = winner.critic != null ? ' · Critic ' + winner.critic : '';
+      return h('div', { className: 't-finance-row',
+        style: winner.source === 'player' ?
+          { background:'linear-gradient(90deg, rgba(240,136,62,0.12), transparent)' } : {}
+      },
+        h('span', { className: 'lbl' }, category),
+        h('span', { className: 'val', style:{ color:'#f0f6fc' } },
+          (winner.icon || '') + ' ' + detail + ' — ' + sourceLabel + criticStr + (extra || ''))
+      );
+    };
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_awards_modal' },
+      h('div', { className: 't-modal', style: { maxWidth: '640px' } },
+        h('h2', { style: { fontSize:'1.2rem', textAlign:'center' } },
+          '🏆 ' + year + ' Industry Awards'),
+        h('div', { style: { color:'#8b949e', fontSize:'0.75rem', textAlign:'center', marginBottom:'16px' } },
+          'Celebrating the year\'s best across the software industry'),
+
+        // --- Winners ---
+        h('div', null,
+          renderWinnerRow('🏆 Game of the Year', winners.goty),
+          renderWinnerRow('🏛️ Studio of the Year', winners.studioOfYear && {
+            source: winners.studioOfYear.key === 'player' ? 'player' : 'rival',
+            sourceName: winners.studioOfYear.name,
+            sourceIcon: winners.studioOfYear.icon,
+            title: winners.studioOfYear.name,
+          }),
+          renderWinnerRow('🚀 Rising Star', winners.risingStar),
+          renderWinnerRow('💡 Innovation Award', winners.innovation),
+        ),
+
+        // --- Best in Genre ---
+        Object.keys(winners.bestInGenre || {}).length > 0 && h('div', { style: { marginTop:'12px' } },
+          h('div', { className: 't-era-band' }, 'Best in Genre'),
+          h('div', null, ...Object.entries(winners.bestInGenre).map(([type, w]) => {
+            const typeDef = window.PROJECT_TYPES[type];
+            return renderWinnerRow('🎖️ Best ' + (typeDef?.label || type), w);
+          }))
+        ),
+
+        // --- Your Effects ---
+        effects && effects.length > 0 && h('div', { style: { marginTop:'16px', padding:'10px', background:'#0d1117', border:'1px solid #30363d', borderRadius:'4px' } },
+          h('div', { style:{ color:'#f0883e', fontSize:'0.8rem', fontWeight:'700', marginBottom:'6px' } },
+            '🎁 Your studio earned:'),
+          ...effects.map(e => h('div', { style: { color:'#c9d1d9', fontSize:'0.8rem', marginLeft:'8px' } }, e))
+        ),
+
+        h('div', { className: 't-modal-actions', style: { justifyContent:'center' } },
+          h('button', { className: 't-btn', onclick: () => {
+            document.getElementById('_t_awards_modal')?.remove();
+            S.paused = prevPaused;
+            refreshTopBar();
+            refreshMain();
+          }}, 'Continue')
+        )
+      )
+    );
+    document.body.appendChild(ov);
   }
 
   function openLaunchCelebration(proj) {
