@@ -1,9 +1,55 @@
 // ========== STATE ==========
 // Schema version: incremented when save format changes in a breaking way.
-// v1 = clicker era (shipped on main). v2 = tycoon rework (this branch).
+//   v1 = clicker era (shipped on main).
+//   v2 = tycoon rework.
+//   v3 = roguelite layer — adds S.school persistent meta-state that
+//        survives across runs (bankruptcies spawn a new classmate instead
+//        of ending the game; see DESIGN_ROGUELITE.md for the full model).
 // Migrations live in SCHEMA_MIGRATIONS below.
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const MIN_COMPATIBLE_SCHEMA = 1; // v1 saves flow through SCHEMA_MIGRATIONS[1] (wipe)
+
+// Default structure for the roguelite S.school container — the persistent
+// meta layer that survives run-end. Every field MUST default to an empty/
+// zero value so a brand-new save is valid; Phase 2 will populate classRoster
+// when a save is first started, and later phases add to the other fields.
+function defaultSchool() {
+  return {
+    // Identity — set when a save's first class is rolled
+    name: '',                  // e.g. "Sunnyvale Tech" — player-named or rolled
+    foundedYear: 1980,         // when the class enrolled; always 1980 per Q5
+    // Class cohort (populated in Phase 2)
+    classRoster: [],           // array of classmate objects, sorted by rank asc (1 = top)
+    currentRunNumber: 0,       // 0 before any classmate enrolled; increments on each enroll
+    currentClassmateRank: null,// which rank is currently being played (null between runs)
+    // Meta-currency
+    endowment: 0,              // spendable endowment accumulated from run-ends
+    lifetimeEndowmentEarned: 0,// cumulative (not decremented by spending)
+    // Persistent unlocks from endowment spend (Q8)
+    documentedResearch: [],    // research node IDs now pre-unlocked for every grad
+    labHardware: [],           // hardware IDs now pre-installed for every grad
+    departments: {             // bought nodes per dept (from Q8 talent trees)
+      academics: [],
+      facilities: [],
+      alumniNetwork: [],
+      schoolLife: [],
+    },
+    // Alumni ledger
+    alumniHall: [],            // past founders' cards: stats, fate, quote, era
+    rivalAlumni: [],           // studios spawned from past winning runs — persistent rivals
+    famousAlumni: [],          // subset of alumniHall: win-condition winners
+    // Lifetime aggregates (across all runs this save)
+    lifetimeStats: {
+      totalRevenue: 0,
+      totalShipped: 0,
+      totalHires: 0,
+      runsCompleted: 0,
+      winConditionRuns: 0,
+      bankruptcies: 0,
+      megacorpExits: 0,
+    },
+  };
+}
 
 const defaults = () => ({
   v:SCHEMA_VERSION, loc:0, tLoc:0, fame:0, tFame:0,
@@ -71,7 +117,10 @@ const defaults = () => ({
   paused: false,                   // distinct from speed=0 — user-initiated pause
   // Career lifecycle
   careerStarted: false,            // set true once studio is founded
-  careerStartedAt: 0               // trustedNow() timestamp
+  careerStartedAt: 0,              // trustedNow() timestamp
+  // ========== v3 ROGUELITE STATE ==========
+  // Persists across runs within a save; see defaultSchool() above + DESIGN_ROGUELITE.md
+  school: defaultSchool()
 });
 
 // v7.3: Engineer type helpers — single source of truth for resource & list access.
@@ -324,6 +373,16 @@ const SCHEMA_MIGRATIONS = {
     console.info('[schema] v1 clicker save detected. Discarding per v2 migration policy.');
     console.info('[schema] Classic clicker is still playable on the main branch. This branch is the tycoon rework.');
     return null; // signals loadSlot to treat as fresh career
+  },
+  // v2 → v3: tycoon → roguelite. Purely additive — wrap the save with
+  // an empty S.school container. Player's existing tycoon career keeps
+  // going; the class roster is populated lazily the first time the
+  // school module runs (Phase 2). No data loss.
+  2: function migrateTycoonToRoguelite(d) {
+    console.info('[schema] v2 tycoon save detected. Upgrading to v3 with empty S.school.');
+    if (!d.school) d.school = defaultSchool();
+    d.v = 3;
+    return d;
   },
 };
 
