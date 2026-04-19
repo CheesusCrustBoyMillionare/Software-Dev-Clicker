@@ -140,6 +140,12 @@
 .t-btn:hover { background: #2ea043; }
 .t-btn.secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
 .t-btn.secondary:hover { background: #30363d; }
+.t-btn.t-teams-idle {
+  background: rgba(240, 136, 62, 0.12);
+  border-color: rgba(240, 136, 62, 0.5);
+  color: #f0883e;
+}
+.t-btn.t-teams-idle:hover { background: rgba(240, 136, 62, 0.22); border-color: #f0883e; }
 .t-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .t-modal-ov {
@@ -899,6 +905,41 @@
         bench.length === 0 ?
           h('div', { className: 't-empty', style: { padding:'8px 0' } }, 'Everyone is assigned.') :
           h('div', null, ...bench.map(eng => renderEngineerPill(eng, null))),
+        // Bulk-assign controls — only useful when there's bench AND at least
+        // one active project. Single-project case: one-click assign. Multi:
+        // dropdown + button.
+        (bench.length > 0 && active.length > 0) && (() => {
+          let selected = active[0].id;
+          const doBulk = () => {
+            const target = selected;
+            const targetName = active.find(p => p.id === target)?.name || 'project';
+            let moved = 0;
+            for (const eng of bench) {
+              const id = eng.isFounder ? 'founder' : eng.id;
+              const r = window.tycoonTeams.assign(id, target);
+              if (r?.ok) moved++;
+            }
+            pushToast('👥 Assigned ' + moved + ' to ' + targetName, 'win');
+            rerenderTeamsModal();
+          };
+          if (active.length === 1) {
+            return h('button', {
+              className: 't-btn',
+              style: { marginTop:'10px', width:'100%' },
+              onclick: doBulk
+            }, '\u21AA Assign all ' + bench.length + ' bench to ' + active[0].name);
+          }
+          return h('div', { style: { marginTop:'10px', display:'flex', gap:'6px' } },
+            h('select', {
+              style: { flex:'1 1 auto', padding:'6px 8px', background:'#161b22', color:'#c9d1d9', border:'1px solid #30363d', borderRadius:'4px', fontFamily:'inherit', fontSize:'0.8rem' },
+              onchange: (e) => { selected = e.target.value; }
+            },
+              ...active.map(p => h('option', { value: p.id }, p.name))
+            ),
+            h('button', { className: 't-btn', style: { flex:'0 0 auto' }, onclick: doBulk },
+              'Assign all ' + bench.length)
+          );
+        })(),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: closeTeamsModal }, 'Close')
         )
@@ -910,6 +951,9 @@
   function closeTeamsModal() {
     const ov = document.getElementById('_t_teams_modal');
     if (ov) ov.remove();
+    // Sidebar Teams button carries an idle-count badge; refresh so it
+    // reflects the post-reassignment bench state.
+    refreshMain();
   }
 
   function rerenderTeamsModal() {
@@ -1261,7 +1305,20 @@
         h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project'),
         h('button', { className: 't-btn secondary', onclick: () => openHiringModal() },
           '🎪 Hiring' + (queueSize > 0 ? ' (' + queueSize + ' available)' : '')),
-        employees.length > 0 && h('button', { className: 't-btn secondary', onclick: () => openTeamsModal() }, '👥 Teams'),
+        employees.length > 0 && (() => {
+          // Count bench engineers when there's at least one active project —
+          // surface idle team members so the player can't miss them.
+          const bench = window.tycoonTeams?.getBench?.() || [];
+          const active = S.projects?.active || [];
+          const idleCount = (bench.length && active.length) ? bench.length : 0;
+          const label = idleCount > 0
+            ? '👥 Teams \u26A0\uFE0F ' + idleCount + ' idle'
+            : '👥 Teams';
+          return h('button', {
+            className: 't-btn secondary' + (idleCount > 0 ? ' t-teams-idle' : ''),
+            onclick: () => openTeamsModal()
+          }, label);
+        })(),
         h('button', { className: 't-btn secondary', onclick: () => openResearchModal() }, (() => {
           const st = window.tycoonResearch?.state?.();
           const ip = st?.inProgress;
@@ -1845,7 +1902,19 @@
     refreshMain();
     openHiringModal();
   });
-  document.addEventListener('tycoon:employee-hired', () => refreshMain());
+  document.addEventListener('tycoon:employee-hired', (e) => {
+    // Auto-assign to the single active project if there is exactly one.
+    // Zero ambiguity in that case; saves a trip to the Teams modal.
+    const active = S.projects?.active || [];
+    const empId = e?.detail?.employeeId;
+    if (active.length === 1 && empId && window.tycoonTeams?.assign) {
+      const r = window.tycoonTeams.assign(empId, active[0].id);
+      if (r?.ok) pushToast('👥 Assigned to ' + active[0].name, 'win');
+    }
+    refreshMain();
+  });
+  // Refresh sidebar (idle badge on Teams button) on any assignment change
+  document.addEventListener('tycoon:team-changed', () => refreshMain());
   document.addEventListener('tycoon:employee-fired', () => refreshMain());
   document.addEventListener('tycoon:payroll', () => { refreshTopBar(); });
 
