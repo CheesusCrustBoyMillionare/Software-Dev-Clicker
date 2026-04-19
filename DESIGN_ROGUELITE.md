@@ -386,34 +386,112 @@ Between runs, the game enters a **school screen** — its own distinct UI layer 
 
 ---
 
-## Initial scope sketch (subject to answers above)
+## Implementation phase plan
 
-**Phase 0 — Design lock + branch infra**
-- Answer the above questions
-- Lock a comprehensive design doc
-- Phase plan
+All 10 design questions locked. Each phase below is independently shippable (builds cleanly, tests pass, game is playable end-to-end at the current level of integration). No phase leaves the game broken. Phases are roughly in dependency order; items in parentheses are "could move earlier if someone wants to" but most are ordered by risk (low → high).
 
-**Phase 1 — Trait + passion model**
-- Traits catalog (20-30 traits with mechanical effects)
-- Passion system (3 axes × 3 levels = 9 combos per founder)
-- Founder card UI showing traits + passions
-- Hook traits into `developOneWeek`/`polishOneWeek` multipliers
+### Phase 0 — Branch infra + phase plan commit
+**Deliverable:** this very design doc locked, phase plan written.
+**Files:** `DESIGN_ROGUELITE.md`
+**Test:** doc reads coherently end-to-end
+**Risk:** none; already done.
 
-**Phase 2 — Run-end detection + heir spawn**
-- Detect run-end trigger(s) from answers above
-- Roll 2-3 heirs with procedural traits
-- Selection modal — player picks which heir takes over
-- Minimal inheritance: whatever we locked in Q3/Q5
+### Phase 1 — Schema v3 + migration
+**Deliverable:** save schema bumps to v3. New `S.school` container is the persistent meta layer; existing v2 saves auto-migrate with an empty `S.school` (no data loss).
+**Files:** `src/js/03-state.js` (SCHEMA_VERSION, defaults, SCHEMA_MIGRATIONS)
+**Touches:** save/load paths, `peekSlot` preview (tycoon-save detection stays as-is)
+**Test:** load an existing v2 save → `S.school` appears with defaults, everything else intact. New save → v3 from the start.
+**Risk:** LOW — purely additive schema work, well-trodden pattern from v1→v2.
 
-**Phase 3 — Meta-progression**
-- Legacy shop / lineage stats panel
-- Cross-run currency tracking
-- Progressive unlocks (if picked)
+### Phase 2 — Trait + passion data model (static, no effects yet)
+**Deliverable:** Passion enum defined, mechanical trait catalog (~15 traits for the exemplar set), narrative trait pool (~80 flavor strings). Founder objects now have `passions`, `traits`, `narrativeTraits` fields. Class generation: when a new save starts, roll one full class of ~50 classmates with their rank, base stats, passions, mechanical traits, narrative traits — stored in `S.school.classRoster`.
+**Files:** new `src/js/37-tycoon-traits.js`, minor hooks in the creator flow
+**Test:** creating a new save produces a coherent class of 50 rolled classmates; bell curve verified (top/bottom 5 have more traits, middle has 0-1); display on founder card shows passions + traits.
+**Risk:** LOW-MEDIUM — new data model, but purely additive. No existing behavior changes.
 
-**Phase 4 — Long-term integration**
-- Rebalance with roguelite in mind (early-run difficulty spike, mid-run power)
-- Achievements for bloodline milestones
-- Legacy-screen redesign from "career retrospective" to "generation retrospective"
+### Phase 3 — Trait effects wired into gameplay
+**Deliverable:** passions multiply into `developOneWeek`/`polishOneWeek` correctly. Mechanical traits fire their effects (Night Owl speed scaling, Perfectionist polish longer, Networker hire discount, etc.). Each trait gets tested with a controlled probe.
+**Files:** `src/js/13-tycoon-projects.js` (weekly tick hooks), `src/js/17-tycoon-employees.js` (hire cost modifier), `src/js/19-tycoon-finance.js` (payroll Workaholic morale drain), a few more as traits require
+**Test:** founder with Burning design ships noticeably higher critic than one with Aversion design (holding stats constant). Each trait verified individually.
+**Risk:** MEDIUM — touches core gameplay loop. Regressions here break existing runs. Guard with `if (trait && trait.active)` patterns; default-off.
+
+### Phase 4 — Run-end detection + endowment calculation
+**Deliverable:** new `tycoon:run-end` event fires on bankruptcy / megacorp / win condition / age retirement. Each dispatches a classified event with `{ type, endowmentEarned, founderSnapshot }`. Endowment math per Q4 tier. Voluntary "Retire & hand off" button in Finance panel (gated by Fame ≥ 50).
+**Files:** `src/js/19-tycoon-finance.js` (bankruptcy path rerouted), `src/js/32-tycoon-wins.js` (win triggers run-end not game-over), `src/js/33-tycoon-legacy.js` (megacorp sells now trigger run-end), `src/js/15-tycoon-ui.js` (run-end modal replaces legacy game-over)
+**Test:** each exit type correctly dispatches the event; correct endowment amounts land in `S.school.endowment`.
+**Risk:** MEDIUM — multiple existing end-states to reroute. Need to keep the retrospective modal content (good for the player) while routing to roguelite flow instead of game-over.
+
+### Phase 5 — School screen shell
+**Deliverable:** new UI layer between run-end and next-classmate-enroll. 4 tabs present (Admissions / Departments / Alumni Hall / Lifetime) but most contain placeholder content. Navigation between school screen and tycoon mode works. Save/load handles both modes.
+**Files:** new `src/js/38-tycoon-school.js`, `src/js/15-tycoon-ui.js` (slot hijack routes to school instead of direct-to-tycoon), `src/styles.css` (school screen style pass)
+**Test:** start new save → lands on school screen → click Enroll Next Classmate → enters tycoon. Run ends → back to school. Save & Quit works from either screen.
+**Risk:** MEDIUM-HIGH — new UI layer, lots of surface area. Most complex single phase. Consider splitting if it feels too large during implementation.
+
+### Phase 6 — Admissions tab (class roster + next-classmate picker)
+**Deliverable:** class roster strip with 50 portraits, ranks, played/locked/available states. Current next-rank automatically selected. Click "Enroll" → creator opens with that classmate's pre-rolled stats/traits visible (not selectable). Creator start button enters tycoon.
+**Files:** `src/js/38-tycoon-school.js` (Admissions sub-module), `src/js/15-tycoon-ui.js` (creator reads from school roster instead of random defaults)
+**Test:** admissions tab shows all 50 ranks; previously-played ones greyed with fate; current rank's card shows passions + traits accurately; enrolling starts a fresh tycoon career with that founder.
+**Risk:** MEDIUM — mostly UI work; data model already exists from Phase 2.
+
+### Phase 7 — Departments tree (endowment spend)
+**Deliverable:** all 4 department trees from Q8 are functional. Player can spend endowment to buy nodes; prereqs and achievement gates enforced. Purchased nodes persist to `S.school` and their effects trigger on the next classmate's run (e.g., Scholarship Fund = +$25K starting cash). Achievement-gated super-unlocks verify conditions before allowing purchase.
+**Files:** `src/js/38-tycoon-school.js` (Departments sub-module), plus trait/effect handlers in relevant modules to consume the endowment flags on run start
+**Test:** buy "Scholarship Fund" → next run starts with +$25K. Buy "Document n_2d_sprites" → next classmate has that node pre-completed. Achievement-gated purchases correctly blocked/allowed.
+**Risk:** MEDIUM — many small effects to wire, each needs its own test. High-surface-area but each individual node is trivial.
+
+### Phase 8 — Alumni Hall + Lifetime Stats tabs
+**Deliverable:** past founders persist in `S.school.alumniHall` with full stat snapshots + fate + signature quote. Lifetime Stats tab aggregates cross-run totals. Famous alumni (win-condition winners) are featured prominently. Their studios auto-bleed into the rival pool for future runs (Q3h).
+**Files:** `src/js/38-tycoon-school.js` (Alumni Hall + Lifetime tabs), `src/js/23-tycoon-rivals.js` (accepts alumni-origin rival entries)
+**Test:** complete a run → alumni card appears in Alumni Hall. Win a run → famous alumni entry appears + a rival studio spawns bearing their name. Lifetime stats accumulate correctly.
+**Risk:** LOW-MEDIUM — mostly data display; the rival-bleed-in is a small hook.
+
+### Phase 9 — Rival scaling + era-start unlock
+**Deliverable:** `rivalLevelOffset = min(5, floor(runNumber / 3))` applies to rival starting states. Premium era-start purchases in Admissions (or a creator option): 1985/1995/2005/2015 kickoff, gated by win count + endowment cost. When chosen, the tycoon career starts in that era with appropriate research/platform access.
+**Files:** `src/js/23-tycoon-rivals.js` (level offset in spawn code), `src/js/38-tycoon-school.js` (era-start UI), `src/js/15-tycoon-ui.js` (creator era override), `src/js/35-tycoon-scenarios.js` (possibly reuse scenario system for pre-configured era starts)
+**Test:** run 5 → rivals visibly stronger than run 1 (compare baseline critic averages). Buy Accelerated Start to 1995 → next run begins in 1995 with appropriate era state.
+**Risk:** MEDIUM — touches the scenario system (existing) and rival engine (existing); some balance iteration expected.
+
+### Phase 10 — Polish + onboarding + merge to main
+**Deliverable:** contextual hints for roguelite (new classmate, endowment earned, first time hitting school screen, etc.). Achievement audit — per-run vs per-save reinterpretation where needed. Trait catalog expanded if the exemplar set feels thin (~15 → ~25). Balance pass based on playthrough. Full smoke test. Merge plan for main.
+**Files:** `src/js/36-tycoon-hints.js` (new hint entries), `src/js/34-tycoon-achievements.js` (re-tune any per-run gates), assorted polish
+**Test:** full playthrough of 3-5 runs feels coherent; meta-progression curve feels rewarding; no regressions in tycoon loop; achievement count matches design.
+**Risk:** LOW — polish and tuning. Only risky part is the merge to main since roguelite replaces classic.
+
+---
+
+### Phase dependency graph
+
+```
+0 ────▶ 1 (schema)
+        │
+        ▼
+        2 (data model) ─── 4 (run-end) ────────────┐
+        │                   │                       │
+        ▼                   ▼                       ▼
+        3 (effects)         5 (school shell)
+                            │
+                            ├─ 6 (admissions)
+                            ├─ 7 (departments)
+                            └─ 8 (alumni hall)
+                                 │
+                                 ▼
+                                 9 (scaling + era unlock)
+                                     │
+                                     ▼
+                                     10 (polish + merge)
+```
+
+Phases 2 and 4 can be parallelized if two devs exist. Phases 6/7/8 depend on Phase 5's shell but can be done in any order after that. Phase 9 needs 5-8 done. Phase 10 ties everything.
+
+### Rough complexity estimate
+- Phases 0-1: small (pure infra)
+- Phases 2-4: medium each (core systems, well-scoped)
+- Phase 5: large (new UI layer)
+- Phases 6-8: medium each (well-scoped within school shell)
+- Phase 9: medium (era-start reuses scenarios; rival scaling is arithmetic)
+- Phase 10: medium (polish + merge readiness)
+
+Total: ~11 commits (one per phase, possibly sub-phases within the larger ones).
 
 ---
 
