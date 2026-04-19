@@ -346,6 +346,44 @@
     document.head.appendChild(s);
   }
 
+  // ---------- Specialty inference (Phase 6) ----------
+  // Each tycoon specialty maps to a primary axis (per SPECIALTY_AXIS in 13).
+  // We pick the specialty whose axis matches the classmate's highest passion.
+  const SPECIALTY_BY_AXIS = {
+    tech:   ['coder', 'backend', 'network', 'cloud'],
+    design: ['gamedev', 'webdev', 'frontend', 'agent'],
+    polish: ['mobile', 'devops'],
+  };
+  const PASSION_RANK = { burning: 3, interested: 2, none: 1, aversion: 0 };
+  function inferSpecialty(classmate) {
+    if (!classmate?.passions) return 'coder';
+    const axes = ['tech', 'design', 'polish'];
+    // Rank axes by passion level; break ties on stat value
+    axes.sort((a, b) => {
+      const pa = PASSION_RANK[classmate.passions[a]] ?? 1;
+      const pb = PASSION_RANK[classmate.passions[b]] ?? 1;
+      if (pb !== pa) return pb - pa;
+      return (classmate.stats?.[b] || 0) - (classmate.stats?.[a] || 0);
+    });
+    const topAxis = axes[0];
+    const candidates = SPECIALTY_BY_AXIS[topAxis] || ['coder'];
+    // Pick deterministically based on classmate rank so the same classmate
+    // always gets the same specialty (not random each enroll).
+    return candidates[(classmate.rank || 0) % candidates.length];
+  }
+
+  // ---------- Rank labels (Phase 6 flavor) ----------
+  function rankLabel(rank) {
+    if (rank === 1) return 'Valedictorian';
+    if (rank === 2) return 'Salutatorian';
+    if (rank <= 5) return 'Honors graduate';
+    if (rank <= 12) return 'Cum laude';
+    if (rank <= 25) return 'Distinguished';
+    if (rank <= 37) return 'Pass';
+    if (rank <= 45) return 'Late bloomer';
+    return 'Bottom of class';
+  }
+
   // Pick the classmate that's next up — the lowest unenrolled rank.
   // (Phase 1 starts at the bottom per Q1b, so "lowest rank number unenrolled
   // from the bottom" = the current next. Actually: classmate.rank 50 first,
@@ -395,10 +433,17 @@
     // Hardware: pre-installed from school lab
     S.hardware = (S.school.labHardware || []).map(id => ({ id, purchasedAtWeek: 0 }));
 
+    // Phase 6: auto-pick specialty from the classmate's highest-passion axis.
+    // Burning > Interested > None > Aversion. If tied, prefer the axis where
+    // the classmate has the highest stat. Specialty is pure tycoon-era
+    // (match-bonus target in developOneWeek) so aligning it with the
+    // classmate's passion axis gives them a coherent play identity.
+    const specialty = inferSpecialty(classmate);
+
     // Founder built from the classmate snapshot
     S.founder = {
       name: classmate.name,
-      specialty: 'coder',       // Phase 6 may let player pick a focus
+      specialty,                 // auto-picked from passions
       tier: 1, tierName: 'Junior Dev', exp: 0,
       stats: {
         tech:   classmate.stats.tech   || 10,
@@ -472,13 +517,31 @@
     const sortedRoster = roster.slice().sort((a, b) => b.rank - a.rank);
     const rosterEls = sortedRoster.map(c => {
       const isNext = c.rank === nextRank;
-      const cls = 'ss-roster-card' + (c.enrolled ? ' enrolled' : '')
-        + (isNext ? ' next-up' : '');
-      return hEl('div', { className: cls, title: c.name + ' — rank ' + c.rank },
+      // Phase 6: ranks above next-up are "locked" — visible but not yet
+      // enrollable. You have to play the next-up classmate first.
+      const isLocked = !c.enrolled && !isNext;
+      const cls = 'ss-roster-card'
+        + (c.enrolled ? ' enrolled' : '')
+        + (isNext ? ' next-up' : '')
+        + (isLocked ? ' locked' : '');
+      const title = c.enrolled
+        ? c.name + ' — rank ' + c.rank + ' (' + (c.fate || 'played') + ')'
+        : (isLocked
+          ? c.name + ' — rank ' + c.rank + ' (locked; enroll rank ' + nextRank + ' next)'
+          : c.name + ' — rank ' + c.rank + ' (ready to enroll)');
+      return hEl('div', {
+        className: cls,
+        title,
+        onclick: () => openClassmateDetail(c.rank),
+      },
         hEl('div', { className: 'ss-rank' }, 'Rank #' + c.rank),
         hEl('div', { className: 'ss-name' }, c.name),
         hEl('span', { className: 'ss-band' }, c.band.replace('_', ' ')),
-        c.enrolled ? hEl('span', { className: 'ss-fate', title: c.fate || '' }, fateIcon(c.fate)) : null
+        c.enrolled ? hEl('span', { className: 'ss-fate', title: c.fate || '' }, fateIcon(c.fate)) : null,
+        isLocked ? hEl('span', {
+          style: { position: 'absolute', top: '6px', right: '6px', fontSize: '0.85rem', opacity: '0.6' },
+          title: 'Locked'
+        }, '\uD83D\uDD12') : null
       );
     });
 
@@ -528,6 +591,126 @@
       hEl('div', { className: 'ss-roster' }, ...rosterEls),
       currentBlock
     );
+  }
+
+  // ---------- Classmate detail modal (Phase 6) ----------
+  // Opens when any roster card is clicked. Shows full passions + traits +
+  // narrative + fate info. If the clicked classmate is the next-up, the
+  // modal offers an Enroll button. Locked classmates show a "locked until
+  // rank N" message; enrolled classmates show their fate summary.
+  function openClassmateDetail(rank) {
+    const roster = S.school?.classRoster || [];
+    const c = roster.find(x => x.rank === rank);
+    if (!c) return;
+    const nextRank = nextUpRank();
+    const isNext = c.rank === nextRank;
+    const isLocked = !c.enrolled && !isNext;
+
+    // Styling helper — renders a passion pill
+    const passionPill = (axis) => {
+      const p = c.passions?.[axis] || 'none';
+      const icon = { burning: '\uD83D\uDD25\uD83D\uDD25', interested: '\uD83D\uDD25',
+                     none: '\u25A1', aversion: '\u{1F6AB}' }[p] || '';
+      return hEl('span', { className: 'ss-cc-passion ' + p },
+        icon + ' ' + axis + ' — ' + p);
+    };
+
+    // Traits block
+    const traitsBlock = c.mechanicalTraits.length
+      ? hEl('div', { className: 'ss-cc-section' },
+          hEl('div', { className: 'k' }, 'Mechanical traits'),
+          hEl('div', { className: 'ss-cc-traits' },
+            ...c.mechanicalTraits.map(tId => {
+              const t = window.tycoonTraits?.TRAITS_BY_ID?.[tId];
+              return hEl('span', { className: 'ss-cc-trait', title: t?.desc || '' }, t?.name || tId);
+            })
+          )
+        )
+      : null;
+
+    const narrativeBlock = c.narrativeTraits.length
+      ? hEl('div', { className: 'ss-cc-section' },
+          hEl('div', { className: 'k' }, 'Personality'),
+          hEl('div', null, ...c.narrativeTraits.map(n => hEl('span', { className: 'ss-cc-narr' }, n)))
+        )
+      : null;
+
+    // Header
+    const specialty = inferSpecialty(c);
+    const labelTxt = rankLabel(c.rank);
+    const header = hEl('div', null,
+      hEl('div', { style: { fontSize: '0.7rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.05em' } },
+        'Rank #' + c.rank + ' \u00B7 ' + labelTxt + ' \u00B7 ' + c.band.replace('_', ' ')),
+      hEl('h2', { style: { fontSize: '1.3rem', color: '#f0f6fc', margin: '4px 0' } }, c.name),
+      hEl('div', { style: { fontSize: '0.8rem', color: '#8b949e' } },
+        'Age ' + c.age + ' \u00B7 inferred specialty: ' + specialty)
+    );
+
+    // Status block — enrolled / locked / ready
+    let statusBlock;
+    if (c.enrolled) {
+      const fateLabel = {
+        bankruptcy: '\uD83D\uDC80 Went bankrupt',
+        age_retired: '\uD83D\uDC74 Retired at age-out',
+        retire_voluntary: '\uD83C\uDF93 Retired voluntarily',
+        megacorp_exit: '\uD83D\uDCB0 Sold to Megacorp',
+        win_condition: '\uD83C\uDFC6 Triumphant exit',
+      }[c.fate] || c.fate || 'played';
+      statusBlock = hEl('div', {
+        style: { padding: '10px 14px', background: '#21262d', borderRadius: '4px', marginTop: '12px', fontSize: '0.85rem' }
+      },
+        hEl('div', { style: { color: '#c9d1d9' } }, 'Fate: ', fateLabel),
+        c.enrolledAtYear ? hEl('div', { style: { color: '#8b949e', fontSize: '0.75rem', marginTop: '2px' } },
+          'Enrolled ' + c.enrolledAtYear + (c.endedAtYear ? ' \u2192 ended ' + c.endedAtYear : '')) : null
+      );
+    } else if (isLocked) {
+      statusBlock = hEl('div', {
+        style: { padding: '10px 14px', background: 'rgba(240,136,62,0.08)', border: '1px solid rgba(240,136,62,0.3)', borderRadius: '4px', marginTop: '12px', fontSize: '0.85rem', color: '#f0883e' }
+      }, '\uD83D\uDD12 Locked — enroll Rank #' + nextRank + ' first. The class climbs from the bottom up.');
+    } else {
+      statusBlock = hEl('div', {
+        style: { padding: '10px 14px', background: 'rgba(46,160,67,0.1)', border: '1px solid rgba(46,160,67,0.4)', borderRadius: '4px', marginTop: '12px', fontSize: '0.85rem', color: '#7ee787' }
+      }, '\u2B50 Next up — ready to enroll');
+    }
+
+    // Actions
+    const actions = [
+      hEl('button', { className: 't-btn secondary', onclick: () => ov.remove() }, 'Close')
+    ];
+    if (isNext) {
+      actions.push(hEl('button', { className: 't-btn', onclick: () => {
+        ov.remove();
+        enrollClassmate(c.rank);
+      } }, 'Enroll ' + c.name.split(' ')[0]));
+    }
+
+    const ov = hEl('div', {
+      className: 't-modal-ov',
+      id: '_t_classmate_modal',
+      onclick: (e) => { if (e.target.id === '_t_classmate_modal') ov.remove(); }
+    },
+      hEl('div', { className: 't-modal', style: { maxWidth: '560px' } },
+        header,
+        statusBlock,
+        hEl('div', { className: 'ss-cc-section', style: { marginTop: '14px' } },
+          hEl('div', { className: 'k' }, 'Stats'),
+          hEl('div', null,
+            hEl('span', { className: 'ss-cc-stat' }, 'Tech ',   hEl('span', { className: 'v' }, String(c.stats.tech))),
+            hEl('span', { className: 'ss-cc-stat' }, 'Design ', hEl('span', { className: 'v' }, String(c.stats.design))),
+            hEl('span', { className: 'ss-cc-stat' }, 'Polish ', hEl('span', { className: 'v' }, String(c.stats.polish)))
+          )
+        ),
+        hEl('div', { className: 'ss-cc-section' },
+          hEl('div', { className: 'k' }, 'Passions'),
+          hEl('div', { className: 'ss-cc-passions' },
+            passionPill('tech'), passionPill('design'), passionPill('polish'))
+        ),
+        traitsBlock,
+        narrativeBlock,
+        hEl('div', { className: 't-modal-actions' }, ...actions)
+      )
+    );
+    document.body.appendChild(ov);
   }
 
   function renderPlaceholderTab(icon, title, body) {
@@ -668,6 +851,10 @@
     rerenderSchoolScreen,
     enrollClassmate,
     nextUpRank,
+    // Phase 6: admissions refinements
+    openClassmateDetail,
+    inferSpecialty,
+    rankLabel,
     // Debug access
     resetRunEndFlag() { delete S._runEndFired; _lastYearSeen = null; },
     state() {
