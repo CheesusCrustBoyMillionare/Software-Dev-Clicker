@@ -7836,6 +7836,10 @@ function buildSlots() {
         if (data.calendar?.year) parts.push(String(data.calendar.year));
         const shippedN = data.projects?.shipped?.length || 0;
         if (shippedN > 0) parts.push(shippedN + ' ' + t('softwareShipped'));
+        // v11: show bankruptcy count for roguelite saves (💀 is the game's
+        // established bankruptcy icon — rivals use it too on their death log).
+        const bankruptcies = data.school?.lifetimeStats?.bankruptcies || 0;
+        if (bankruptcies > 0) parts.push('\uD83D\uDC80 ' + bankruptcies);
       } else {
         // Legacy clicker save — will be wiped on click (SCHEMA_MIGRATIONS[1])
         if (data.fame) parts.push(data.fame + ' ' + t('fame'));
