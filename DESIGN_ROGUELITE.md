@@ -32,12 +32,44 @@ Each run is a full tycoon career. Between runs the *player* (the meta-persona) g
 
 Ordered by priority: Q1-Q5 set the architecture; Q6-Q7 layer gameplay texture; Q8-Q9 layer meta-progression; Q10 is final polish. Later questions often only make sense once earlier ones are locked.
 
-### Q1 — The founder itself (foundational: defines lineage model)
-What IS the founder across runs?
-- **A) Actual family lineage** (Rogue Legacy): heir inherits from parent, has literal name (Chen → Chen Jr → Chen III)
-- **B) Apprentices**: each founder trains a handful of candidates during their career; one becomes next founder
-- **C) Reincarnation / "spiritual successor"**: same studio lineage but new unrelated founder picks up the mantle
-- **D) "Meta-founder"** who is the player; each run is a career phase — never truly dies, but ages/changes
+### Q1 — The founder itself ✅ LOCKED: Tech School Alumni
+
+**Every founder is a graduate of the same famous tech institute.** They're differentiated by their *rank in their graduating class*. The studio resets every run (new founder = new studio) but the **school is the persistent institution** whose reputation grows with every alumnus who succeeds.
+
+**Why this works better than family lineage:**
+- Game always starts at the same date (1980) — a grandson-of-grandson chain doesn't fit
+- Rank is a natural procgen seed (valedictorian vs rank #47 vs rank #312 gives wildly different feels)
+- Meta-progression has a natural home: **endow the school** → future grads arrive better-prepared
+
+**Class-rank design sketch:**
+- Each graduating class is a fixed cohort size (TBD — 50? 100? 200?)
+- Your rank is an integer; lower is "better" by GPA but not strictly better in gameplay
+- **Top 5 (valedictorian / salutatorian / honors):** best raw stats, best starting research, but "high expectations" — an early bankruptcy hits reputation harder
+- **Top 50 (distinguished):** strong stats, 1-2 notable professors as references, balanced
+- **Middle of the pack (51-80%):** average stats, quirkier rolls, more procedural traits
+- **Bottom of the class (lowest 20%):** weaker stats BUT resilience perks, underdog traits, "had to fight for every grade"
+- Every rank gets exactly one founder per run — no duplicates; you can't "re-roll the valedictorian"
+
+**Implications this already resolves for later questions:**
+- **Q2 (classic mode):** if the tycoon only has one mode, every career is an alumnus' career. If classic stays, it's probably "one-shot alumnus with no meta-progression"
+- **Q3 (carries over):** the tech school carries over. Your lifetime alumni stats, endowments, and "famous alumni" roster persist. The studio always resets.
+- **Q4 (run-end triggers):** bankruptcy ends a run for sure. Since calendar always restarts (Q5 A), retirement doesn't spawn a new run — but could be "graduate retires in glory and your run ends early with bonus rep"
+- **Q5 (calendar):** ✅ "Always restart at 1980" — this is part of the framing
+- **Q8 (meta-progression):** meta-currency ≈ "school endowment / reputation". Earn it in runs, spend it between runs on school upgrades (better curriculum, famous professors, richer alumni network) that benefit *every future grad*, not just one bloodline
+
+**Things to think about later:**
+- School name (placeholder: "The Institute" / "Sunnyvale Tech" / you pick)
+- What does "class rank" specifically translate to in starting stats/traits? (Q6 will nail this)
+- Can a founder's success add to "famous alumni" list and be referenced by later runs? (this is the narrative hook the bloodline-based systems give; need a different hook here)
+- Are later runs also drawn from the SAME class as prior runs (so you can be "the guy who was ranked #12 in the class where #1 became a tycoon genius")? Or each run is a fresh graduating year?
+
+---
+
+Original options (for reference — not picked):
+- **A) Actual family lineage** (Rogue Legacy): heir inherits from parent, has literal name
+- **B) Apprentices**: each founder trains a handful of candidates; one becomes next founder
+- **C) Reincarnation / "spiritual successor"**: (what we picked, reframed as alumni)
+- **D) "Meta-founder"** who is the player; each run is a career phase
 
 ### Q2 — Classic mode coexistence (foundational: architecture fork)
 Is "classic tycoon with bankruptcy = game over" still available?
