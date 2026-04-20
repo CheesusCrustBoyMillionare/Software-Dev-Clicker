@@ -10157,6 +10157,22 @@ let _clockValidated = false;
 .t-proj-card .t-proj-qual .v { color: #f0f6fc; font-weight: 700; }
 .t-proj-card .t-proj-critic { color: #7ee787; font-weight: 700; font-size: 1.1rem; }
 
+/* Active project info sheet */
+.t-qstat { background:#0d1117; border:1px solid #21262d; padding:6px 10px; border-radius:4px; color:#8b949e; font-size:.72rem; font-weight:700; letter-spacing:.04em; }
+.t-qstat .v { color:#f0f6fc; font-size:.95rem; margin-left:4px; }
+.t-team-list, .t-feat-list, .t-decision-list { background:#0d1117; border:1px solid #21262d; border-radius:4px; padding:6px 0; }
+.t-team-row, .t-feat-row { display:flex; justify-content:space-between; padding:6px 10px; font-size:.82rem; }
+.t-team-row + .t-team-row, .t-feat-row + .t-feat-row { border-top:1px solid #21262d; }
+.t-team-row .n, .t-feat-row .n { color:#c9d1d9; }
+.t-team-row .r { color:#8b949e; font-size:.72rem; }
+.t-decision-row { padding:8px 10px; font-size:.78rem; }
+.t-decision-row + .t-decision-row { border-top:1px solid #21262d; }
+.t-decision-row .q { color:#8b949e; margin-bottom:2px; }
+.t-decision-row .a { color:#c9d1d9; }
+.t-proj-deadline { margin-top:6px; font-size:.72rem; color:#8b949e; }
+.t-proj-deadline.tight { color:#f0883e; font-weight:600; }
+.t-proj-deadline.late  { color:#f85149; font-weight:700; }
+
 .t-btn {
   background: #238636; color: white; border: none; padding: 8px 14px; border-radius: 4px;
   font-family: inherit; font-weight: 600; cursor: pointer; font-size: 0.85rem;
@@ -10578,15 +10594,22 @@ let _clockValidated = false;
 
     const typeDef = window.PROJECT_TYPES[proj.type];
     const platDef = proj.platform ? window.tycoonPlatforms?.PLATFORM_BY_ID?.[proj.platform] : null;
-    // Own-IP shipped projects open the detail/graph modal on click.
-    // Contracts are non-clickable (no tail, no meaningful sales graph).
-    const isClickable = isShipped && !proj.isContract;
+    // Clickable:
+    //   - shipped non-contract: opens sales/reviews modal
+    //   - active (any kind): opens project detail info sheet
+    const isShippedClickable = isShipped && !proj.isContract;
+    const isActiveClickable = !isShipped;
+    const isClickable = isShippedClickable || isActiveClickable;
     const cardProps = {
-      className: 't-proj-card ' + (isShipped ? 'shipped' : '') + (isClickable ? ' t-proj-clickable' : '')
+      className: 't-proj-card ' + (isShipped ? 'shipped' : '') + (isClickable ? ' t-proj-clickable' : ''),
+      'data-proj-id': proj.id,
     };
     if (isClickable) {
-      cardProps.onclick = () => openShippedProjectModal(proj.id);
-      cardProps.title = 'Click for sales breakdown + reviews';
+      cardProps.onclick = () => {
+        if (isShipped) openShippedProjectModal(proj.id);
+        else openActiveProjectModal(proj.id);
+      };
+      cardProps.title = isShipped ? 'Click for sales breakdown + reviews' : 'Click for project details';
     }
     return h('div', cardProps,
       h('div', { className: 't-proj-name' },
@@ -11281,6 +11304,155 @@ let _clockValidated = false;
 
     const svg = `<svg class="t-pd-graph" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-max-weekly="${maxWeekly}" data-max-cum="${maxCum}" data-weeks-since-launch="${weeksSinceLaunch}">${parts.join('')}</svg>`;
     return { svg, weekly, cumulative, weeksSinceLaunch, tailWeeks, maxWeekly, maxCum, breakeven, salaryCost, marketingSpend };
+  }
+
+  // ---------- Active project info sheet ----------
+  // Rich read-only view of an in-development project: phase + smooth progress
+  // bar, quality breakdown, team roster, features picked, MC decisions made,
+  // and cost accrued. Clicking any active project card opens this modal.
+  function openActiveProjectModal(projId) {
+    // Tear down any existing instance first (idempotent)
+    document.getElementById('_t_active_proj_modal')?.remove();
+    const proj = (S.projects?.active || []).find(p => p.id === projId);
+    if (!proj) return;
+    const typeDef = window.PROJECT_TYPES[proj.type];
+    const scopeDef = window.PROJECT_SCOPES[proj.scope];
+    const platDef = proj.platform ? window.tycoonPlatforms?.PLATFORM_BY_ID?.[proj.platform] : null;
+
+    const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    const elapsed = currentWeek - proj.phaseStartedAtWeek;
+    const weeksIntoPhase = Math.max(0, elapsed);
+    const weeksOfPhase = proj.phaseWeeksRequired || 0;
+    const phasePct = weeksOfPhase > 0 ? Math.min(100, (weeksIntoPhase / weeksOfPhase) * 100) : 0;
+
+    // Remaining weeks across all phases until ship. Roughly — assumes
+    // phaseWeeksRequired for each remaining phase matches scope.phaseWeeks.
+    const phaseOrder = ['design', 'development', 'polish'];
+    const phaseIdx = phaseOrder.indexOf(proj.phase);
+    let weeksRemainingTotal = Math.max(0, weeksOfPhase - weeksIntoPhase);
+    if (phaseIdx >= 0 && scopeDef?.phaseWeeks) {
+      for (let i = phaseIdx + 1; i < phaseOrder.length; i++) {
+        weeksRemainingTotal += scopeDef.phaseWeeks[phaseOrder[i]] || 0;
+      }
+    }
+
+    // Team — look up assigned engineer rows + founder sentinel
+    const teamRows = [];
+    const teamIds = proj.team || [];
+    if (teamIds.includes('founder') && S.founder) {
+      teamRows.push(h('div', { className: 't-team-row' },
+        h('span', { className: 'n' }, '👑 ' + (S.founder.name || 'Founder')),
+        h('span', { className: 'r' }, 'Founder · ' + (S.founder.specialty || '—'))
+      ));
+    }
+    for (const id of teamIds) {
+      if (id === 'founder') continue;
+      const e = (S.employees || []).find(x => x.id === id);
+      if (!e) continue;
+      teamRows.push(h('div', { className: 't-team-row' },
+        h('span', { className: 'n' }, e.name),
+        h('span', { className: 'r' }, (e.tierName || '—') + ' · ' + (e.specialty || '—'))
+      ));
+    }
+
+    // Features list — pull from global PROJECT_FEATURES if present, else the raw IDs
+    const featureDefs = window.PROJECT_FEATURES || {};
+    const featureRows = (proj.features || []).map(fid => {
+      const f = featureDefs[fid];
+      return h('div', { className: 't-feat-row' },
+        h('span', { className: 'n' }, f ? (f.icon ? f.icon + ' ' : '') + f.name : fid));
+    });
+
+    // Decisions made so far
+    const decisionRows = (proj.decisionsMade || []).map(d => h('div', { className: 't-decision-row' },
+      h('div', { className: 'q' }, '💬 ' + (window.TYCOON_MC_QUESTIONS?.find(q => q.id === d.questionId)?.text || d.questionId)),
+      h('div', { className: 'a' }, '→ ' + d.answerText)
+    ));
+
+    // Cost accrued: weekly salary burn × weeks the project has existed
+    const weeksTotalInProject = currentWeek - (proj.createdAtWeek || proj.phaseStartedAtWeek);
+    const weeklyBurn = window.tycoonEmployees?.weeklyBurn?.() || 0;
+    const salaryCost = Math.max(0, weeksTotalInProject * weeklyBurn * (teamIds.length / Math.max(1, (S.employees?.length || 0) + 1)));
+    const mktCost = proj.marketingSpend || 0;
+
+    // Deadline info (contracts only)
+    let deadlineBlock = null;
+    if (proj.isContract && proj.deadline) {
+      const weeksLeft = proj.deadline - currentWeek;
+      const late = weeksLeft < 0;
+      deadlineBlock = h('div', { className: 't-proj-deadline' + (late ? ' late' : (weeksLeft < 4 ? ' tight' : '')) },
+        '⏱ Deadline in ' + (late ? 'PASSED by ' + Math.abs(weeksLeft) : weeksLeft) + ' week' + (Math.abs(weeksLeft) === 1 ? '' : 's'));
+    }
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_active_proj_modal' },
+      h('div', { className: 't-modal', style: { maxWidth: '620px' } },
+        // Header
+        h('h2', { style: { margin: '0 0 4px' } },
+          (typeDef?.icon || '') + ' ' + proj.name),
+        h('div', { style: { color: '#8b949e', fontSize: '0.78rem', marginBottom: '14px' } },
+          (typeDef?.label || proj.type) + ' · ' + (scopeDef?.label || proj.scope) + ' scope' +
+          (platDef ? ' · ' + platDef.icon + ' ' + platDef.name : '') +
+          (proj.isContract ? ' · contract for ' + (proj.clientName || 'client') : ' · own IP')),
+
+        // Phase + progress
+        h('div', { style: { marginBottom: '14px' } },
+          h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'6px' } },
+            h('div', { style: { color:'#f0883e', fontWeight:700, textTransform:'uppercase', letterSpacing:'.04em', fontSize:'.78rem' } },
+              proj.phase),
+            h('div', { style: { color:'#8b949e', fontSize:'.72rem' } },
+              'Week ' + Math.floor(weeksIntoPhase) + ' / ' + weeksOfPhase + ' · ETA ~' + Math.ceil(weeksRemainingTotal) + ' week' + (Math.ceil(weeksRemainingTotal) === 1 ? '' : 's') + ' to ship')
+          ),
+          h('div', { className: 't-progbar' },
+            h('div', { className: 't-progbar-fill', 'data-active-proj-detail': proj.id, style: { width: phasePct.toFixed(2) + '%' } })
+          ),
+          deadlineBlock
+        ),
+
+        // Quality
+        h('div', { style: { marginBottom: '14px' } },
+          h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700, marginBottom:'4px' } }, 'Quality'),
+          h('div', { style: { display:'flex', gap:'10px', flexWrap:'wrap' } },
+            h('div', { className: 't-qstat' }, 'TECH ', h('span', { className: 'v' }, String(Math.round(proj.quality.tech)))),
+            h('div', { className: 't-qstat' }, 'DESIGN ', h('span', { className: 'v' }, String(Math.round(proj.quality.design)))),
+            h('div', { className: 't-qstat' }, 'POLISH ', h('span', { className: 'v' }, String(Math.round(proj.quality.polish)))),
+            h('div', { className: 't-qstat', style: { color: proj.bugs > 50 ? '#f85149' : proj.bugs > 20 ? '#f0883e' : '#8b949e' } },
+              'BUGS ', h('span', { className: 'v' }, String(Math.round(proj.bugs))))
+          )
+        ),
+
+        // Team
+        teamRows.length > 0 && h('div', { style: { marginBottom: '14px' } },
+          h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700, marginBottom:'4px' } }, 'Team (' + teamRows.length + ')'),
+          h('div', { className: 't-team-list' }, ...teamRows)
+        ),
+
+        // Features
+        featureRows.length > 0 && h('div', { style: { marginBottom: '14px' } },
+          h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700, marginBottom:'4px' } }, 'Features'),
+          h('div', { className: 't-feat-list' }, ...featureRows)
+        ),
+
+        // Decisions made
+        decisionRows.length > 0 && h('div', { style: { marginBottom: '14px' } },
+          h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700, marginBottom:'4px' } }, 'Decisions'),
+          h('div', { className: 't-decision-list' }, ...decisionRows)
+        ),
+
+        // Cost
+        h('div', { style: { marginBottom: '14px' } },
+          h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700, marginBottom:'4px' } }, 'Cost to date'),
+          h('div', { style: { color:'#8b949e', fontSize:'.78rem' } },
+            'Team salaries: ~' + fmtMoney(salaryCost) + (mktCost ? ' · Marketing locked: ' + fmtMoney(mktCost) : ''))
+        ),
+
+        h('div', { className: 't-modal-actions', style: { justifyContent: 'center' } },
+          h('button', { className: 't-btn', onclick: () => {
+            document.getElementById('_t_active_proj_modal')?.remove();
+          } }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
   }
 
   function openShippedProjectModal(projId) {
@@ -12174,7 +12346,7 @@ let _clockValidated = false;
   function startCalProgressLoop() {
     if (_weekRafHandle != null) return;
 
-    // Cache the fill element — the top bar is rebuilt by refreshTopBar(),
+    // Cache the week fill — the top bar is rebuilt by refreshTopBar(),
     // which replaces the node, so we re-query only when our cached node
     // gets detached from the DOM. Saves ~60 querySelector calls/second.
     let fill = null;
@@ -12184,6 +12356,36 @@ let _clockValidated = false;
       const pct = Math.min(100, frac * 100);
       if (!fill || !fill.isConnected) fill = document.querySelector('.t-cal-progress-fill');
       if (fill) fill.style.width = pct.toFixed(1) + '%';
+
+      // Active project phase-progress bars — interpolate the same way the
+      // week bar does. Each .t-proj-card[data-proj-id] carries the project
+      // id, so we read fresh elapsed/required values and let weekFraction
+      // smooth between week ticks. Also handles the active-project detail
+      // modal's progress bar via data-active-proj-detail.
+      const active = S.projects?.active;
+      if (active && active.length) {
+        const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+        const updateFor = (proj, pFill) => {
+          const elapsed = (currentWeek - proj.phaseStartedAtWeek) + frac;
+          const pPct = Math.min(100, Math.max(0, (elapsed / proj.phaseWeeksRequired) * 100));
+          pFill.style.width = pPct.toFixed(2) + '%';
+        };
+        const cards = document.querySelectorAll('.t-proj-card[data-proj-id]');
+        for (const card of cards) {
+          const id = card.dataset.projId;
+          const proj = active.find(p => p.id === id);
+          if (!proj || !proj.phaseWeeksRequired) continue;
+          const pFill = card.querySelector('.t-progbar-fill');
+          if (pFill) updateFor(proj, pFill);
+        }
+        // Detail modal's bar (if the modal is open)
+        const detailFill = document.querySelector('.t-progbar-fill[data-active-proj-detail]');
+        if (detailFill) {
+          const proj = active.find(p => p.id === detailFill.dataset.activeProjDetail);
+          if (proj && proj.phaseWeeksRequired) updateFor(proj, detailFill);
+        }
+      }
+
       _weekRafHandle = requestAnimationFrame(loop);
     };
     _weekRafHandle = requestAnimationFrame(loop);
