@@ -2670,6 +2670,59 @@
     document.body.appendChild(ov);
   };
 
+  // ---------- First-run intro: projects vs contracts ----------
+  function openIntroModal() {
+    // Already open? don't double-mount
+    if (document.getElementById('_t_intro_modal')) return;
+    const dismiss = () => {
+      document.getElementById('_t_intro_modal')?.remove();
+      if (S.school) {
+        S.school.introShown = true;
+        if (typeof markDirty === 'function') markDirty();
+      }
+    };
+    const ov = h('div', { className: 't-modal-ov', id: '_t_intro_modal' },
+      h('div', { className: 't-modal', style: { maxWidth: '620px' } },
+        h('h2', { style: { margin: '0 0 6px', fontSize: '1.2rem' } },
+          '\uD83D\uDCBC Welcome, ' + (S.founder?.name || 'Founder') + ' \u2014 Two Paths Forward'),
+        h('div', { style: { color: '#8b949e', fontSize: '0.78rem', marginBottom: '16px' } },
+          'The studio opens on ' + window.tycoonTime.formatCalendar(S.calendar) + '. Your revenue comes from two very different kinds of work \u2014 most careers mix them.'),
+
+        // Projects (Own IP)
+        h('div', { style: { padding: '12px 14px', background: 'rgba(46,160,67,0.08)', border: '1px solid #2ea043', borderRadius: '6px', marginBottom: '12px' } },
+          h('div', { style: { color: '#7ee787', fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' } },
+            '\uD83D\uDEE0 Projects \u2014 Your own IP'),
+          h('div', { style: { color: '#c9d1d9', fontSize: '0.82rem', lineHeight: '1.5' } },
+            'Click ', h('b', null, '+ New Project'), ' to ship your own game, app, or product. You pick the type, scope, and features, then steer design through multiple-choice decisions during development. ',
+            h('br', null),
+            h('span', { style: { color: '#8b949e' } },
+              'Reward: sales scale with review score \u2014 a hit bankrolls years of runway. ',
+              'Risk: no guaranteed payout, and salaries burn the whole time.'))
+        ),
+
+        // Contracts
+        h('div', { style: { padding: '12px 14px', background: 'rgba(88,166,255,0.08)', border: '1px solid #58a6ff', borderRadius: '6px', marginBottom: '16px' } },
+          h('div', { style: { color: '#79c0ff', fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' } },
+            '\uD83D\uDCDD Contracts \u2014 Client work'),
+          h('div', { style: { color: '#c9d1d9', fontSize: '0.82rem', lineHeight: '1.5' } },
+            'Clients post contracts in the ', h('b', null, 'Contract Offers'), ' panel on the right. The scope, pay, and deadline are fixed \u2014 deliver on time and you get paid, miss the deadline and your reputation drops. ',
+            h('br', null),
+            h('span', { style: { color: '#8b949e' } },
+              'Reward: guaranteed cash flow \u2014 ideal for early runway. ',
+              'Trade-off: no ongoing sales or creative decisions, and your studio doesn\u2019t own the work.'))
+        ),
+
+        h('div', { style: { color: '#8b949e', fontSize: '0.75rem', fontStyle: 'italic', marginBottom: '12px' } },
+          'Tip: accept one small contract in week 1 for survival cash, then plan your first own-IP project when you have runway. Check ', h('b', null, '\uD83D\uDCB0 Finance'), ' to see how many months you can last on current burn.'),
+
+        h('div', { className: 't-modal-actions', style: { justifyContent: 'center' } },
+          h('button', { className: 't-btn', onclick: dismiss }, 'Got it \u2014 let\u2019s go')
+        )
+      )
+    );
+    document.body.appendChild(ov);
+  }
+
   function openVictoryModal(path) {
     // Pause handled by modal observer
     refreshTopBar();
@@ -2915,6 +2968,12 @@
       startCalProgressLoop();
       startModalPauseObserver();  // any open .t-modal-ov auto-pauses the game
       console.info('[tycoon-ui] entered tycoon mode as ' + S.founder.name);
+      // First-time intro explaining projects vs contracts. Fires once per
+      // save (persists via S.school.introShown). Short delay so the UI
+      // finishes rendering before the modal steals focus.
+      if (S.school && !S.school.introShown) {
+        setTimeout(() => { if (!S.school.introShown) openIntroModal(); }, 400);
+      }
     },
     exit() {
       window.tycoonTime.stop();

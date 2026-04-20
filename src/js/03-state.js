@@ -48,6 +48,8 @@ function defaultSchool() {
       bankruptcies: 0,
       megacorpExits: 0,
     },
+    // One-time UI flags
+    introShown: false,          // first-run projects-vs-contracts intro modal
   };
 }
 
