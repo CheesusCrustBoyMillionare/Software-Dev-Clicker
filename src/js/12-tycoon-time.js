@@ -157,6 +157,7 @@
       if (typeof markDirty === 'function') markDirty();
       console.info('[tycoon-time] speed = ' + n + '×' + (n === 0 ? ' (paused)' : ''));
       rescheduleTick();
+      document.dispatchEvent(new CustomEvent('tycoon:speed-changed', { detail: { speed: n } }));
     },
 
     // Toggle pause. Separate from speed=0 — user-initiated pause. Freezes
@@ -167,6 +168,7 @@
       if (typeof markDirty === 'function') markDirty();
       console.info('[tycoon-time] paused = ' + S.paused);
       rescheduleTick();
+      document.dispatchEvent(new CustomEvent('tycoon:pause-toggled', { detail: { paused: S.paused } }));
     },
 
     // Modal-pause ref counter. Call pushModalPause() when opening a modal

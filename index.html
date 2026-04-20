@@ -8663,6 +8663,7 @@ let _clockValidated = false;
       if (typeof markDirty === 'function') markDirty();
       console.info('[tycoon-time] speed = ' + n + '×' + (n === 0 ? ' (paused)' : ''));
       rescheduleTick();
+      document.dispatchEvent(new CustomEvent('tycoon:speed-changed', { detail: { speed: n } }));
     },
 
     // Toggle pause. Separate from speed=0 — user-initiated pause. Freezes
@@ -8673,6 +8674,7 @@ let _clockValidated = false;
       if (typeof markDirty === 'function') markDirty();
       console.info('[tycoon-time] paused = ' + S.paused);
       rescheduleTick();
+      document.dispatchEvent(new CustomEvent('tycoon:pause-toggled', { detail: { paused: S.paused } }));
     },
 
     // Modal-pause ref counter. Call pushModalPause() when opening a modal
@@ -10353,10 +10355,26 @@ let _clockValidated = false;
 
     const speedBtns = h('div', { className: 't-speed' });
     const speeds = [{ s: 0, lbl: 'Pause' }, { s: 1, lbl: '1×' }, { s: 2, lbl: '2×' }, { s: 4, lbl: '4×' }, { s: 8, lbl: '8×' }];
+    // Pause button highlights when either S.speed=0 (user clicked Pause) or
+    // S.paused=true (user hit spacebar). Other speed buttons stay un-lit
+    // while paused so the bar doesn't say "1× active" while nothing moves.
+    const userPaused = S.speed === 0 || S.paused === true;
     for (const sp of speeds) {
+      const isActive = sp.s === 0 ? userPaused : (!userPaused && S.speed === sp.s);
       const btn = h('button', {
-        className: S.speed === sp.s ? 'active' : '',
-        onclick: () => { window.tycoonTime.setSpeed(sp.s); refreshTopBar(); }
+        className: isActive ? 'active' : '',
+        onclick: () => {
+          // Clicking the Pause button when already paused-via-spacebar should
+          // unpause — otherwise the Pause button becomes a dead-end when the
+          // highlight was triggered by S.paused rather than S.speed=0.
+          if (sp.s === 0 && S.paused) {
+            window.tycoonTime.togglePause();
+          } else {
+            if (S.paused) window.tycoonTime.togglePause();
+            window.tycoonTime.setSpeed(sp.s);
+          }
+          refreshTopBar();
+        }
       }, sp.lbl);
       speedBtns.appendChild(btn);
     }
@@ -12193,6 +12211,12 @@ let _clockValidated = false;
   document.addEventListener('tycoon:contract-offered', () => refreshMain());
   document.addEventListener('tycoon:contract-accepted', () => refreshMain());
   document.addEventListener('tycoon:contract-declined', () => refreshMain());
+
+  // Refresh the top bar whenever the player changes speed or pause state
+  // via keyboard (spacebar / 0-4) — without this, pressing Space to pause
+  // leaves the Pause button un-highlighted since the UI doesn't rebuild.
+  document.addEventListener('tycoon:speed-changed', () => refreshTopBar());
+  document.addEventListener('tycoon:pause-toggled', () => refreshTopBar());
 
   // Hiring Fair triggers — openHiringModal owns the auto-pause (captures
   // pre-fair pause state and restores it on close).
