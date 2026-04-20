@@ -133,18 +133,34 @@
     return true;
   }
 
-  // Which reason-strings to show for locked answers (UI uses this)
-  function lockedReasons(ans) {
+  // Which reason-strings to show for locked answers (UI uses this).
+  // Kept for backwards compat; new code should prefer gateRequirements().
+  function lockedReasons(ans) { return gateRequirements(ans, true); }
+
+  // Describe an answer's gate requirements as a short string array. Always
+  // returns something when a gate exists (even if the player currently meets
+  // it) so the UI can show "✨ Unlocked by: X" for unlocked answers, not just
+  // "🔒 Requires: X" for locked ones. When withCurrent=true, appends
+  // "(you have N)" to stat requirements so the player sees the gap.
+  function gateRequirements(ans, withCurrent) {
     if (!ans.gate) return [];
+    const f = S.founder;
     const reasons = [];
-    if (ans.gate.traitRequired) reasons.push('Requires trait: ' + ans.gate.traitRequired);
+    if (ans.gate.traitRequired) {
+      reasons.push('Trait: ' + ans.gate.traitRequired);
+    }
     if (ans.gate.statMin) {
       for (const [stat, minVal] of Object.entries(ans.gate.statMin)) {
-        reasons.push('Requires ' + stat.toUpperCase() + ' ≥ ' + minVal);
+        const have = f?.stats?.[stat];
+        if (withCurrent && typeof have === 'number' && have < minVal) {
+          reasons.push(stat.toUpperCase() + ' ≥ ' + minVal + ' (you have ' + have + ')');
+        } else {
+          reasons.push(stat.toUpperCase() + ' ≥ ' + minVal);
+        }
       }
     }
-    if (ans.gate.eraMin) reasons.push('Requires year ≥ ' + ans.gate.eraMin);
-    if (ans.gate.eraMax) reasons.push('Requires year ≤ ' + ans.gate.eraMax);
+    if (ans.gate.eraMin) reasons.push('Year ≥ ' + ans.gate.eraMin);
+    if (ans.gate.eraMax) reasons.push('Year ≤ ' + ans.gate.eraMax);
     return reasons;
   }
 
@@ -183,13 +199,22 @@
       questionId: q.id,
       firedAtWeek: window.tycoonProjects.absoluteWeek(),
       text: q.text,
-      answers: q.answers.map((a, i) => ({
-        idx: i,
-        text: a.text,
-        effects: a.effects,
-        available: isAnswerAvailable(a, proj),
-        lockedReasons: isAnswerAvailable(a, proj) ? [] : lockedReasons(a)
-      }))
+      answers: q.answers.map((a, i) => {
+        const avail = isAnswerAvailable(a, proj);
+        return {
+          idx: i,
+          text: a.text,
+          effects: a.effects,
+          available: avail,
+          // Always populate when the answer is gated, even if the player meets
+          // the gate — the UI renders unlocked gates as "✨ Unlocked by: ..."
+          // for discoverability. withCurrent=true adds "(you have N)" for
+          // stat gaps when locked.
+          gateReasons: a.gate ? gateRequirements(a, !avail) : [],
+          // Legacy field kept for any consumers that read it directly
+          lockedReasons: avail ? [] : gateRequirements(a, true),
+        };
+      })
     };
     proj.questionsAsked.push(q.id);
     if (typeof markDirty === 'function') markDirty();

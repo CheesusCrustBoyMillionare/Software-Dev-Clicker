@@ -253,7 +253,8 @@
 .t-mc-answer:hover:not(:disabled) { border-color: #58a6ff; background: #0c2d4e; }
 .t-mc-answer:disabled { opacity: 0.45; cursor: not-allowed; }
 .t-mc-answer .effects { display: block; font-size: 0.7rem; color: #8b949e; margin-top: 4px; }
-.t-mc-answer .lock { display: block; font-size: 0.7rem; color: #f0883e; margin-top: 4px; }
+.t-mc-answer .lock   { display: block; font-size: 0.72rem; color: #f0883e; margin-top: 4px; font-weight: 600; }
+.t-mc-answer .unlock { display: block; font-size: 0.72rem; color: #7ee787; margin-top: 4px; font-weight: 600; }
 
 .t-toast-stack { position: fixed; top: 60px; right: 20px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
 .t-toast {
@@ -2153,7 +2154,12 @@
           },
             ans.text,
             effectsStr ? h('span', { className: 'effects' }, effectsStr) : null,
-            ans.lockedReasons?.length ? h('span', { className: 'lock' }, '🔒 ' + ans.lockedReasons.join(', ')) : null
+            // Show unlock/lock reasoning for any gated answer — available ones
+            // get a green "✨ Unlocked by" line so players see WHY a special
+            // option is open to them; locked ones get the orange "🔒 Requires".
+            ans.gateReasons?.length ? h('span', {
+              className: ans.available ? 'unlock' : 'lock'
+            }, (ans.available ? '\u2728 Unlocked by: ' : '\uD83D\uDD12 Requires: ') + ans.gateReasons.join(', ')) : null
           );
         })
       )
