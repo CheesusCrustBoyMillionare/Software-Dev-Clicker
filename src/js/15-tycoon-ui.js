@@ -1555,13 +1555,18 @@
         '\uD83E\uDD1D Referred by ' + emp.referralFromName);
     }
 
-    // Stat bars — shared style with the project detail modal; show out of statCap
+    // Stat bars — bar length scales to the tier's stat cap, but the shown
+    // number is just the stat value (the "/ cap" form read as a fraction
+    // and confused players). Tooltip retains the cap for anyone curious.
     const statRow = (axis, val, icon, color) => {
       const pct = Math.min(100, (val / Math.max(1, statCap)) * 100);
-      return h('div', { style: { marginBottom: '5px' } },
+      return h('div', {
+        style: { marginBottom: '5px' },
+        title: 'Bar fills toward ' + emp.tierName + ' cap of ' + statCap + '. Promotion raises the cap.'
+      },
         h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.72rem', marginBottom:'2px' } },
           h('span', { style: { color, fontWeight: 700 } }, (icon || '') + ' ' + axis.toUpperCase()),
-          h('span', { style: { color: '#c9d1d9', fontVariantNumeric: 'tabular-nums' } }, val + ' / ' + statCap)
+          h('span', { style: { color: '#c9d1d9', fontVariantNumeric: 'tabular-nums' } }, String(val))
         ),
         h('div', { style: { height: '6px', background: '#0d1117', border: '1px solid #21262d', borderRadius: '3px', overflow: 'hidden' } },
           h('div', { style: { width: pct + '%', height: '100%', background: color } })
