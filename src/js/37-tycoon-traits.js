@@ -69,13 +69,11 @@
       wired: false,
       hook: { kind: 'polymath', axisMul: 1.10, specialtyPenalty: 0.9 } },
     { id: 't_lean_ops',          name: 'Lean Operator',      desc: '\u221215% monthly loan payments and payroll',
-      wired: false,
       hook: { kind: 'leanOps', mul: 0.85 } },
     { id: 't_trend_chaser',      name: 'Trend Chaser',       desc: '+30% launch sales on ships in the last 2 years of an era window',
       wired: false,
       hook: { kind: 'trendChaser', mul: 1.30, eraEndWindowYears: 2 } },
     { id: 't_early_riser',       name: 'Early Riser',        desc: '+15% output during weeks 1\u20136 of a project',
-      wired: false,
       hook: { kind: 'earlyPhase', weeks: 6, outputMul: 1.15 } },
     { id: 't_crunch_addict',     name: 'Crunch Addict',      desc: 'Crunch mode: +20% output (was +30%), but no bug risk penalty',
       wired: false,
@@ -90,7 +88,6 @@
       wired: false,
       hook: { kind: 'codePurist', techBonus: 0.15, designPenalty: 0.10 } },
     { id: 't_serial_founder',    name: 'Serial Founder',     desc: 'First project ships 30% faster; subsequent projects normal',
-      wired: false,
       hook: { kind: 'firstShipSpeed', mul: 0.70 } },
     { id: 't_contrarian',        name: 'Contrarian',         desc: '+25% launch sales on types with current low market heat',
       wired: false,
@@ -464,6 +461,14 @@
     // Workaholic — output boost
     const workaholic = founderTraitHook('outputTradeoff');
     if (workaholic) mul *= workaholic.outputMul;
+    // v11.1 Early Riser — bonus during the first N weeks of each project
+    const early = founderTraitHook('earlyPhase');
+    if (early && proj) {
+      const absW = window.tycoonProjects?.absoluteWeek?.() || 0;
+      const createdAt = proj.createdAtWeek ?? proj.phaseStartedAtWeek ?? 0;
+      const elapsed = absW - createdAt;
+      if (elapsed >= 0 && elapsed < (early.weeks || 6)) mul *= (early.outputMul || 1);
+    }
     return mul;
   }
 

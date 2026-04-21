@@ -384,6 +384,10 @@
       total += (emp.salary || 0) * (PAYROLL_INTERVAL / WEEKS_PER_YEAR);
     }
     total += recruiterSalary * (PAYROLL_INTERVAL / WEEKS_PER_YEAR);
+    // v11.1: Lean Operator trait — same discount applied to actual payroll
+    // withdrawal so Finance matches the annualBurn / runway numbers.
+    const leanOps = window.tycoonTraits?.founderTraitHook?.('leanOps');
+    if (leanOps?.mul) total *= leanOps.mul;
     total = Math.round(total);
     if (total <= 0) return;
     S.cash = (S.cash || 0) - total;
@@ -410,7 +414,10 @@
     const employees = S.employees || [];
     const engBurn = employees.reduce((s, e) => s + (e.salary || 0), 0);
     const recruiterBurn = window.tycoonHiring?.recruiterAnnualSalary?.() || 0;
-    return engBurn + recruiterBurn;
+    // v11.1: Lean Operator founder trait — −15% on payroll.
+    const leanOps = window.tycoonTraits?.founderTraitHook?.('leanOps');
+    const mul = leanOps?.mul ?? 1;
+    return Math.round((engBurn + recruiterBurn) * mul);
   }
   function weeklyBurn() {
     return Math.round(annualBurn() / WEEKS_PER_YEAR);

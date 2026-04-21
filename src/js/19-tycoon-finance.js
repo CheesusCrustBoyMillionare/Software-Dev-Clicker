@@ -78,20 +78,27 @@
     let totalPaid = 0;
     let missedPayments = 0;
     const toRemove = [];
+    // v11.1: Lean Operator founder trait discounts monthly loan payments
+    // too. Applied to the effective monthly charge; the outstanding term
+    // on the loan still ticks normally so the trait just makes each
+    // payment cheaper, not the total fewer.
+    const leanOps = window.tycoonTraits?.founderTraitHook?.('leanOps');
+    const leanMul = leanOps?.mul ?? 1;
     for (const loan of S.loans) {
+      const effMonthly = Math.round(loan.monthlyPayment * leanMul);
       // Clamp available cash to >= 0 before capping. Previously
       // Math.min(monthlyPayment, S.cash) returned a negative when cash was
       // already underwater, and subtracting a negative added free cash —
       // players past bankruptcy threshold were getting bailed out by their
       // own loans. Treat underwater cash as $0 available for payments.
       const available = Math.max(0, S.cash || 0);
-      const pay = Math.min(loan.monthlyPayment, available);
+      const pay = Math.min(effMonthly, available);
       S.cash = (S.cash || 0) - pay;
       S.tExpenses = (S.tExpenses || 0) + pay;
       totalPaid += pay;
       // Only decrement remaining term if the full payment cleared; a missed
       // or partial payment doesn't shorten the loan.
-      if (pay >= loan.monthlyPayment) {
+      if (pay >= effMonthly) {
         loan.monthsRemaining -= 1;
         if (loan.monthsRemaining <= 0) toRemove.push(loan.id);
       } else {

@@ -248,7 +248,14 @@
     if (!baseWeeks) return baseWeeks;
     const avg = avgTeamSpeed(proj);
     // 1 - 0.04 × (avg - 5), clamped to [0.7, 1.3] — 30% fastest, 30% slowest
-    const mul = Math.max(0.7, Math.min(1.3, 1 - (avg - 5) * 0.04));
+    let mul = Math.max(0.7, Math.min(1.3, 1 - (avg - 5) * 0.04));
+    // v11.1: Serial Founder trait — first project ships 30% faster. Applies
+    // on top of Speed compression. Checked against shipped count, so this
+    // only fires when no ships have landed yet in the current run.
+    const serial = window.tycoonTraits?.founderTraitHook?.('firstShipSpeed');
+    if (serial?.mul && (S.projects?.shipped?.length || 0) === 0) {
+      mul *= serial.mul;
+    }
     return Math.max(1, Math.round(baseWeeks * mul));
   }
 
