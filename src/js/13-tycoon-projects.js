@@ -945,6 +945,48 @@
     return Math.round(base * scopeMul * mktMul * platformMul * launchMul * traitMul);
   }
 
+  // ---------- Quality targets (v11.1) ----------
+  // What the UI needs to answer "how close to 'done' is this axis?"
+  //
+  // Returns { tech, design, polish } where each entry is
+  //   { raw, cap, normalized, rank }
+  //
+  // `raw` is the current accumulated quality value (what the dev loop writes).
+  // `cap` is the amount of raw quality that maxes the normalized score at 100;
+  //   derived as development-phase-weeks × per-rank multiplier (80/55/35 for
+  //   primary/secondary/tertiary axis by project-type weight).
+  // `normalized` is the sqrt-scaled 0-100 contribution this axis would make
+  //   to the critic score right now. Critic scoring already uses the exact
+  //   same formula at ship time; UI reads this helper so the number the
+  //   player sees matches what actually ships.
+  // `rank` is 0/1/2 — 0=primary, 2=tertiary.
+  function qualityTargets(proj) {
+    if (!proj) return null;
+    const typeDef = PROJECT_TYPES[proj.type];
+    if (!typeDef) return null;
+    const scope = SCOPES[proj.scope];
+    if (!scope) return null;
+    const w = typeDef.weights;
+    const devW = scope.phaseWeeks.development;
+    const ranked = Object.entries(w).sort((a, b) => b[1] - a[1]);
+    const ranks = { [ranked[0][0]]: 0, [ranked[1][0]]: 1, [ranked[2][0]]: 2 };
+    const multFor = r => r === 0 ? 80 : r === 1 ? 55 : 35;
+    const norm = (v, cap) => (v <= 0 ? 0 : Math.sqrt(Math.min(1, v / cap)) * 100);
+    const out = {};
+    for (const axis of ['tech','design','polish']) {
+      const cap = devW * multFor(ranks[axis]);
+      const raw = proj.quality?.[axis] || 0;
+      out[axis] = {
+        raw,
+        cap,
+        normalized: norm(raw, cap),
+        rank: ranks[axis],
+        weight: w[axis] || 0,
+      };
+    }
+    return out;
+  }
+
   // ---------- Lookup helpers ----------
   function findProject(idOrProj) {
     if (!idOrProj) return null;
@@ -1043,6 +1085,7 @@
     // Helpers for UI
     avgTeamSpeed,
     applySpeedToDuration,
+    qualityTargets,
     // Scoring (exposed for testing)
     computeCriticScore,
     computeLaunchSales,

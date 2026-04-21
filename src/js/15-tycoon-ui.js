@@ -1761,38 +1761,44 @@
           deadlineBlock
         ),
 
-        // Quality — weighted by project type so it's obvious which axis
-        // matters most for THIS project. The bar width scales the raw value
-        // by the type's weight, so a design-heavy project shows Design as the
-        // tallest bar even at equal raw numbers.
+        // Quality — show raw / target / normalized per axis. The bar fills
+        // based on the NORMALIZED score (0-100, what the critic sees at
+        // ship time), while the label shows raw progress toward the axis
+        // cap. Normalized uses the sqrt curve from computeCriticScore so
+        // the number here matches what ships.
         (() => {
-          const w = typeDef?.weights || { design:1/3, tech:1/3, polish:1/3 };
-          const topAxis = Object.entries(w).sort((a,b) => b[1] - a[1])[0][0];
-          const row = (axis, raw) => {
-            const weight = w[axis] || 0;
-            // Normalize bar width against a realistic cap — 100 is a strong
-            // late-dev score. Bars above 100 saturate visually.
-            const pct = Math.min(100, Math.max(0, raw));
-            const isPrimary = axis === topAxis;
+          const targets = window.tycoonProjects?.qualityTargets?.(proj) || null;
+          if (!targets) return null;
+          const rankLabel = r => r === 0 ? 'primary' : r === 1 ? 'secondary' : 'tertiary';
+          const row = (axis) => {
+            const t = targets[axis];
             const color = AXIS_COLOR[axis] || '#8b949e';
+            const pct = Math.min(100, Math.max(0, t.normalized));
+            const isPrimary = t.rank === 0;
             return h('div', { style: { marginBottom: '6px' } },
               h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.72rem', marginBottom:'3px' } },
                 h('span', { style: { color, fontWeight: 700 } },
                   (AXIS_ICON[axis] || '') + ' ' + axis.toUpperCase() +
-                  (isPrimary ? ' · primary' : '')),
+                  ' \u00b7 ' + rankLabel(t.rank) +
+                  ' \u00b7 ' + Math.round(t.weight * 100) + '%'),
                 h('span', { style: { color: '#c9d1d9', fontVariantNumeric: 'tabular-nums' } },
-                  Math.round(raw) + ' \u00b7 ' + Math.round(weight * 100) + '% weight')
+                  Math.round(t.raw) + ' / ' + t.cap + ' raw \u00b7 ' +
+                  Math.round(t.normalized) + '/100 score')
               ),
-              h('div', { style: { height: '6px', background: '#0d1117', border: '1px solid #21262d', borderRadius: '3px', overflow: 'hidden' } },
+              h('div', { style: { height: '8px', background: '#0d1117', border: '1px solid #21262d', borderRadius: '3px', overflow: 'hidden' } },
                 h('div', { style: { width: pct + '%', height: '100%', background: color, opacity: isPrimary ? 1 : 0.55 } })
               )
             );
           };
           return h('div', { style: { marginBottom: '14px' } },
-            h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700, marginBottom:'6px' } }, 'Quality'),
-            row('design', proj.quality.design),
-            row('tech', proj.quality.tech),
-            row('polish', proj.quality.polish),
+            h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'6px' } },
+              h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700 } }, 'Quality'),
+              h('div', { style: { color:'#8b949e', fontSize:'.68rem' } },
+                'score = sqrt(raw/cap) \u00d7 100')
+            ),
+            row('design'),
+            row('tech'),
+            row('polish'),
             // Bugs + team speed summary row
             h('div', { style: { display:'flex', gap:'10px', flexWrap:'wrap', marginTop: '8px' } },
               h('div', { className: 't-qstat', style: { color: proj.bugs > 50 ? '#f85149' : proj.bugs > 20 ? '#f0883e' : '#8b949e' } },
