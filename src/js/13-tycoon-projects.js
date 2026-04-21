@@ -769,6 +769,7 @@
 
     // v11.1: Record the shipped project-type on each team member so the
     // Veteran trait can later check "this is a type I've shipped before → +15%".
+    // Also: +20 XP per ship toward the next-tier promotion request.
     if (Array.isArray(proj.team)) {
       for (const empId of proj.team) {
         if (empId === 'founder') continue;
@@ -776,6 +777,7 @@
         if (!emp) continue;
         if (!Array.isArray(emp.shippedTypes)) emp.shippedTypes = [];
         if (!emp.shippedTypes.includes(proj.type)) emp.shippedTypes.push(proj.type);
+        emp.exp = (emp.exp || 0) + 20;
       }
     }
 

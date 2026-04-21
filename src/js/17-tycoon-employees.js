@@ -381,6 +381,33 @@
     if (typeof window._tycoonMaybeNegotiatorRaise === 'function') {
       try { window._tycoonMaybeNegotiatorRaise(); } catch (e) { console.error('[negotiator]', e); }
     }
+    // v11.1: Experience accrual + promotion eligibility. +2 XP/wk if on a
+    // project's team, +1/wk on bench. At 48 × (tier+1) XP, the employee
+    // asks for a promotion via the existing raise-request UI.
+    accrueExperience();
+    if (typeof window._tycoonMaybePromotionRequests === 'function') {
+      try { window._tycoonMaybePromotionRequests(); } catch (e) { console.error('[promotions]', e); }
+    }
+  }
+
+  // ---------- Experience accrual (v11.1) ----------
+  function accrueExperience() {
+    const onProjTeam = new Set();
+    for (const p of (S.projects?.active || [])) {
+      if (!Array.isArray(p.team)) continue;
+      for (const id of p.team) onProjTeam.add(id);
+    }
+    for (const emp of (S.employees || [])) {
+      if (typeof emp.exp !== 'number') emp.exp = 0;
+      emp.exp += onProjTeam.has(emp.id) ? 2 : 1;
+    }
+  }
+
+  // XP threshold for next tier (called by both the promotion check and the
+  // employee detail UI). A tier-1 junior needs 96 XP to move to tier 2; a
+  // tier-3 senior needs 192 XP, etc. Baseline: 48 XP / step.
+  function xpNeededForNextTier(tier) {
+    return 48 * ((tier || 0) + 1);
   }
 
   function runPayroll() {
@@ -463,7 +490,8 @@
     },
     TIERS,
     TRAITS,
-    EDU_FLAVORS
+    EDU_FLAVORS,
+    xpNeededForNextTier,
   };
   if (window.dbg) window.dbg.employees = window.tycoonEmployees;
 

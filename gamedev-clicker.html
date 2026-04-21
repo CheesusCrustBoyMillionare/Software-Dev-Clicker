@@ -9567,6 +9567,7 @@ let _clockValidated = false;
 
     // v11.1: Record the shipped project-type on each team member so the
     // Veteran trait can later check "this is a type I've shipped before → +15%".
+    // Also: +20 XP per ship toward the next-tier promotion request.
     if (Array.isArray(proj.team)) {
       for (const empId of proj.team) {
         if (empId === 'founder') continue;
@@ -9574,6 +9575,7 @@ let _clockValidated = false;
         if (!emp) continue;
         if (!Array.isArray(emp.shippedTypes)) emp.shippedTypes = [];
         if (!emp.shippedTypes.includes(proj.type)) emp.shippedTypes.push(proj.type);
+        emp.exp = (emp.exp || 0) + 20;
       }
     }
 
@@ -12700,6 +12702,29 @@ let _clockValidated = false;
             : null
         ),
 
+        // Promotion XP — only shown if not already max tier
+        (() => {
+          const TIERS = window.TYCOON_TIERS || [];
+          if ((emp.tier || 0) >= TIERS.length - 1) return null;
+          const xpNeeded = window.tycoonEmployees?.xpNeededForNextTier?.(emp.tier || 0) || 48;
+          const xp = Math.max(0, emp.exp || 0);
+          const nextTierName = TIERS[(emp.tier || 0) + 1]?.name || 'next tier';
+          const pct = Math.min(100, (xp / xpNeeded) * 100);
+          const color = xp >= xpNeeded ? '#79c0ff' : '#8b949e';
+          const eligibleNote = xp >= xpNeeded
+            ? ' \u2014 eligible for promotion (check Talent Market)'
+            : '';
+          return h('div', { style: { marginBottom: '14px' } },
+            h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.72rem', marginBottom:'4px' } },
+              h('span', { style:{color:'#c9d1d9', fontWeight:700} }, '\u2B06\uFE0F Promotion XP'),
+              h('span', { style:{color, fontWeight:600} },
+                xp + ' / ' + xpNeeded + ' toward ' + nextTierName + eligibleNote)
+            ),
+            h('div', { style: { height: '6px', background: '#0d1117', border: '1px solid #21262d', borderRadius: '3px', overflow: 'hidden' } },
+              h('div', { style: { width: pct + '%', height: '100%', background: color } })
+            )
+          );
+        })(),
         // Cost + assignment
         h('div', { style: { marginBottom: '14px', padding: '10px', background:'#0d1117', border:'1px solid #21262d', borderRadius:'4px' } },
           h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.78rem', marginBottom:'4px' } },
@@ -13191,28 +13216,52 @@ let _clockValidated = false;
     const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
     const H = window.tycoonHiring;
 
-    // Split the offers into two categories so the header reflects what the
-    // player is actually looking at — rival poaches (critical) vs. internal
-    // raise requests from Negotiator-trait staff (important but less urgent).
-    const rivalOffers = offers.filter(o => !o.isInternalRaise);
+    // Split the offers into three categories so the header reflects what the
+    // player is actually looking at:
+    //   rival poaches (critical)
+    //   promotion requests from XP-earned staff (important)
+    //   raise requests from Negotiator-trait staff (less urgent)
+    const rivalOffers = offers.filter(o => !o.isInternalRaise && !o.isPromotionRequest);
+    const promoOffers = offers.filter(o => o.isPromotionRequest);
     const raiseOffers = offers.filter(o => o.isInternalRaise);
     const blocks = [];
 
-    const renderOffer = (o, isRaise) => {
+    const renderOffer = (o, kind) => {
+      // kind = 'rival' | 'raise' | 'promo'
       const weeksLeft = Math.max(0, o.expiresAtWeek - currentWeek);
-      const sourceLine = isRaise
-        ? h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
-            '\uD83D\uDCB0 ' + (o.employeeName) + ' wants \u00a0',
-            h('span', { style:{color:'#ffd33d', fontWeight:700} }, '$' + (o.newSalary/1000).toFixed(0) + 'K'),
-            ' \u2014 you\u2019re paying \u00a0',
-            h('span', { style:{color:'#8b949e'} }, '$' + (o.currentSalary/1000).toFixed(0) + 'K'),
-            ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)')
-        : h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
-            (o.rivalIcon || '') + ' ' + o.rivalName + ' is offering \u00a0',
-            h('span', { style:{color:'#ff7b72', fontWeight:700} }, '$' + (o.newSalary/1000).toFixed(0) + 'K'),
-            ' \u2014 you\u2019re paying \u00a0',
-            h('span', { style:{color:'#8b949e'} }, '$' + (o.currentSalary/1000).toFixed(0) + 'K'),
-            ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)');
+      let sourceLine;
+      if (kind === 'promo') {
+        sourceLine = h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
+          '\u2B06\uFE0F Wants to be promoted \u2014 ',
+          h('span', { style:{color:'#79c0ff', fontWeight:700} }, o.employeeTierName + ' \u2192 ' + o.newTierName),
+          ' \u00a0(\u00a0',
+          h('span', { style:{color:'#79c0ff', fontWeight:700} }, '$' + (o.newSalary/1000).toFixed(0) + 'K'),
+          ' vs current ',
+          h('span', { style:{color:'#8b949e'} }, '$' + (o.currentSalary/1000).toFixed(0) + 'K'),
+          ', +' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)');
+      } else if (kind === 'raise') {
+        sourceLine = h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
+          '\uD83D\uDCB0 ' + (o.employeeName) + ' wants \u00a0',
+          h('span', { style:{color:'#ffd33d', fontWeight:700} }, '$' + (o.newSalary/1000).toFixed(0) + 'K'),
+          ' \u2014 you\u2019re paying \u00a0',
+          h('span', { style:{color:'#8b949e'} }, '$' + (o.currentSalary/1000).toFixed(0) + 'K'),
+          ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)');
+      } else {
+        sourceLine = h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
+          (o.rivalIcon || '') + ' ' + o.rivalName + ' is offering \u00a0',
+          h('span', { style:{color:'#ff7b72', fontWeight:700} }, '$' + (o.newSalary/1000).toFixed(0) + 'K'),
+          ' \u2014 you\u2019re paying \u00a0',
+          h('span', { style:{color:'#8b949e'} }, '$' + (o.currentSalary/1000).toFixed(0) + 'K'),
+          ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)');
+      }
+      const matchLabel =
+        kind === 'promo' ? 'Promote $' + (o.newSalary/1000).toFixed(0) + 'K' :
+        kind === 'raise' ? 'Approve $' + (o.newSalary/1000).toFixed(0) + 'K' :
+                           'Match $' + (o.newSalary/1000).toFixed(0) + 'K';
+      const exceedLabel =
+        kind === 'promo' ? 'Over-promote $' + Math.round(o.newSalary*1.2/1000) + 'K' :
+                           'Exceed $' + Math.round(o.newSalary*1.2/1000) + 'K';
+      const declineLabel = kind === 'rival' ? 'Let go' : 'Deny';
       return h('div', {
         style: { padding:'10px', background:'#0d1117', border:'1px solid #30363d', borderRadius:'4px', marginBottom:'6px' }
       },
@@ -13226,20 +13275,26 @@ let _clockValidated = false;
           h('button', {
             className: 't-btn',
             style: { padding:'4px 10px', fontSize:'0.72rem' },
-            title: isRaise ? 'Approve the raise. Morale restored to 70.' : 'Pay the rival\'s salary. Employee stays, morale restored to 70.',
+            title: kind === 'promo' ? 'Tier up, pay the new salary, morale restored to 70.'
+                 : kind === 'raise' ? 'Approve the raise. Morale restored to 70.'
+                 : 'Pay the rival\'s salary. Employee stays, morale restored to 70.',
             onclick: () => {
               const r = H.matchOutsideOffer(o.id);
               if (!r.ok) { pushToast(r.error); return; }
-              pushToast(o.employeeName + (isRaise ? '\u2019s raise approved at $' : ' stays — matched at $') + (o.newSalary/1000).toFixed(0) + 'K');
+              pushToast(kind === 'promo'
+                ? o.employeeName + ' promoted to ' + o.newTierName
+                : o.employeeName + (kind === 'raise' ? '\u2019s raise approved at $' : ' stays — matched at $') + (o.newSalary/1000).toFixed(0) + 'K');
               rerenderHiringModal();
               refreshTopBar();
               refreshMain();
             }
-          }, isRaise ? 'Approve $' + (o.newSalary/1000).toFixed(0) + 'K' : 'Match $' + (o.newSalary/1000).toFixed(0) + 'K'),
+          }, matchLabel),
           h('button', {
             className: 't-btn',
             style: { padding:'4px 10px', fontSize:'0.72rem' },
-            title: isRaise ? 'Give more than they asked. Morale jumps to 85 + stat bump.' : 'Pay 20% above the rival\'s offer. Morale jumps, +1 random stat.',
+            title: kind === 'promo' ? 'Promote AND pay 20% above the ratio salary. +1 stat.'
+                 : kind === 'raise' ? 'Give more than they asked. Morale jumps to 85 + stat bump.'
+                 : 'Pay 20% above the rival\'s offer. Morale jumps, +1 random stat.',
             onclick: () => {
               const r = H.exceedOutsideOffer(o.id);
               if (!r.ok) { pushToast(r.error); return; }
@@ -13248,22 +13303,24 @@ let _clockValidated = false;
               refreshTopBar();
               refreshMain();
             }
-          }, 'Exceed $' + Math.round(o.newSalary*1.2/1000) + 'K'),
+          }, exceedLabel),
           h('button', {
             className: 't-btn secondary',
             style: { padding:'4px 10px', fontSize:'0.72rem' },
-            title: isRaise ? 'Deny the raise. Morale drops 10; employee stays.' : 'Let them go. They join the rival.',
+            title: kind === 'promo' ? 'Deny the promotion. \u221210 morale; they ask again in 12 weeks.'
+                 : kind === 'raise' ? 'Deny the raise. Morale drops 10; employee stays.'
+                 : 'Let them go. They join the rival.',
             onclick: () => {
-              if (!isRaise && !confirm(o.employeeName + ' will leave for ' + o.rivalName + '. Proceed?')) return;
+              if (kind === 'rival' && !confirm(o.employeeName + ' will leave for ' + o.rivalName + '. Proceed?')) return;
               H.declineOutsideOffer(o.id);
-              pushToast(isRaise
-                ? o.employeeName + '\u2019s raise denied — morale dropped'
-                : o.employeeName + ' left for ' + o.rivalName);
+              pushToast(kind === 'promo' ? o.employeeName + '\u2019s promotion denied \u2014 will ask again in 12 weeks'
+                       : kind === 'raise' ? o.employeeName + '\u2019s raise denied — morale dropped'
+                       : o.employeeName + ' left for ' + o.rivalName);
               rerenderHiringModal();
               refreshTopBar();
               refreshMain();
             }
-          }, isRaise ? 'Deny' : 'Let go')
+          }, declineLabel)
         )
       );
     };
@@ -13276,7 +13333,18 @@ let _clockValidated = false;
           '\u26A0 Rival Offers (' + rivalOffers.length + ') \u2014 your people are getting poached'),
         h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginBottom:'8px' } },
           'Low morale on senior staff leaves them open to outside offers. Match the salary to keep them, exceed to re-engage them, or let them walk.'),
-        ...rivalOffers.map(o => renderOffer(o, false))
+        ...rivalOffers.map(o => renderOffer(o, 'rival'))
+      ));
+    }
+    if (promoOffers.length > 0) {
+      blocks.push(h('div', {
+        style: { marginBottom:'12px', padding:'10px 12px', background: 'rgba(121,192,255,0.06)', border: '1px solid #79c0ff', borderRadius: '6px' }
+      },
+        h('div', { style: { color:'#79c0ff', fontWeight:700, fontSize:'0.88rem', marginBottom:'4px' } },
+          '\u2B06\uFE0F Promotion Requests (' + promoOffers.length + ') \u2014 earned through experience'),
+        h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginBottom:'8px' } },
+          'Tier up an employee (new salary + morale boost + higher stat cap). Over-promote for an extra 20% salary and +1 stat. Deny for \u221210 morale and a 12-week cooldown.'),
+        ...promoOffers.map(o => renderOffer(o, 'promo'))
       ));
     }
     if (raiseOffers.length > 0) {
@@ -13287,7 +13355,7 @@ let _clockValidated = false;
           '\uD83D\uDCB0 Raise Requests (' + raiseOffers.length + ') \u2014 your Negotiators are asking'),
         h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginBottom:'8px' } },
           'Employees with the Negotiator trait periodically ask for raises. Approve to pay the ask, exceed to make them ecstatic, or deny (\u221210 morale, they stay).'),
-        ...raiseOffers.map(o => renderOffer(o, true))
+        ...raiseOffers.map(o => renderOffer(o, 'raise'))
       ));
     }
     return h('div', null, ...blocks);
@@ -16071,6 +16139,33 @@ let _clockValidated = false;
     if (typeof window._tycoonMaybeNegotiatorRaise === 'function') {
       try { window._tycoonMaybeNegotiatorRaise(); } catch (e) { console.error('[negotiator]', e); }
     }
+    // v11.1: Experience accrual + promotion eligibility. +2 XP/wk if on a
+    // project's team, +1/wk on bench. At 48 × (tier+1) XP, the employee
+    // asks for a promotion via the existing raise-request UI.
+    accrueExperience();
+    if (typeof window._tycoonMaybePromotionRequests === 'function') {
+      try { window._tycoonMaybePromotionRequests(); } catch (e) { console.error('[promotions]', e); }
+    }
+  }
+
+  // ---------- Experience accrual (v11.1) ----------
+  function accrueExperience() {
+    const onProjTeam = new Set();
+    for (const p of (S.projects?.active || [])) {
+      if (!Array.isArray(p.team)) continue;
+      for (const id of p.team) onProjTeam.add(id);
+    }
+    for (const emp of (S.employees || [])) {
+      if (typeof emp.exp !== 'number') emp.exp = 0;
+      emp.exp += onProjTeam.has(emp.id) ? 2 : 1;
+    }
+  }
+
+  // XP threshold for next tier (called by both the promotion check and the
+  // employee detail UI). A tier-1 junior needs 96 XP to move to tier 2; a
+  // tier-3 senior needs 192 XP, etc. Baseline: 48 XP / step.
+  function xpNeededForNextTier(tier) {
+    return 48 * ((tier || 0) + 1);
   }
 
   function runPayroll() {
@@ -16153,7 +16248,8 @@ let _clockValidated = false;
     },
     TIERS,
     TRAITS,
-    EDU_FLAVORS
+    EDU_FLAVORS,
+    xpNeededForNextTier,
   };
   if (window.dbg) window.dbg.employees = window.tycoonEmployees;
 
@@ -16489,9 +16585,17 @@ let _clockValidated = false;
     const expired = S.hiring.outsideOffers.filter(o => o.expiresAtWeek <= currentWeek);
     if (expired.length === 0) return;
     for (const o of expired) {
-      if (o.isInternalRaise) {
+      const emp = (S.employees || []).find(e => e.id === o.employeeId);
+      if (o.isPromotionRequest) {
+        // Promotion request ignored — same as explicit decline
+        if (emp) {
+          emp.morale = Math.max(0, (emp.morale || 70) - 10);
+          const currentWeekNow = window.tycoonProjects?.absoluteWeek?.() || 0;
+          emp.promotionDeniedUntilWeek = currentWeekNow + PROMOTION_DENIAL_COOLDOWN_WEEKS;
+          if (typeof log === 'function') log('\u2B06\uFE0F ' + emp.name + '\u2019s promotion request went unanswered \u2014 morale \u221210');
+        }
+      } else if (o.isInternalRaise) {
         // Raise request ignored — morale hit, employee stays
-        const emp = (S.employees || []).find(e => e.id === o.employeeId);
         if (emp) {
           emp.morale = Math.max(0, (emp.morale || 70) - 10);
           if (typeof log === 'function') log('\uD83D\uDCA2 ' + emp.name + '\u2019s raise request went unanswered \u2014 morale \u221210');
@@ -16522,6 +16626,8 @@ let _clockValidated = false;
   }
 
   // Player chooses Match — pay the new salary, employee stays, morale bumps to 70.
+  // For a promotion request, also bump the tier (statCap rises so Mentor
+  // growth has room to keep going).
   function matchOutsideOffer(offerId) {
     ensureState();
     const offer = S.hiring.outsideOffers.find(o => o.id === offerId);
@@ -16530,13 +16636,22 @@ let _clockValidated = false;
     if (!emp) { removeOfferById(offerId); return { ok: false, error: 'Employee no longer on staff' }; }
     emp.salary = offer.newSalary;
     emp.morale = Math.max(emp.morale || 0, 70);
+    if (offer.isPromotionRequest) {
+      const TIERS = window.TYCOON_TIERS || [];
+      emp.tier = offer.newTier;
+      emp.tierName = offer.newTierName || TIERS[offer.newTier]?.name || emp.tierName;
+      emp.exp = 0;  // fresh clock for the next tier
+      if (typeof log === 'function') log('\u2B06\uFE0F Promoted: ' + emp.name + ' \u2192 ' + emp.tierName + ' ($' + (emp.salary/1000).toFixed(0) + 'K)');
+    } else {
+      if (typeof log === 'function') log('\u{1F91D} Matched ' + offer.rivalName + '\u2019s offer — ' + emp.name + ' stays at $' + (offer.newSalary/1000).toFixed(0) + 'K');
+    }
     removeOfferById(offerId);
-    if (typeof log === 'function') log('\u{1F91D} Matched ' + offer.rivalName + '\u2019s offer — ' + emp.name + ' stays at $' + (offer.newSalary/1000).toFixed(0) + 'K');
     document.dispatchEvent(new CustomEvent('tycoon:offer-matched', { detail: { offer, employee: emp } }));
     return { ok: true, employee: emp };
   }
 
   // Player chooses Exceed — pay new salary + 20%, morale jumps to 85, tiny stat bump.
+  // For a promotion, this is "over-promote" — same tier up + the extra 20% salary.
   function exceedOutsideOffer(offerId) {
     ensureState();
     const offer = S.hiring.outsideOffers.find(o => o.id === offerId);
@@ -16545,29 +16660,44 @@ let _clockValidated = false;
     if (!emp) { removeOfferById(offerId); return { ok: false, error: 'Employee no longer on staff' }; }
     emp.salary = Math.round(offer.newSalary * 1.20);
     emp.morale = Math.max(emp.morale || 0, 85);
-    // Small stat boost — pick a random stat, +1 up to tier cap
+    // Small stat boost — pick a random stat, +1 up to tier cap (uses NEW tier if promoting)
     const TIERS = window.TYCOON_TIERS || [];
+    if (offer.isPromotionRequest) {
+      emp.tier = offer.newTier;
+      emp.tierName = offer.newTierName || TIERS[offer.newTier]?.name || emp.tierName;
+      emp.exp = 0;
+    }
     const cap = TIERS[emp.tier]?.statCap || 10;
     const k = ['design','tech','polish','speed'][Math.floor(Math.random() * 4)];
     if (emp.stats) emp.stats[k] = Math.min(cap, (emp.stats[k] || 0) + 1);
+    if (offer.isPromotionRequest) {
+      if (typeof log === 'function') log('\u2B06\uFE0F Over-promoted: ' + emp.name + ' \u2192 ' + emp.tierName + ' ($' + (emp.salary/1000).toFixed(0) + 'K, +' + k + ')');
+    } else {
+      if (typeof log === 'function') log('\u{1F386} Exceeded ' + offer.rivalName + '\u2019s offer — ' + emp.name + ' feels valued at $' + (emp.salary/1000).toFixed(0) + 'K (+' + k + ')');
+    }
     removeOfferById(offerId);
-    if (typeof log === 'function') log('\u{1F386} Exceeded ' + offer.rivalName + '\u2019s offer — ' + emp.name + ' feels valued at $' + (emp.salary/1000).toFixed(0) + 'K (+' + k + ')');
     document.dispatchEvent(new CustomEvent('tycoon:offer-exceeded', { detail: { offer, employee: emp } }));
     return { ok: true, employee: emp };
   }
 
-  // Player chooses Decline. For a rival poach → employee leaves. For an
-  // internal Negotiator raise request → employee stays but morale drops.
+  // Player chooses Decline.
+  //   Rival poach          → employee leaves for the rival.
+  //   Internal raise       → employee stays, morale drops -10.
+  //   Promotion request    → employee stays, morale drops -10, 12-week cooldown
+  //                          before they can ask again.
   function declineOutsideOffer(offerId) {
     ensureState();
     const offer = S.hiring.outsideOffers.find(o => o.id === offerId);
     if (!offer) return { ok: false, error: 'Offer not found' };
-    if (offer.isInternalRaise) {
-      const emp = (S.employees || []).find(e => e.id === offer.employeeId);
-      if (emp) {
-        emp.morale = Math.max(0, (emp.morale || 70) - 10);
-        if (typeof log === 'function') log('\uD83D\uDCA2 Raise denied: ' + emp.name + ' \u2014 morale \u221210');
-      }
+    const emp = (S.employees || []).find(e => e.id === offer.employeeId);
+    if (offer.isPromotionRequest && emp) {
+      emp.morale = Math.max(0, (emp.morale || 70) - 10);
+      const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+      emp.promotionDeniedUntilWeek = currentWeek + PROMOTION_DENIAL_COOLDOWN_WEEKS;
+      if (typeof log === 'function') log('\u2B06\uFE0F Promotion denied: ' + emp.name + ' \u2014 morale \u221210, will ask again in ' + PROMOTION_DENIAL_COOLDOWN_WEEKS + ' weeks');
+    } else if (offer.isInternalRaise && emp) {
+      emp.morale = Math.max(0, (emp.morale || 70) - 10);
+      if (typeof log === 'function') log('\uD83D\uDCA2 Raise denied: ' + emp.name + ' \u2014 morale \u221210');
     } else {
       loseEmployeeToRival(offer, false);
     }
@@ -16709,6 +16839,54 @@ let _clockValidated = false;
   }
   // Expose via the sentinel the employees module looks for
   window._tycoonMaybeNegotiatorRaise = maybeGenerateNegotiatorRaise;
+
+  // ---------- Promotion requests (v11.1) ----------
+  // Fired by the tycoonEmployees weekly tick when an employee's accumulated
+  // XP crosses 48 × (tier + 1). Uses the outsideOffers queue + Talent Market
+  // UI so match/exceed/decline handlers can branch on isPromotionRequest.
+  // Cooldown after denial: 12 weeks before they ask again.
+  const PROMOTION_DENIAL_COOLDOWN_WEEKS = 12;
+
+  function maybeGeneratePromotionRequests() {
+    ensureState();
+    const TIERS = window.TYCOON_TIERS || [];
+    const xpNeeded = window.tycoonEmployees?.xpNeededForNextTier;
+    if (!xpNeeded) return;
+    const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    for (const emp of (S.employees || [])) {
+      const curTier = emp.tier || 0;
+      if (curTier >= TIERS.length - 1) continue;           // already max tier
+      if ((emp.exp || 0) < xpNeeded(curTier)) continue;    // not earned yet
+      if ((emp.promotionDeniedUntilWeek || 0) > currentWeek) continue;
+      if (S.hiring.outsideOffers.some(o => o.employeeId === emp.id)) continue;
+      const newTierDef = TIERS[curTier + 1];
+      if (!newTierDef) continue;
+      const salaryRatio = newTierDef.baseSalary / (TIERS[curTier]?.baseSalary || 1);
+      const newSalary = Math.round((emp.salary || 0) * salaryRatio);
+      const offer = {
+        id: 'promo_' + (S.hiring.fairIndex++).toString(36) + '_' + emp.id,
+        employeeId: emp.id,
+        employeeName: emp.name,
+        employeeTierName: emp.tierName,
+        employeeSpecialty: emp.specialty,
+        currentSalary: emp.salary,
+        newSalary,
+        isPromotionRequest: true,
+        newTier: curTier + 1,
+        newTierName: newTierDef.name,
+        rivalName: 'Promotion request',
+        rivalIcon: '\u2B06\uFE0F',
+        postedAtWeek: currentWeek,
+        expiresAtWeek: currentWeek + OUTSIDE_OFFER_DURATION_WEEKS,
+      };
+      S.hiring.outsideOffers.push(offer);
+      if (typeof markDirty === 'function') markDirty();
+      if (typeof log === 'function') log('\u2B06\uFE0F ' + emp.name + ' wants a promotion to ' + newTierDef.name + ' \u2014 $' + (newSalary/1000).toFixed(0) + 'K (vs your $' + ((emp.salary||0)/1000).toFixed(0) + 'K)');
+      document.dispatchEvent(new CustomEvent('tycoon:outside-offer', { detail: { offer } }));
+      return;  // one per tick
+    }
+  }
+  window._tycoonMaybePromotionRequests = maybeGeneratePromotionRequests;
 
   // Listen for rival bankruptcy and trigger poaching if enabled
   document.addEventListener('tycoon:rival-bankrupt', (e) => {
