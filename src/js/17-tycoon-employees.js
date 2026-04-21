@@ -43,6 +43,33 @@
     ]
   };
 
+  // ---------- Specialty → axis map (must match SPECIALTY_AXIS in 13-tycoon-projects) ----------
+  // Exposed on-module so we can visually bias rolled stats toward the
+  // specialty's axis (v11.1: bakes specialty into stats instead of a runtime
+  // multiplier). Kept in sync manually — a single test in the console
+  // sanity-checks this against window.tycoonProjects.SPECIALTY_AXIS.
+  const SPECIALTY_AXIS_LOCAL = {
+    coder:'tech', backend:'tech', network:'tech', cloud:'tech',
+    frontend:'design', webdev:'design', gamedev:'design', agent:'design',
+    mobile:'polish', devops:'polish',
+  };
+
+  // ---------- Specialty stat bias ----------
+  // v11.1: returns { tech, design, polish, speed } deltas applied to base
+  // stats so the rolled candidate visually specializes. Primary axis +2;
+  // the other two quality axes each -1. Speed is untouched (it governs
+  // phase duration, not specialty). Net change to statSum = 0 so salary
+  // calcs stay balanced.
+  function specialtyStatBias(specialty) {
+    const bias = { tech:0, design:0, polish:0, speed:0 };
+    const primary = SPECIALTY_AXIS_LOCAL[specialty] || 'tech';
+    bias[primary] = 2;
+    for (const k of ['tech','design','polish']) {
+      if (k !== primary) bias[k] = -1;
+    }
+    return bias;
+  }
+
   // ---------- Edu stat bias (secret, applied at interview reveal) ----------
   // Returns { tech, design, polish, speed } deltas to add to base stats
   function eduStatBias(edu, specialty) {
@@ -162,13 +189,24 @@
     else edu = eduRoll < 0.35 ? 0 : eduRoll < 0.65 ? 1 : eduRoll < 0.95 ? 2 : 3;
     const eduFlavor = randPick(EDU_FLAVORS[edu] || EDU_FLAVORS[2]);
 
-    // Base stats (rolled within tier range, then biased by edu)
+    // Base stats (rolled within tier range, then biased by specialty + edu)
     const [lo, hi] = tierDef.statRange;
     const baseStat = () => randInRange(lo, hi);
     const stats = { design: baseStat(), tech: baseStat(), speed: baseStat(), polish: baseStat() };
+    // v11.1: specialty bias baked into base stats (replaces the old 1.5×/0.5×
+    // runtime multiplier in developOneWeek). Primary axis +2, other two
+    // quality axes -1 each. Primary may exceed statCap by 1 to reward
+    // specialization.
+    const sBias = specialtyStatBias(specialty);
+    const primary = SPECIALTY_AXIS_LOCAL[specialty] || 'tech';
+    for (const k of ['design','tech','polish','speed']) {
+      const cap = (k === primary) ? tierDef.statCap + 1 : tierDef.statCap;
+      stats[k] = Math.max(1, Math.min(cap, Math.round(stats[k] + (sBias[k] || 0))));
+    }
     const bias = eduStatBias(edu, specialty);
     for (const k of ['design','tech','polish','speed']) {
-      stats[k] = Math.max(1, Math.min(tierDef.statCap, Math.round(stats[k] + (bias[k] || 0))));
+      const cap = (k === primary) ? tierDef.statCap + 1 : tierDef.statCap;
+      stats[k] = Math.max(1, Math.min(cap, Math.round(stats[k] + (bias[k] || 0))));
     }
     // Self-taught high variance: random extreme in one stat
     if (edu === 0 && Math.random() < 0.3) {

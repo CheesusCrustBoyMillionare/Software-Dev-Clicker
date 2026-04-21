@@ -377,9 +377,6 @@
     const bugRisk   = proj.crunching ? 1.50 : 1.0;
     const perProjMul = 1;
 
-    // v10.1 rebalance — project-type primary axis (for type-mismatch penalty)
-    const projTypePrimary = Object.entries(w).sort((a, b) => b[1] - a[1])[0][0];
-
     const researchTech    = window.tycoonResearch?.qualityMultiplierFor?.('tech', proj.type) || 1;
     const researchDesign  = window.tycoonResearch?.qualityMultiplierFor?.('design', proj.type) || 1;
     const researchPolish  = window.tycoonResearch?.qualityMultiplierFor?.('polish', proj.type) || 1;
@@ -396,13 +393,10 @@
     for (const c of contributors) {
       const es = effectiveStats(c);
       const mm = moraleMultiplier(c.morale);
-      const specAxis = SPECIALTY_AXIS[c.specialty];
-      // C1 harsher per-axis specialty: 1.5× match, 0.5× non-match.
-      const bonus = (axis) => (axis === specAxis ? 1.5 : 0.5);
-      // C2 type-familiarity: specialty primary ≠ project primary → −25%
-      // (founder takes half penalty).
-      const specMatchesType = specAxis === projTypePrimary;
-      const typeMul = specMatchesType ? 1.0 : (c.isFounder ? 0.875 : 0.75);
+      // v11.1: specialty bias is now baked into each contributor's base
+      // stats at generation time (generateCandidate) / at enrollment
+      // (founder passions shape rolled stats). No runtime specialty
+      // multiplier needed — what you see in the UI is what contributes.
 
       // Founder-specific multipliers (apply to founder only, 1.0 for employees).
       const fOut = c.isFounder ? founderOut : 1.0;
@@ -410,9 +404,9 @@
       const fAxD = c.isFounder ? founderAxisD : 1.0;
       const fAxP = c.isFounder ? founderAxisP : 1.0;
 
-      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * bonus('tech')   * typeMul * perProjMul * teamMult * researchTech   * devSpeedMult * fOut * fAxT);
-      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * bonus('design') * typeMul * perProjMul * teamMult * researchDesign * devSpeedMult * fOut * fAxD);
-      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * bonus('polish') * typeMul * perProjMul * teamMult * researchPolish * devSpeedMult * fOut * fAxP);
+      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * perProjMul * teamMult * researchTech   * devSpeedMult * fOut * fAxT);
+      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * perProjMul * teamMult * researchDesign * devSpeedMult * fOut * fAxD);
+      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * perProjMul * teamMult * researchPolish * devSpeedMult * fOut * fAxP);
       proj.bugs += (bugRisk * 0.3 * perProjMul);
       if (proj.crunching) {
         c.morale = Math.max(0, (c.morale || 70) - 3);
@@ -436,8 +430,6 @@
     if (contributors.length === 0) return;
     const perProjMul = 1;
     const crunchMul = proj.crunching ? 1.30 : 1.0;
-    const typeDef = PROJECT_TYPES[proj.type];
-    const projTypePrimary = Object.entries(typeDef.weights).sort((a, b) => b[1] - a[1])[0][0];
 
     // v3 roguelite: founder mods for polish phase. Perfectionist gives an
     // additional quality bump on top of the normal polish gains.
@@ -449,16 +441,16 @@
     for (const c of contributors) {
       const es = effectiveStats(c);
       const mm = moraleMultiplier(c.morale);
-      const specAxis = SPECIALTY_AXIS[c.specialty];
-      const specBonus = specAxis === 'polish' ? 1.5 : 0.5;
-      const typeMul = specAxis === projTypePrimary ? 1.0 : (c.isFounder ? 0.875 : 0.75);
+      // v11.1: specialty bias is baked into base stats; no runtime multiplier.
+      // Contributors whose specialty is polish just happen to have higher
+      // polish stat values, so this loop doesn't need a special case.
 
       const fOut = c.isFounder ? founderOut : 1.0;
       const fAxP = c.isFounder ? founderAxisP : 1.0;
       const fPerf = c.isFounder ? perfMul : 1.0;
 
-      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * specBonus * typeMul * perProjMul * fOut));
-      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * specBonus * typeMul * perProjMul * fOut * fAxP * fPerf);
+      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * perProjMul * fOut));
+      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * perProjMul * fOut * fAxP * fPerf);
     }
 
     // Workaholic morale drain applies in polish phase too.
