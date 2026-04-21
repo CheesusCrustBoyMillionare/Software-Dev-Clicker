@@ -434,6 +434,32 @@
       h('div', { className: 't-stat-lbl' }, 'Shipped')
     );
 
+    // Monthly burn (4 game weeks) + runway so the player can see survival
+    // horizon at a glance rather than drilling into Finance. Both match the
+    // numbers in the Finance modal.
+    const weeklyBurn = window.tycoonEmployees?.weeklyBurn?.() || 0;
+    const monthlyBurn = weeklyBurn * 4;
+    const burn = h('div', { className: 't-stat', title: 'Total team salary burn per game month (4 weeks). Drill into 💰 Finance for the full P&L.' },
+      h('div', { className: 't-stat-val', style: { color: '#f85149' } },
+        monthlyBurn > 0 ? '\u2212' + fmtMoney(monthlyBurn) : '\u2014'),
+      h('div', { className: 't-stat-lbl' }, 'Burn / mo')
+    );
+
+    const runwayM = window.tycoonFinance?.currentRunwayMonths?.() ?? Infinity;
+    const runwayIsInf = runwayM === Infinity || runwayM > 9999;
+    const runwayStr = runwayIsInf ? '\u221E' : runwayM.toFixed(1) + ' mo';
+    const runwayColor = runwayIsInf ? '#7ee787'
+                       : runwayM < 3 ? '#f85149'
+                       : runwayM < 6 ? '#f0883e'
+                       : '#7ee787';
+    const runwayTitle = runwayIsInf
+      ? 'Positive cash flow — runway is effectively unlimited at current burn.'
+      : 'Months your current cash can cover team salaries. Red <3, orange 3-6, green 6+.';
+    const runway = h('div', { className: 't-stat', title: runwayTitle },
+      h('div', { className: 't-stat-val', style: { color: runwayColor } }, runwayStr),
+      h('div', { className: 't-stat-lbl' }, 'Runway')
+    );
+
     // Bankruptcy countdown — only when cash has been negative for 1+ weeks
     const negWeeks = S.bankruptcy?.negativeWeeks || 0;
     const bkTotal = window.tycoonFinance?.BANKRUPTCY_WEEKS || 4;
@@ -496,7 +522,7 @@
       }
     }, '\uD83D\uDCBE Save & Quit');
 
-    topbar.append(cal, cash, revenue, shipped);
+    topbar.append(cal, cash, revenue, shipped, burn, runway);
     if (bankruptBlock) topbar.append(bankruptBlock);
     topbar.append(speedBtns, optionsBtn, exitBtn);
     return topbar;
