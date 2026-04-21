@@ -296,13 +296,24 @@
   // Contributors for a project = its assigned team, or fallback (unassigned pool)
   // if team empty.
   function getContributorsFor(proj) {
+    // v11.1: researcher is off-project. Whoever is assigned to the current
+    // research node contributes 0 to any project's dev tick until research
+    // completes or stops. Applies to both the founder (when the research
+    // engineerId is 'founder') and employees.
+    const researcherId = S.research?.inProgress?.engineerId || null;
+    const isResearching = (id) => researcherId != null && (
+      (id === 'founder' && researcherId === 'founder') ||
+      (id !== 'founder' && id === researcherId)
+    );
+
     if (!Array.isArray(proj.team) || proj.team.length === 0) {
       // Fallback: if no explicit team, use all bench engineers + founder
       const bench = getBenchEngineers();
-      return bench;
+      return bench.filter(c => !isResearching(c.isFounder ? 'founder' : c.id));
     }
     const list = [];
     for (const id of proj.team) {
+      if (isResearching(id)) continue;
       if (id === 'founder' && S.founder) list.push(S.founder);
       else {
         const emp = (S.employees || []).find(e => e.id === id);
@@ -917,6 +928,19 @@
         ...lm.collision.notes
       ];
     }
+    // v11.1 Pioneer / Fast-Follower sales multiplier from research history.
+    // Stacks across all completed research — +2% per Pioneer win, −1% per
+    // node a rival pioneered first. Clamped ±25% in the helper. Note gets
+    // attached so the shipped-project modal can show the player the rollup.
+    let pioneerMul = 1;
+    const pioneer = window.tycoonResearch?.pioneerSalesMultiplier?.();
+    if (pioneer && pioneer.pct !== 0) {
+      pioneerMul = pioneer.mul;
+      if (!proj.launchNotes) proj.launchNotes = [];
+      const sign = pioneer.pct > 0 ? '+' : '';
+      proj.launchNotes.push('\uD83C\uDFC6 Research legacy: ' + sign + pioneer.pct + '% (' +
+        pioneer.pioneerCount + ' Pioneer, ' + pioneer.fastFollowerCount + ' Fast-Follower)');
+    }
     // v11.1 founder traits applied to launch sales
     let traitMul = 1;
     const shipYear = S.calendar?.year || 1980;
@@ -942,7 +966,7 @@
         proj.launchNotes.push('\u{1F9ED} Contrarian — ' + proj.type + ' market was cold');
       }
     }
-    return Math.round(base * scopeMul * mktMul * platformMul * launchMul * traitMul);
+    return Math.round(base * scopeMul * mktMul * platformMul * launchMul * traitMul * pioneerMul);
   }
 
   // ---------- Quality targets (v11.1) ----------

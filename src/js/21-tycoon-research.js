@@ -135,6 +135,14 @@
     return RESEARCH_NODES.slice();
   }
 
+  // v11.1: cash cost scales with rpCost. Tier-1 30-RP nodes ≈ $3K, late-game
+  // 500-RP nodes ≈ $50K. Small fraction of salary burn but not trivial.
+  const CASH_PER_RP = 100;
+  function cashCostFor(nodeId) {
+    const node = NODE_BY_ID[nodeId];
+    return node ? Math.round((node.rpCost || 0) * CASH_PER_RP) : 0;
+  }
+
   // ---------- Start / stop research ----------
   function startResearch(nodeId, engineerId) {
     ensureState();
@@ -143,9 +151,18 @@
     if (S.research.inProgress) {
       return { ok: false, error: 'Already researching: ' + NODE_BY_ID[S.research.inProgress.nodeId]?.name };
     }
+    // v11.1: cash cost up front.
+    const cost = cashCostFor(nodeId);
+    if (cost > 0 && (S.cash || 0) < cost) {
+      return { ok: false, error: 'Need $' + cost.toLocaleString() + ' cash to start this research' };
+    }
     // Engineer must exist (founder or hired)
     const eng = findEngineerOrFounder(engineerId);
     if (!eng) return { ok: false, error: 'Engineer not found' };
+    if (cost > 0) {
+      S.cash = (S.cash || 0) - cost;
+      S.tExpenses = (S.tExpenses || 0) + cost;
+    }
     S.research.inProgress = {
       nodeId,
       engineerId: eng.id || 'founder',
@@ -155,7 +172,7 @@
     if (typeof markDirty === 'function') markDirty();
     if (typeof log === 'function') {
       const node = NODE_BY_ID[nodeId];
-      log('🔬 Research started: ' + node.name + ' (' + node.rpCost + ' RP)');
+      log('🔬 Research started: ' + node.name + ' (' + node.rpCost + ' RP' + (cost > 0 ? ', −$' + cost.toLocaleString() : '') + ')');
     }
     document.dispatchEvent(new CustomEvent('tycoon:research-started', { detail: { nodeId } }));
     return { ok: true, progress: S.research.inProgress };
@@ -214,6 +231,31 @@
     if (!eff) return;
     // All effects are lookups at production time — nothing persistent to apply now.
     // The completed[] list drives all bonus calculations via helper functions below.
+  }
+
+  // ---------- Pioneer sales multiplier (v11.1) ----------
+  // Translate the already-tracked S.researchPioneers[nodeId] tags into a
+  // sales-side effect at ship time. +2% per Pioneer node, -1% per Fast
+  // Follower node, summed and clamped at [-25%, +25%]. Stacks across the
+  // full career so early Pioneer wins become lasting legacy value.
+  function pioneerSalesMultiplier() {
+    ensureState();
+    const completed = S.research?.completed || [];
+    const pioneers = S.researchPioneers || {};
+    let pct = 0;
+    let pioneerCount = 0;
+    let fastFollowerCount = 0;
+    for (const id of completed) {
+      const owner = pioneers[id];
+      if (owner === 'player') { pct += 2; pioneerCount++; }
+      else if (owner) {
+        // Some rival pioneered this node; player is a fast follower.
+        pct -= 1;
+        fastFollowerCount++;
+      }
+    }
+    pct = Math.max(-25, Math.min(25, pct));
+    return { mul: 1 + pct / 100, pct, pioneerCount, fastFollowerCount };
   }
 
   // ---------- Query helpers (used by other modules to apply research bonuses) ----------
@@ -299,6 +341,8 @@
     teamProductivityMultiplier,
     devSpeedMultiplierForType,
     isFeatureUnlockedByResearch,
+    cashCostFor,
+    pioneerSalesMultiplier,
     startTick: startResearchTick,
     stopTick: stopResearchTick,
     state() {

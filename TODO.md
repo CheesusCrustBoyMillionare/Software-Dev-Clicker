@@ -165,3 +165,60 @@ Staff members have personality and comment on your progress. Lines change based 
 - Each staff member has a pool of ~20-30 lines, tagged with conditions
 - Lines don't repeat until the pool is exhausted
 - Could add a "favorites" system where players can pin funny lines
+
+## Research system — deeper strategic tension (from v11.1 brainstorm)
+
+The v11.1 commit `d57310e`-ish series added cash cost per node + off-project researcher + Pioneer/Fast-Follower sales multiplier. That's interventions A/B/C from the brainstorm. Four more remain — each increases strategic depth but requires more plumbing than a one-commit pass.
+
+### D. Multiple researchers per node (medium)
+Currently one engineer per node. Allow assigning 2-3 — `rpPerWeek = sum(tech × 1.2)` with a 0.9× diminishing multiplier per extra researcher after the first. Creates real sprint vs. spread decisions. Needs:
+- UI: multi-select engineer picker on the Research row Start button
+- Project tick: when researchers are assigned, they're already filtered out of `getContributorsFor` (see `13-tycoon-projects.js`), so this just needs the data structure change (`S.research.inProgress.engineerIds: []` instead of singular).
+- Cash cost could scale with researcher count to offset speed (e.g., full cost per researcher).
+
+### E. Mutually-exclusive fork nodes (medium)
+Some pairs of nodes are alternatives — picking one locks the other for the run. Encodes build identity without a full tree redesign. Candidate pairs:
+- `n_object_oriented` vs a new `n_functional_paradigm`
+- `n_relational_db` vs a new `n_nosql_early`
+- `n_cloud_infra` vs a new `n_on_prem_scale`
+
+Needs:
+- Node data: `excludes: [nodeId]` property that locks the named node when this one completes.
+- UI: excluded nodes show "🔒 Excluded by ..." instead of normal lock reason.
+- ~4-6 new fork partners to design thoughtfully before shipping.
+
+### F. Research programs / specialization (larger refactor)
+Replace ~60% of individual nodes with "programs" that gate 3-4 nodes sequentially and demand continued investment (e.g. Graphics Program → 2D Sprites → 256-Color → CD-ROM → 3D). Starting a program commits the player to that path. Other programs become available from a pool.
+
+Needs:
+- New data structure: `PROGRAMS = [{ id, name, era, nodeChain: [n1, n2, n3] }]`.
+- UI: replace the flat tree with program cards + currently-active-within-program progress.
+- Balance pass to make picking programs feel like a real build decision.
+- ~1-2 day refactor; content heavy.
+
+### G. Dynamic tree — evolve with the world (larger refactor)
+Some nodes appear mid-era based on market heat or rival moves; others obsolete if you don't grab them in time. Tree evolves like the macro economy.
+
+Examples:
+- Cold market heat on games triggers a new `n_genre_innovation` node.
+- A rival completes `n_llm_research` first → a new `n_llm_distillation` appears ("catch up on the frontier").
+- Missing `n_mobile_os` entirely by 2010 → locked permanently.
+
+Needs:
+- Event system tie-in: listen for `tycoon:rival-research-completed`, `tycoon:market-heat-shift`, `tycoon:era-shift`.
+- Dynamic node pool with `appearsIf` / `obsoletesAt` conditions.
+- UI: new nodes fade in with a "NEW" banner; obsolete nodes greyed out with an explanatory strikethrough.
+- 1-2 day implementation with content design.
+
+---
+
+## Contract deadlines — missed-deadline penalty (small)
+
+Deadline on contract offers is displayed + enforced at acceptance (buffer over dev duration) but there's currently no penalty for blowing past the deadline. `recordContractDelivery` just reads `proj.criticScore` without comparing ship week to `proj.deadline`.
+
+Quick fix:
+- At ship time for `isContract` projects, compare `absoluteWeek()` to `proj.deadline`.
+- Weeks late → critic penalty (−2 per week, capped −15) + star cap (max 3★ if late by any amount).
+- Maybe a fame hit too for repeat offenders.
+
+Size: 30 min. Worth doing — currently there's no pressure to ship contracts on time.

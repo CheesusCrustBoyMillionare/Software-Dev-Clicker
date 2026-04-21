@@ -1202,16 +1202,33 @@
     );
     const bestRpPerWeek = bestTech * 1.2;
 
+    // Pioneer / Fast-Follower rollup — surfaces the current sales multiplier
+    // the player has earned (or lost) from racing rivals on research.
+    const pioneer = window.tycoonResearch?.pioneerSalesMultiplier?.() || null;
+    const pioneerLine = pioneer && (pioneer.pioneerCount + pioneer.fastFollowerCount > 0)
+      ? h('div', { style: { color: pioneer.pct >= 0 ? '#7ee787' : '#f0883e', fontSize:'0.74rem', marginBottom:'8px', fontWeight:600 } },
+          '\uD83C\uDFC6 Legacy: ' + pioneer.pioneerCount + ' Pioneer, ' +
+          pioneer.fastFollowerCount + ' Fast-Follower \u2192 ' +
+          (pioneer.pct >= 0 ? '+' : '') + pioneer.pct + '% launch sales on every ship')
+      : null;
+
     const ov = h('div', { className: 't-modal-ov', id: '_t_research_modal' },
       h('div', { className: 't-modal', style: { maxWidth: '720px' } },
         h('h2', null, '🔬 Research'),
-        h('div', { style: { color: isIdle ? '#f0883e' : '#8b949e', fontSize:'0.8rem', marginBottom:'10px', fontWeight: isIdle ? 600 : 400 } },
+        h('div', { style: { color: isIdle ? '#f0883e' : '#8b949e', fontSize:'0.8rem', marginBottom:'4px', fontWeight: isIdle ? 600 : 400 } },
           (window.tycoonResearch.state().completedCount) + ' completed · ' +
           (ip0
             ? 'Researching ' + window.tycoonResearch.NODE_BY_ID[ip0.nodeId]?.name + ' · ~' + bestRpPerWeek.toFixed(1) + ' RP/week (best Tech ' + bestTech + ' × 1.2)'
             : (anyAvailable
                 ? '⚠ No active research — your Tech stat earns 0 RP/week until you start a node'
                 : 'No active research'))),
+        pioneerLine,
+        // Note on how the new cost + Pioneer system works
+        h('div', { style: { color:'#8b949e', fontSize:'0.68rem', marginBottom:'10px', fontStyle:'italic' } },
+          'Each research charges cash up-front (scales with RP cost). ' +
+          'While researching, the assigned engineer contributes 0 to projects. ' +
+          'Finishing a node first earns \uD83C\uDFC6 Pioneer (+2% ship sales forever); ' +
+          'finishing after a rival tags it Fast-Follower (\u22121%).'),
         ...eraKeys.map(key => {
           const group = byEra[key];
           return h('div', null,
@@ -1343,11 +1360,20 @@
         }}, 'Stop')
       );
     } else if (avail.ok) {
-      rightSide = h('button', { className: 't-btn', onclick: () => {
-        const r = R.start(node.id, 'founder');
-        if (!r.ok) pushToast(r.error);
-        rerenderResearchModal();
-      }}, 'Start');
+      // v11.1: show cash cost on the Start button; disable if not affordable.
+      const cashCost = R.cashCostFor ? R.cashCostFor(node.id) : 0;
+      const canAfford = cashCost === 0 || (S.cash || 0) >= cashCost;
+      rightSide = h('button', {
+        className: 't-btn',
+        disabled: canAfford ? null : true,
+        title: canAfford ? null : 'Need ' + fmtMoney(cashCost) + ' cash to start',
+        onclick: () => {
+          const r = R.start(node.id, 'founder');
+          if (!r.ok) pushToast(r.error);
+          rerenderResearchModal();
+          refreshTopBar();
+        }
+      }, cashCost > 0 ? ('Start — ' + fmtMoney(cashCost)) : 'Start');
     } else {
       rightSide = h('div', { className: 'r-status' }, '🔒 ' + avail.reason);
     }
