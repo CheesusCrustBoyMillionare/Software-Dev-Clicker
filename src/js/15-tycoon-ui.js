@@ -1091,12 +1091,30 @@
     // Sort eras by first node's era year
     const eraKeys = Object.keys(byEra).sort((a,b) => byEra[a].nodes[0].era - byEra[b].nodes[0].era);
 
+    // Compute idle state + best RP/week for header hint and per-node ETAs
+    const ip0 = S.research?.inProgress;
+    let anyAvailable = false;
+    for (const n of nodes) {
+      if (window.tycoonResearch.isCompleted(n.id)) continue;
+      if (window.tycoonResearch.isAvailable(n.id)?.ok) { anyAvailable = true; break; }
+    }
+    const isIdle = !ip0 && anyAvailable;
+    const bestTech = Math.max(
+      S.founder?.stats?.tech || 0,
+      ...((S.employees || []).map(e => e.stats?.tech || 0))
+    );
+    const bestRpPerWeek = bestTech * 1.2;
+
     const ov = h('div', { className: 't-modal-ov', id: '_t_research_modal' },
       h('div', { className: 't-modal', style: { maxWidth: '720px' } },
         h('h2', null, '🔬 Research'),
-        h('div', { style: { color:'#8b949e', fontSize:'0.8rem', marginBottom:'10px' } },
+        h('div', { style: { color: isIdle ? '#f0883e' : '#8b949e', fontSize:'0.8rem', marginBottom:'10px', fontWeight: isIdle ? 600 : 400 } },
           (window.tycoonResearch.state().completedCount) + ' completed · ' +
-          (S.research?.inProgress ? 'Researching ' + window.tycoonResearch.NODE_BY_ID[S.research.inProgress.nodeId]?.name : 'No active research')),
+          (ip0
+            ? 'Researching ' + window.tycoonResearch.NODE_BY_ID[ip0.nodeId]?.name + ' · ~' + bestRpPerWeek.toFixed(1) + ' RP/week (best Tech ' + bestTech + ' × 1.2)'
+            : (anyAvailable
+                ? '⚠ No active research — your Tech stat earns 0 RP/week until you start a node'
+                : 'No active research'))),
         ...eraKeys.map(key => {
           const group = byEra[key];
           return h('div', null,
@@ -1179,13 +1197,39 @@
       return r.icon + ' ' + r.name + ' ' + p.pct + '%';
     }).filter(Boolean);
 
+    // ETA estimate when available and not yet started — helps the player
+    // reason about time-to-complete at their best Tech level.
+    let etaHint = '';
+    if (!isDone && !isInProg && avail.ok) {
+      const bestTech = Math.max(
+        S.founder?.stats?.tech || 0,
+        ...((S.employees || []).map(e => e.stats?.tech || 0))
+      );
+      const rpPerWeek = bestTech * 1.2;
+      if (rpPerWeek > 0) {
+        const wks = Math.ceil(node.rpCost / rpPerWeek);
+        etaHint = ' · ~' + wks + ' week' + (wks === 1 ? '' : 's') + ' at best Tech';
+      }
+    } else if (isInProg) {
+      const eng = (S.founder?.id === ip.engineerId || ip.engineerId === 'founder')
+        ? S.founder
+        : (S.employees || []).find(e => e.id === ip.engineerId);
+      const tech = eng?.stats?.tech || 0;
+      const rpPerWeek = tech * 1.2;
+      if (rpPerWeek > 0) {
+        const remaining = Math.max(0, node.rpCost - ip.rpEarned);
+        const wks = Math.ceil(remaining / rpPerWeek);
+        etaHint = ' · ~' + wks + ' week' + (wks === 1 ? '' : 's') + ' left';
+      }
+    }
+
     const leftSide = h('div', { style: { flex:1, minWidth: 0 } },
       h('div', { className: 'r-name' },
         (categoryIcons[node.category] || '') + ' ' + node.name,
         pioneerBadge
       ),
       h('div', { className: 'r-meta' },
-        node.rpCost + ' RP · ' + (node.category) + (node.era > 1980 ? ' · ' + node.era + '+' : '') +
+        node.rpCost + ' RP' + etaHint + ' · ' + (node.category) + (node.era > 1980 ? ' · ' + node.era + '+' : '') +
         (node.hardware ? ' · ⚙ hw:' + node.hardware : '') +
         (rivalProgs.length ? ' · 🏁 ' + rivalProgs.join(', ') : '') +
         (node.desc ? ' — ' + node.desc : ''))
@@ -1865,11 +1909,27 @@
             onclick: () => openTeamsModal()
           }, label);
         })(),
-        h('button', { className: 't-btn secondary', onclick: () => openResearchModal() }, (() => {
-          const st = window.tycoonResearch?.state?.();
+        (() => {
+          const R = window.tycoonResearch;
+          const st = R?.state?.();
           const ip = st?.inProgress;
-          return '🔬 Research' + (ip ? ' (active)' : st ? ' (' + st.completedCount + ')' : '');
-        })()),
+          // "Idle" = nothing being researched AND at least one node is available
+          // to start right now. Warns the player that their Tech stat is not
+          // converting to RP while no research target is selected.
+          let idle = false;
+          if (!ip && R?.NODES) {
+            for (const n of R.NODES) {
+              if (R.isCompleted(n.id)) continue;
+              if (R.isAvailable(n.id)?.ok) { idle = true; break; }
+            }
+          }
+          const label = '🔬 Research' + (ip ? ' (active)' : st ? ' (' + st.completedCount + ')' : '') + (idle ? ' ⚠' : '');
+          return h('button', {
+            className: 't-btn secondary' + (idle ? ' t-teams-idle' : ''),
+            title: idle ? 'No research in progress — open the Research menu to pick a node' : null,
+            onclick: () => openResearchModal()
+          }, label);
+        })(),
         h('button', { className: 't-btn secondary', onclick: () => openMarketModal() }, '📊 Market'),
         h('button', { className: 't-btn secondary', onclick: () => openFinanceModal() }, '💰 Finance'),
         h('button', { className: 't-btn secondary', onclick: () => openLegacyScreen(S.calendar?.year || 1980, 'retrospective') }, '📜 Hall of Fame')
