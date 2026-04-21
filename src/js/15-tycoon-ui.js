@@ -1799,13 +1799,45 @@
             row('design'),
             row('tech'),
             row('polish'),
-            // Bugs + team speed summary row
-            h('div', { style: { display:'flex', gap:'10px', flexWrap:'wrap', marginTop: '8px' } },
-              h('div', { className: 't-qstat', style: { color: proj.bugs > 50 ? '#f85149' : proj.bugs > 20 ? '#f0883e' : '#8b949e' } },
-                'BUGS ', h('span', { className: 'v' }, String(Math.round(proj.bugs)))),
-              h('div', { className: 't-qstat', title: 'Average team Speed — locked in at phase start. Higher Speed shortens phase duration.' },
-                '⚡ SPEED ', h('span', { className: 'v' }, (window.tycoonProjects?.avgTeamSpeed?.(proj) || 0).toFixed(1)))
-            )
+            // Bugs + team speed — show concrete impact, not just the raw numbers.
+            // Bugs subtract from critic score 1:1 (capped at −30) plus 0.4 per
+            // bug from user score. Speed compresses phase duration by 4% per
+            // point above the 5-baseline (clamped ±30%).
+            (() => {
+              const bugs = Math.round(proj.bugs || 0);
+              const bugCritic = Math.min(30, bugs);
+              const bugUser = +(bugs * 0.4).toFixed(1);
+              const bugColor = bugs > 50 ? '#f85149' : bugs > 20 ? '#f0883e' : bugs > 0 ? '#c9d1d9' : '#8b949e';
+              const avg = window.tycoonProjects?.avgTeamSpeed?.(proj) || 0;
+              const speedMulRaw = 1 - (avg - 5) * 0.04;
+              const speedMul = Math.max(0.7, Math.min(1.3, speedMulRaw));
+              const speedPct = Math.round((1 - speedMul) * 100);  // positive = faster, negative = slower
+              const speedLabel = speedPct === 0 ? 'baseline pace'
+                : speedPct > 0 ? ('phases ' + speedPct + '% faster')
+                : ('phases ' + Math.abs(speedPct) + '% slower');
+              const speedColor = speedPct > 0 ? '#7ee787' : speedPct < 0 ? '#f0883e' : '#8b949e';
+              return h('div', { style: { display:'flex', flexDirection:'column', gap:'6px', marginTop:'8px' } },
+                h('div', {
+                  className: 't-qstat',
+                  style: { color: bugColor },
+                  title: 'Critic score: −1 per bug (capped at −30). User score: additional −0.4 per bug. Polish phase removes bugs.'
+                },
+                  '🐞 BUGS ', h('span', { className: 'v' }, String(bugs)),
+                  h('span', { style: { color:'#8b949e', fontWeight:400, marginLeft:'6px' } },
+                    bugs === 0 ? '→ no impact yet' :
+                    '→ −' + bugCritic + ' critic, −' + bugUser + ' user score')
+                ),
+                h('div', {
+                  className: 't-qstat',
+                  style: { color: speedColor },
+                  title: 'Average team Speed (locked at phase start). Each point above 5 trims 4% off phase duration (clamped ±30%). Only affects timing, not quality.'
+                },
+                  '⚡ SPEED ', h('span', { className: 'v' }, avg.toFixed(1)),
+                  h('span', { style: { color:'#8b949e', fontWeight:400, marginLeft:'6px' } },
+                    '→ ' + speedLabel)
+                )
+              );
+            })()
           );
         })(),
 
