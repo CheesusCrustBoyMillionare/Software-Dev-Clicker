@@ -11281,6 +11281,8 @@ let _clockValidated = false;
   padding: 10px 12px; background: #0d1117; border: 1px solid #21262d;
   border-radius: 4px; margin-bottom: 6px;
 }
+.t-employee-clickable { cursor: pointer; transition: border-color .12s, background .12s; }
+.t-employee-clickable:hover { border-color: #58a6ff; background: #0f1621; }
 .t-employee-row .e-info { flex: 1; min-width: 0; }
 .t-employee-row .e-name { font-weight: 700; color: #f0f6fc; font-size: 0.9rem; }
 .t-employee-row .e-meta { color: #8b949e; font-size: 0.72rem; }
@@ -11332,7 +11334,11 @@ let _clockValidated = false;
     }
     for (const c of children.flat()) {
       if (c == null || c === false) continue;
-      el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+      if (typeof c === 'string' || typeof c === 'number') {
+        el.appendChild(document.createTextNode(String(c)));
+      } else {
+        el.appendChild(c);
+      }
     }
     return el;
   }
@@ -11570,7 +11576,16 @@ let _clockValidated = false;
   function renderEmployeeRow(emp) {
     const s = emp.stats;
     const moralePct = Math.max(0, Math.min(100, emp.morale || 70));
-    return h('div', { className: 't-employee-row' },
+    return h('div', {
+      className: 't-employee-row t-employee-clickable',
+      title: 'Click for details, stats, and actions',
+      onclick: (e) => {
+        // Ignore clicks on inner interactive elements (safety — none today,
+        // but future-proof for in-row controls like quick-fire or reassign).
+        if (e.target.closest('button')) return;
+        openEmployeeDetailModal(emp.id);
+      }
+    },
       h('div', { className: 'e-info' },
         h('div', { className: 'e-name' }, emp.name),
         h('div', { className: 'e-meta' }, emp.tierName + ' · ' + emp.specialty +
@@ -12386,6 +12401,153 @@ let _clockValidated = false;
   // Rich read-only view of an in-development project: phase + smooth progress
   // bar, quality breakdown, team roster, features picked, MC decisions made,
   // and cost accrued. Clicking any active project card opens this modal.
+  // ---------- Employee detail modal ----------
+  // Rich read-only view of a hired engineer — all their stats, traits, origin
+  // story, current project assignment, annual cost, morale, and a Fire action.
+  function openEmployeeDetailModal(empId) {
+    document.getElementById('_t_emp_detail_modal')?.remove();
+    const emp = (S.employees || []).find(e => e.id === empId);
+    if (!emp) return;
+
+    const TIERS = window.TYCOON_TIERS || [];
+    const tierDef = TIERS[emp.tier] || {};
+    const statCap = tierDef.statCap || 10;
+
+    // Which project is this person on right now?
+    const assignedProj = (S.projects?.active || []).find(p =>
+      Array.isArray(p.team) && p.team.includes(emp.id));
+
+    // Morale status label
+    const morale = Math.max(0, Math.min(100, emp.morale || 0));
+    const moraleLbl = morale >= 85 ? { text: 'Thriving', color: '#7ee787' }
+                    : morale >= 60 ? { text: 'Content',  color: '#7ee787' }
+                    : morale >= 40 ? { text: 'Restless', color: '#f0883e' }
+                    : morale >= 20 ? { text: 'Unhappy',  color: '#f85149' }
+                    :                { text: 'Quitting', color: '#f85149' };
+
+    // Origin story (from candidate metadata, if surviving the hire)
+    let originTag = null;
+    if (emp.poachedFromRival) {
+      originTag = h('span', { style:{color:'#ffd33d', fontWeight:700} },
+        '\u26A1 Poached from ' + (emp.poachedFromIcon || '') + ' ' + emp.poachedFromRival);
+    } else if (emp.reqId) {
+      originTag = h('span', { style:{color:'#bc8cff', fontWeight:700} }, '📋 Requisition hire');
+    } else if (emp.referralFromName) {
+      originTag = h('span', { style:{color:'#7ee787', fontWeight:700} },
+        '\uD83E\uDD1D Referred by ' + emp.referralFromName);
+    }
+
+    // Stat bars — shared style with the project detail modal; show out of statCap
+    const statRow = (axis, val, icon, color) => {
+      const pct = Math.min(100, (val / Math.max(1, statCap)) * 100);
+      return h('div', { style: { marginBottom: '5px' } },
+        h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.72rem', marginBottom:'2px' } },
+          h('span', { style: { color, fontWeight: 700 } }, (icon || '') + ' ' + axis.toUpperCase()),
+          h('span', { style: { color: '#c9d1d9', fontVariantNumeric: 'tabular-nums' } }, val + ' / ' + statCap)
+        ),
+        h('div', { style: { height: '6px', background: '#0d1117', border: '1px solid #21262d', borderRadius: '3px', overflow: 'hidden' } },
+          h('div', { style: { width: pct + '%', height: '100%', background: color } })
+        )
+      );
+    };
+
+    // Annual cost vs weekly burn
+    const weeklyCost = Math.round((emp.salary || 0) / 48);
+
+    const ov = h('div', { className: 't-modal-ov', id: '_t_emp_detail_modal' },
+      h('div', { className: 't-modal', style: { maxWidth: '560px' } },
+        // Header
+        h('h2', { style: { margin: '0 0 4px' } }, emp.name),
+        h('div', { style: { color: '#8b949e', fontSize: '0.78rem', marginBottom: '14px' } },
+          emp.tierName + ' \u00b7 ' + emp.specialty +
+          (originTag ? ' \u00b7 ' : ''),
+          originTag
+        ),
+
+        // Stats
+        h('div', { style: { marginBottom: '14px' } },
+          h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700, marginBottom:'6px' } }, 'Stats'),
+          statRow('tech',   emp.stats.tech,   '🛠', '#58a6ff'),
+          statRow('design', emp.stats.design, '🎨', '#bc8cff'),
+          statRow('polish', emp.stats.polish, '✨', '#f0883e'),
+          statRow('speed',  emp.stats.speed,  '⚡', '#7ee787')
+        ),
+
+        // Traits
+        (emp.traits?.length > 0) && h('div', { style: { marginBottom: '14px' } },
+          h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700, marginBottom:'4px' } }, 'Traits'),
+          h('div', { style: { display:'flex', flexWrap:'wrap', gap:'6px' } },
+            ...emp.traits.map(t => {
+              const def = window.TYCOON_TRAITS?.[t];
+              return h('div', {
+                style: { padding:'4px 10px', background:'#0d1117', border:'1px solid #30363d', borderRadius:'3px', fontSize:'0.72rem', color:'#c9d1d9' },
+                title: def?.hint || ''
+              }, '\u2728 ' + t + (def?.hint ? '  (' + def.hint + ')' : ''));
+            })
+          )
+        ),
+
+        // Morale
+        h('div', { style: { marginBottom: '14px' } },
+          h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.72rem', marginBottom:'4px' } },
+            h('span', { style: { color:'#c9d1d9', fontWeight:700 } }, 'Morale'),
+            h('span', { style: { color: moraleLbl.color, fontWeight:700 } }, moraleLbl.text + ' \u00b7 ' + morale + '/100')
+          ),
+          h('div', { style: { height: '8px', background: '#0d1117', border: '1px solid #21262d', borderRadius: '4px', overflow: 'hidden' } },
+            h('div', { style: { width: morale + '%', height: '100%', background: moraleLbl.color } })
+          ),
+          morale < 50 && (emp.tier || 0) >= 3
+            ? h('div', { style: { color:'#f85149', fontSize:'.7rem', marginTop:'4px' } },
+                '\u26A0 Rivals may start making outside offers at morale < 50')
+            : null
+        ),
+
+        // Cost + assignment
+        h('div', { style: { marginBottom: '14px', padding: '10px', background:'#0d1117', border:'1px solid #21262d', borderRadius:'4px' } },
+          h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.78rem', marginBottom:'4px' } },
+            h('span', { style:{color:'#8b949e'} }, 'Salary'),
+            h('span', { style:{color:'#f0883e', fontWeight:700} }, fmtMoney(emp.salary) + '/yr')
+          ),
+          h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.72rem', color:'#8b949e' } },
+            h('span', null, 'Weekly burn contribution'),
+            h('span', null, fmtMoney(weeklyCost) + '/wk')
+          ),
+          h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.72rem', color:'#8b949e', marginTop:'2px' } },
+            h('span', null, 'Education'),
+            h('span', null, '🎓 ' + (emp.education?.flavor || '—'))
+          ),
+          h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.72rem', color:'#8b949e', marginTop:'2px' } },
+            h('span', null, 'Age'),
+            h('span', null, emp.age || '—')
+          ),
+          h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.72rem', color:'#8b949e', marginTop:'2px' } },
+            h('span', null, 'Assigned project'),
+            h('span', { style: { color: assignedProj ? '#c9d1d9' : '#8b949e' } },
+              assignedProj ? assignedProj.name : 'Bench (unassigned)')
+          )
+        ),
+
+        // Actions
+        h('div', { className: 't-modal-actions' },
+          h('button', { className: 't-btn secondary',
+            onclick: () => {
+              if (!confirm('Fire ' + emp.name + '? They\'ll leave immediately; no severance paid.')) return;
+              window.tycoonEmployees?.fire?.(emp.id);
+              document.getElementById('_t_emp_detail_modal')?.remove();
+              pushToast(emp.name + ' has been let go');
+              refreshTopBar();
+              refreshMain();
+            }
+          }, 'Fire'),
+          h('button', { className: 't-btn',
+            onclick: () => document.getElementById('_t_emp_detail_modal')?.remove()
+          }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
+  }
+
   function openActiveProjectModal(projId) {
     // Tear down any existing instance first (idempotent)
     document.getElementById('_t_active_proj_modal')?.remove();
