@@ -338,6 +338,22 @@
   flex: 1; min-width: 0; padding: 5px 8px; font-size: 0.7rem;
 }
 .t-candidate-card.interviewed { border-color: #58a6ff; }
+.t-candidate-card.matched-req { border-color: #bc8cff; background: rgba(188,140,255,0.06); }
+.t-candidate-card.matched-req.interviewed { border-color: #bc8cff; box-shadow: 0 0 0 1px #bc8cff44; }
+
+/* Requisition rows (phase 3) */
+.t-req-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; background: #0d1117; border: 1px solid #30363d;
+  border-radius: 4px; margin-bottom: 6px; font-size: 0.78rem;
+}
+.t-req-row .label { color: #c9d1d9; }
+.t-req-row .meta  { color: #8b949e; font-size: 0.72rem; }
+.t-req-row .close-btn {
+  background: transparent; border: 1px solid #30363d; color: #8b949e;
+  padding: 3px 10px; border-radius: 3px; cursor: pointer; font-size: 0.7rem;
+}
+.t-req-row .close-btn:hover { color: #f85149; border-color: #f85149; }
 
 .t-employee-row {
   display: flex; justify-content: space-between; align-items: center;
@@ -1812,6 +1828,7 @@
       h('div', { className: 't-modal', style: { maxWidth: '760px' } },
         h('h2', null, '💼 Talent Market'),
         renderRecruiterBlock(),
+        renderRequisitionsBlock(),
         renderMarketBody(),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: closeHiringModal }, 'Close')
@@ -1880,6 +1897,102 @@
     },
       header, desc,
       actions.length ? h('div', { style: { display:'flex', gap:'8px', marginTop:'8px' } }, ...actions) : null
+    );
+  }
+
+  // Requisitions block — only rendered when the current recruiter (Head of
+  // People or higher) has postRequisitions unlocked.
+  function renderRequisitionsBlock() {
+    const H = window.tycoonHiring;
+    const recruiter = H?.currentRecruiter?.();
+    if (!recruiter?.postRequisitions) return null;
+    const reqs = S.hiring?.requisitions || [];
+    const maxReqs = H.MAX_ACTIVE_REQS || 3;
+    const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+
+    // Specialty options from PROJECT_TYPES' axis map — use the employee
+    // specialty list directly via a hardcoded set (matches SPECIALTY_AXIS).
+    const SPECIALTY_OPTIONS = ['coder','backend','network','cloud','frontend','webdev','gamedev','agent','mobile','devops'];
+    const TIERS = window.TYCOON_TIERS || [];
+
+    // Local form state
+    const formState = renderRequisitionsBlock._state = renderRequisitionsBlock._state || {
+      specialty: 'coder', tier: 1, showForm: false,
+    };
+    const setState = (k, v) => { formState[k] = v; rerenderHiringModal(); };
+
+    // Post button + inline form
+    const canPost = reqs.length < maxReqs;
+    const header = h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'6px' } },
+      h('div', { style: { color:'#bc8cff', fontWeight:700, fontSize:'0.82rem' } },
+        '📋 Requisitions (' + reqs.length + '/' + maxReqs + ')'),
+      canPost
+        ? h('button', { className: 't-btn secondary',
+            style: { padding:'4px 10px', fontSize:'0.72rem' },
+            onclick: () => setState('showForm', !formState.showForm)
+          }, formState.showForm ? 'Cancel' : '+ Post Req')
+        : h('div', { style: { color:'#8b949e', fontSize:'0.7rem' } }, 'Max reached — close one first')
+    );
+
+    let form = null;
+    if (formState.showForm && canPost) {
+      form = h('div', {
+        style: { padding:'10px', background:'rgba(188,140,255,0.05)', border:'1px dashed #bc8cff', borderRadius:'4px', marginBottom:'8px', fontSize:'0.78rem', display:'flex', flexWrap:'wrap', alignItems:'center', gap:'8px' }
+      },
+        h('span', { style:{color:'#c9d1d9'} }, 'Source a'),
+        h('select', {
+          value: formState.tier,
+          onchange: (e) => { formState.tier = parseInt(e.target.value, 10); rerenderHiringModal(); },
+          style: { padding:'4px 8px', background:'#0d1117', color:'#c9d1d9', border:'1px solid #30363d', borderRadius:'3px' }
+        },
+          ...TIERS.slice(0, 6).map((t, idx) => h('option', { value: idx, selected: formState.tier === idx ? true : null }, t.name))
+        ),
+        h('select', {
+          value: formState.specialty,
+          onchange: (e) => { formState.specialty = e.target.value; rerenderHiringModal(); },
+          style: { padding:'4px 8px', background:'#0d1117', color:'#c9d1d9', border:'1px solid #30363d', borderRadius:'3px' }
+        },
+          ...SPECIALTY_OPTIONS.map(s => h('option', { value: s, selected: formState.specialty === s ? true : null }, s))
+        ),
+        h('span', { style:{color:'#8b949e'} }, '\u00b7 ' + H.REQ_DEFAULT_DURATION_WEEKS + ' weeks'),
+        h('button', { className: 't-btn', style: { padding:'4px 12px', fontSize:'0.75rem' },
+          onclick: () => {
+            const r = H.postRequisition({ specialty: formState.specialty, tier: formState.tier });
+            if (!r.ok) { pushToast(r.error); return; }
+            formState.showForm = false;
+            pushToast('📋 Requisition posted');
+            rerenderHiringModal();
+            refreshMain();
+          }
+        }, 'Post'),
+      );
+    }
+
+    const reqRows = reqs.length === 0 && !form
+      ? h('div', { style: { color:'#8b949e', fontSize:'0.72rem', fontStyle:'italic', padding:'4px 0' } },
+          'No active requisitions. Post one to steer ' + (recruiter.candidatesPerTick || 1) + '-per-week sourcing toward a specific role.')
+      : reqs.map(r => {
+          const tierDef = TIERS[r.tier];
+          const weeksLeft = r.expiresAtWeek - currentWeek;
+          return h('div', { className: 't-req-row' },
+            h('div', null,
+              h('div', { className: 'label' },
+                '📋 ' + (tierDef?.name || 'Tier ' + r.tier) + ' · ' + r.specialty),
+              h('div', { className: 'meta' },
+                weeksLeft + ' week' + (weeksLeft === 1 ? '' : 's') + ' left · ' +
+                (r.matchedCount || 0) + ' matched so far')
+            ),
+            h('button', {
+              className: 'close-btn',
+              onclick: () => { H.closeRequisition(r.id); pushToast('Requisition closed'); rerenderHiringModal(); }
+            }, 'Close')
+          );
+        });
+
+    return h('div', { style: { marginBottom: '12px', padding: '10px 12px', background: 'rgba(188,140,255,0.04)', border: '1px solid #3a2a5c', borderRadius: '6px' } },
+      header,
+      form,
+      ...(Array.isArray(reqRows) ? reqRows : [reqRows])
     );
   }
 
@@ -1955,6 +2068,8 @@
     inner.appendChild(h('h2', null, '💼 Talent Market'));
     const recBlock = renderRecruiterBlock();
     if (recBlock) inner.appendChild(recBlock);
+    const reqBlock = renderRequisitionsBlock();
+    if (reqBlock) inner.appendChild(reqBlock);
     inner.appendChild(renderMarketBody());
     inner.appendChild(h('div', { className: 't-modal-actions' },
       h('button', { className: 't-btn', onclick: closeHiringModal }, 'Close')
@@ -1962,7 +2077,11 @@
   }
 
   function renderCandidateCard(c) {
-    const card = h('div', { className: 't-candidate-card' + (c.interviewed ? ' interviewed' : '') },
+    // Highlight candidates that arrived via a posted requisition
+    const cardClasses = 't-candidate-card' + (c.interviewed ? ' interviewed' : '') + (c.reqId ? ' matched-req' : '');
+    const reqBadge = c.reqId ? h('div', { style: { color: '#bc8cff', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } }, '📋 FROM REQUISITION') : null;
+    const card = h('div', { className: cardClasses },
+      reqBadge,
       h('div', { className: 'c-top' },
         h('div', null,
           h('div', { className: 'c-name' }, c.name),

@@ -41,11 +41,25 @@
       icon: '\uD83D\uDC64',
       annualSalary: 50000,   // ~$4.2K/month
       intervalWeeks: 1,      // candidate flow doubled
+      candidatesPerTick: 1,
       filterBySpecialty: true,
       postRequisitions: false,
       referrals: false,
       poaching: false,
       desc: 'A dedicated recruiter doubles candidate flow and lets you filter the market by specialty.',
+    },
+    {
+      tier: 2,
+      name: 'Head of People',
+      icon: '\uD83C\uDFE2',
+      annualSalary: 180000,  // ~$15K/month
+      intervalWeeks: 1,
+      candidatesPerTick: 2,  // 2 candidates per week → effective 2/wk flow
+      filterBySpecialty: true,
+      postRequisitions: true,
+      referrals: false,
+      poaching: false,
+      desc: 'A full-time hiring lead. 2 candidates per week AND you can post requisitions targeting a specific specialty + tier — matched applicants trickle in over the req\u2019s lifetime.',
     },
   ];
   const RECRUITER_BY_TIER = Object.fromEntries(RECRUITER_TIERS.map(r => [r.tier, r]));
@@ -58,11 +72,17 @@
 
   // ---------- Candidate queue ----------
   // Lives in S.hiring.queue so it persists with save
+  const MAX_ACTIVE_REQS = 3;
+  const REQ_DEFAULT_DURATION_WEEKS = 6;
+  // Probability that a new candidate is tailored to an active req (vs. random)
+  const REQ_MATCH_PROB = 0.6;
+
   function ensureState() {
-    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0, lastViewedAtWeek: 0, recruiterTier: 0, specialtyFilter: null };
+    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0, lastViewedAtWeek: 0, recruiterTier: 0, specialtyFilter: null, requisitions: [] };
     if (!Array.isArray(S.hiring.queue)) S.hiring.queue = [];
     if (typeof S.hiring.lastViewedAtWeek !== 'number') S.hiring.lastViewedAtWeek = 0;
     if (typeof S.hiring.recruiterTier !== 'number') S.hiring.recruiterTier = 0;
+    if (!Array.isArray(S.hiring.requisitions)) S.hiring.requisitions = [];
   }
 
   // Public helper for the UI so it can mark "seen" when the player opens the
@@ -81,21 +101,87 @@
   function generateCandidateInMarket() {
     ensureState();
     if (S.hiring.queue.length >= MAX_QUEUE) return null;
-    const c = window.tycoonEmployees.generateCandidate();
-    c.fairId = ++S.hiring.fairIndex;  // still a unique id per candidate
+
+    // If an active req exists AND current recruiter can post reqs, the
+    // candidate is weighted toward matching a random active req.
+    let matchedReq = null;
+    const reqs = S.hiring.requisitions || [];
+    const canPost = !!currentRecruiter().postRequisitions;
+    const opts = {};
+    if (canPost && reqs.length > 0 && Math.random() < REQ_MATCH_PROB) {
+      matchedReq = reqs[Math.floor(Math.random() * reqs.length)];
+      if (matchedReq.specialty) opts.specialty = matchedReq.specialty;
+      if (typeof matchedReq.tier === 'number') opts.tier = matchedReq.tier;
+    }
+
+    const c = window.tycoonEmployees.generateCandidate(opts);
+    c.fairId = ++S.hiring.fairIndex;
     c.offeredAtWeek = window.tycoonProjects.absoluteWeek();
     c.expiresAtWeek = c.offeredAtWeek + CANDIDATE_LIFETIME_WEEKS;
+    if (matchedReq) {
+      c.reqId = matchedReq.id;
+      matchedReq.matchedCount = (matchedReq.matchedCount || 0) + 1;
+    }
     S.hiring.queue.push(c);
     if (typeof markDirty === 'function') markDirty();
-    if (typeof log === 'function') log('💼 New candidate on the market: ' + c.name + ' (' + c.tierName + ' · ' + c.specialty + ')');
+    const tag = matchedReq ? ' [matches req]' : '';
+    if (typeof log === 'function') log('💼 New candidate: ' + c.name + ' (' + c.tierName + ' · ' + c.specialty + ')' + tag);
     // Event name kept as 'tycoon:hiring-fair' for backwards compat with the
     // hint system (first-fair tutorial) even though the semantics are now
     // "a candidate arrived." UI listener shows a toast but does NOT auto-
     // open the modal — player decides when to engage.
     document.dispatchEvent(new CustomEvent('tycoon:hiring-fair', {
-      detail: { fairId: c.fairId, candidates: [c] }
+      detail: { fairId: c.fairId, candidates: [c], matchedReq: matchedReq?.id || null }
     }));
     return c;
+  }
+
+  // ---------- Requisitions (Phase 3) ----------
+  function postRequisition(cfg) {
+    ensureState();
+    if (!currentRecruiter().postRequisitions) {
+      return { ok: false, error: 'Requires a Head of People on staff' };
+    }
+    if ((S.hiring.requisitions || []).length >= MAX_ACTIVE_REQS) {
+      return { ok: false, error: 'Max ' + MAX_ACTIVE_REQS + ' active requisitions — close one first' };
+    }
+    if (!cfg || !cfg.specialty || typeof cfg.tier !== 'number') {
+      return { ok: false, error: 'Specialty and tier required' };
+    }
+    const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    const durationWeeks = cfg.durationWeeks || REQ_DEFAULT_DURATION_WEEKS;
+    const req = {
+      id: 'req_' + (S.hiring.fairIndex++ + 1).toString(36) + '_' + (currentWeek % 997),
+      specialty: cfg.specialty,
+      tier: cfg.tier,
+      targetSalary: cfg.targetSalary || null,
+      postedAtWeek: currentWeek,
+      expiresAtWeek: currentWeek + durationWeeks,
+      durationWeeks,
+      matchedCount: 0,
+    };
+    S.hiring.requisitions.push(req);
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('📋 Posted requisition: ' + cfg.specialty + ' · tier ' + cfg.tier + ' (' + durationWeeks + ' weeks)');
+    document.dispatchEvent(new CustomEvent('tycoon:req-posted', { detail: { req } }));
+    return { ok: true, req };
+  }
+
+  function closeRequisition(reqId) {
+    ensureState();
+    S.hiring.requisitions = (S.hiring.requisitions || []).filter(r => r.id !== reqId);
+    if (typeof markDirty === 'function') markDirty();
+  }
+
+  function cleanupExpiredRequisitions() {
+    if (!S.hiring || !S.hiring.requisitions) return;
+    const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    const before = S.hiring.requisitions.length;
+    S.hiring.requisitions = S.hiring.requisitions.filter(r => r.expiresAtWeek > currentWeek);
+    const expired = before - S.hiring.requisitions.length;
+    if (expired > 0 && typeof log === 'function') {
+      log('📋 ' + expired + ' requisition' + (expired > 1 ? 's' : '') + ' expired');
+    }
   }
 
   // ---------- Cleanup expired candidates ----------
@@ -114,10 +200,13 @@
   function onWeekTick() {
     ensureState();
     cleanupExpired();
+    cleanupExpiredRequisitions();
     _weeksUntilNextCandidate -= 1;
     if (_weeksUntilNextCandidate <= 0) {
-      generateCandidateInMarket();
-      _weeksUntilNextCandidate = currentRecruiter().intervalWeeks;
+      const r = currentRecruiter();
+      const count = r.candidatesPerTick || 1;
+      for (let i = 0; i < count; i++) generateCandidateInMarket();
+      _weeksUntilNextCandidate = r.intervalWeeks;
     }
   }
 
@@ -237,6 +326,11 @@
     currentRecruiter,
     recruiterAnnualSalary,
     RECRUITER_TIERS,
+    // Requisitions (Phase 3)
+    postRequisition,
+    closeRequisition,
+    MAX_ACTIVE_REQS,
+    REQ_DEFAULT_DURATION_WEEKS,
     INTERVIEW_COST,
     BASE_CANDIDATE_INTERVAL_WEEKS,
     CANDIDATE_LIFETIME_WEEKS,

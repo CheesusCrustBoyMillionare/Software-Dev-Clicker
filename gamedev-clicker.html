@@ -11248,6 +11248,22 @@ let _clockValidated = false;
   flex: 1; min-width: 0; padding: 5px 8px; font-size: 0.7rem;
 }
 .t-candidate-card.interviewed { border-color: #58a6ff; }
+.t-candidate-card.matched-req { border-color: #bc8cff; background: rgba(188,140,255,0.06); }
+.t-candidate-card.matched-req.interviewed { border-color: #bc8cff; box-shadow: 0 0 0 1px #bc8cff44; }
+
+/* Requisition rows (phase 3) */
+.t-req-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; background: #0d1117; border: 1px solid #30363d;
+  border-radius: 4px; margin-bottom: 6px; font-size: 0.78rem;
+}
+.t-req-row .label { color: #c9d1d9; }
+.t-req-row .meta  { color: #8b949e; font-size: 0.72rem; }
+.t-req-row .close-btn {
+  background: transparent; border: 1px solid #30363d; color: #8b949e;
+  padding: 3px 10px; border-radius: 3px; cursor: pointer; font-size: 0.7rem;
+}
+.t-req-row .close-btn:hover { color: #f85149; border-color: #f85149; }
 
 .t-employee-row {
   display: flex; justify-content: space-between; align-items: center;
@@ -12722,6 +12738,7 @@ let _clockValidated = false;
       h('div', { className: 't-modal', style: { maxWidth: '760px' } },
         h('h2', null, '💼 Talent Market'),
         renderRecruiterBlock(),
+        renderRequisitionsBlock(),
         renderMarketBody(),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: closeHiringModal }, 'Close')
@@ -12790,6 +12807,102 @@ let _clockValidated = false;
     },
       header, desc,
       actions.length ? h('div', { style: { display:'flex', gap:'8px', marginTop:'8px' } }, ...actions) : null
+    );
+  }
+
+  // Requisitions block — only rendered when the current recruiter (Head of
+  // People or higher) has postRequisitions unlocked.
+  function renderRequisitionsBlock() {
+    const H = window.tycoonHiring;
+    const recruiter = H?.currentRecruiter?.();
+    if (!recruiter?.postRequisitions) return null;
+    const reqs = S.hiring?.requisitions || [];
+    const maxReqs = H.MAX_ACTIVE_REQS || 3;
+    const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+
+    // Specialty options from PROJECT_TYPES' axis map — use the employee
+    // specialty list directly via a hardcoded set (matches SPECIALTY_AXIS).
+    const SPECIALTY_OPTIONS = ['coder','backend','network','cloud','frontend','webdev','gamedev','agent','mobile','devops'];
+    const TIERS = window.TYCOON_TIERS || [];
+
+    // Local form state
+    const formState = renderRequisitionsBlock._state = renderRequisitionsBlock._state || {
+      specialty: 'coder', tier: 1, showForm: false,
+    };
+    const setState = (k, v) => { formState[k] = v; rerenderHiringModal(); };
+
+    // Post button + inline form
+    const canPost = reqs.length < maxReqs;
+    const header = h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'6px' } },
+      h('div', { style: { color:'#bc8cff', fontWeight:700, fontSize:'0.82rem' } },
+        '📋 Requisitions (' + reqs.length + '/' + maxReqs + ')'),
+      canPost
+        ? h('button', { className: 't-btn secondary',
+            style: { padding:'4px 10px', fontSize:'0.72rem' },
+            onclick: () => setState('showForm', !formState.showForm)
+          }, formState.showForm ? 'Cancel' : '+ Post Req')
+        : h('div', { style: { color:'#8b949e', fontSize:'0.7rem' } }, 'Max reached — close one first')
+    );
+
+    let form = null;
+    if (formState.showForm && canPost) {
+      form = h('div', {
+        style: { padding:'10px', background:'rgba(188,140,255,0.05)', border:'1px dashed #bc8cff', borderRadius:'4px', marginBottom:'8px', fontSize:'0.78rem', display:'flex', flexWrap:'wrap', alignItems:'center', gap:'8px' }
+      },
+        h('span', { style:{color:'#c9d1d9'} }, 'Source a'),
+        h('select', {
+          value: formState.tier,
+          onchange: (e) => { formState.tier = parseInt(e.target.value, 10); rerenderHiringModal(); },
+          style: { padding:'4px 8px', background:'#0d1117', color:'#c9d1d9', border:'1px solid #30363d', borderRadius:'3px' }
+        },
+          ...TIERS.slice(0, 6).map((t, idx) => h('option', { value: idx, selected: formState.tier === idx ? true : null }, t.name))
+        ),
+        h('select', {
+          value: formState.specialty,
+          onchange: (e) => { formState.specialty = e.target.value; rerenderHiringModal(); },
+          style: { padding:'4px 8px', background:'#0d1117', color:'#c9d1d9', border:'1px solid #30363d', borderRadius:'3px' }
+        },
+          ...SPECIALTY_OPTIONS.map(s => h('option', { value: s, selected: formState.specialty === s ? true : null }, s))
+        ),
+        h('span', { style:{color:'#8b949e'} }, '\u00b7 ' + H.REQ_DEFAULT_DURATION_WEEKS + ' weeks'),
+        h('button', { className: 't-btn', style: { padding:'4px 12px', fontSize:'0.75rem' },
+          onclick: () => {
+            const r = H.postRequisition({ specialty: formState.specialty, tier: formState.tier });
+            if (!r.ok) { pushToast(r.error); return; }
+            formState.showForm = false;
+            pushToast('📋 Requisition posted');
+            rerenderHiringModal();
+            refreshMain();
+          }
+        }, 'Post'),
+      );
+    }
+
+    const reqRows = reqs.length === 0 && !form
+      ? h('div', { style: { color:'#8b949e', fontSize:'0.72rem', fontStyle:'italic', padding:'4px 0' } },
+          'No active requisitions. Post one to steer ' + (recruiter.candidatesPerTick || 1) + '-per-week sourcing toward a specific role.')
+      : reqs.map(r => {
+          const tierDef = TIERS[r.tier];
+          const weeksLeft = r.expiresAtWeek - currentWeek;
+          return h('div', { className: 't-req-row' },
+            h('div', null,
+              h('div', { className: 'label' },
+                '📋 ' + (tierDef?.name || 'Tier ' + r.tier) + ' · ' + r.specialty),
+              h('div', { className: 'meta' },
+                weeksLeft + ' week' + (weeksLeft === 1 ? '' : 's') + ' left · ' +
+                (r.matchedCount || 0) + ' matched so far')
+            ),
+            h('button', {
+              className: 'close-btn',
+              onclick: () => { H.closeRequisition(r.id); pushToast('Requisition closed'); rerenderHiringModal(); }
+            }, 'Close')
+          );
+        });
+
+    return h('div', { style: { marginBottom: '12px', padding: '10px 12px', background: 'rgba(188,140,255,0.04)', border: '1px solid #3a2a5c', borderRadius: '6px' } },
+      header,
+      form,
+      ...(Array.isArray(reqRows) ? reqRows : [reqRows])
     );
   }
 
@@ -12865,6 +12978,8 @@ let _clockValidated = false;
     inner.appendChild(h('h2', null, '💼 Talent Market'));
     const recBlock = renderRecruiterBlock();
     if (recBlock) inner.appendChild(recBlock);
+    const reqBlock = renderRequisitionsBlock();
+    if (reqBlock) inner.appendChild(reqBlock);
     inner.appendChild(renderMarketBody());
     inner.appendChild(h('div', { className: 't-modal-actions' },
       h('button', { className: 't-btn', onclick: closeHiringModal }, 'Close')
@@ -12872,7 +12987,11 @@ let _clockValidated = false;
   }
 
   function renderCandidateCard(c) {
-    const card = h('div', { className: 't-candidate-card' + (c.interviewed ? ' interviewed' : '') },
+    // Highlight candidates that arrived via a posted requisition
+    const cardClasses = 't-candidate-card' + (c.interviewed ? ' interviewed' : '') + (c.reqId ? ' matched-req' : '');
+    const reqBadge = c.reqId ? h('div', { style: { color: '#bc8cff', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } }, '📋 FROM REQUISITION') : null;
+    const card = h('div', { className: cardClasses },
+      reqBadge,
       h('div', { className: 'c-top' },
         h('div', null,
           h('div', { className: 'c-name' }, c.name),
@@ -15502,11 +15621,25 @@ let _clockValidated = false;
       icon: '\uD83D\uDC64',
       annualSalary: 50000,   // ~$4.2K/month
       intervalWeeks: 1,      // candidate flow doubled
+      candidatesPerTick: 1,
       filterBySpecialty: true,
       postRequisitions: false,
       referrals: false,
       poaching: false,
       desc: 'A dedicated recruiter doubles candidate flow and lets you filter the market by specialty.',
+    },
+    {
+      tier: 2,
+      name: 'Head of People',
+      icon: '\uD83C\uDFE2',
+      annualSalary: 180000,  // ~$15K/month
+      intervalWeeks: 1,
+      candidatesPerTick: 2,  // 2 candidates per week → effective 2/wk flow
+      filterBySpecialty: true,
+      postRequisitions: true,
+      referrals: false,
+      poaching: false,
+      desc: 'A full-time hiring lead. 2 candidates per week AND you can post requisitions targeting a specific specialty + tier — matched applicants trickle in over the req\u2019s lifetime.',
     },
   ];
   const RECRUITER_BY_TIER = Object.fromEntries(RECRUITER_TIERS.map(r => [r.tier, r]));
@@ -15519,11 +15652,17 @@ let _clockValidated = false;
 
   // ---------- Candidate queue ----------
   // Lives in S.hiring.queue so it persists with save
+  const MAX_ACTIVE_REQS = 3;
+  const REQ_DEFAULT_DURATION_WEEKS = 6;
+  // Probability that a new candidate is tailored to an active req (vs. random)
+  const REQ_MATCH_PROB = 0.6;
+
   function ensureState() {
-    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0, lastViewedAtWeek: 0, recruiterTier: 0, specialtyFilter: null };
+    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0, lastViewedAtWeek: 0, recruiterTier: 0, specialtyFilter: null, requisitions: [] };
     if (!Array.isArray(S.hiring.queue)) S.hiring.queue = [];
     if (typeof S.hiring.lastViewedAtWeek !== 'number') S.hiring.lastViewedAtWeek = 0;
     if (typeof S.hiring.recruiterTier !== 'number') S.hiring.recruiterTier = 0;
+    if (!Array.isArray(S.hiring.requisitions)) S.hiring.requisitions = [];
   }
 
   // Public helper for the UI so it can mark "seen" when the player opens the
@@ -15542,21 +15681,87 @@ let _clockValidated = false;
   function generateCandidateInMarket() {
     ensureState();
     if (S.hiring.queue.length >= MAX_QUEUE) return null;
-    const c = window.tycoonEmployees.generateCandidate();
-    c.fairId = ++S.hiring.fairIndex;  // still a unique id per candidate
+
+    // If an active req exists AND current recruiter can post reqs, the
+    // candidate is weighted toward matching a random active req.
+    let matchedReq = null;
+    const reqs = S.hiring.requisitions || [];
+    const canPost = !!currentRecruiter().postRequisitions;
+    const opts = {};
+    if (canPost && reqs.length > 0 && Math.random() < REQ_MATCH_PROB) {
+      matchedReq = reqs[Math.floor(Math.random() * reqs.length)];
+      if (matchedReq.specialty) opts.specialty = matchedReq.specialty;
+      if (typeof matchedReq.tier === 'number') opts.tier = matchedReq.tier;
+    }
+
+    const c = window.tycoonEmployees.generateCandidate(opts);
+    c.fairId = ++S.hiring.fairIndex;
     c.offeredAtWeek = window.tycoonProjects.absoluteWeek();
     c.expiresAtWeek = c.offeredAtWeek + CANDIDATE_LIFETIME_WEEKS;
+    if (matchedReq) {
+      c.reqId = matchedReq.id;
+      matchedReq.matchedCount = (matchedReq.matchedCount || 0) + 1;
+    }
     S.hiring.queue.push(c);
     if (typeof markDirty === 'function') markDirty();
-    if (typeof log === 'function') log('💼 New candidate on the market: ' + c.name + ' (' + c.tierName + ' · ' + c.specialty + ')');
+    const tag = matchedReq ? ' [matches req]' : '';
+    if (typeof log === 'function') log('💼 New candidate: ' + c.name + ' (' + c.tierName + ' · ' + c.specialty + ')' + tag);
     // Event name kept as 'tycoon:hiring-fair' for backwards compat with the
     // hint system (first-fair tutorial) even though the semantics are now
     // "a candidate arrived." UI listener shows a toast but does NOT auto-
     // open the modal — player decides when to engage.
     document.dispatchEvent(new CustomEvent('tycoon:hiring-fair', {
-      detail: { fairId: c.fairId, candidates: [c] }
+      detail: { fairId: c.fairId, candidates: [c], matchedReq: matchedReq?.id || null }
     }));
     return c;
+  }
+
+  // ---------- Requisitions (Phase 3) ----------
+  function postRequisition(cfg) {
+    ensureState();
+    if (!currentRecruiter().postRequisitions) {
+      return { ok: false, error: 'Requires a Head of People on staff' };
+    }
+    if ((S.hiring.requisitions || []).length >= MAX_ACTIVE_REQS) {
+      return { ok: false, error: 'Max ' + MAX_ACTIVE_REQS + ' active requisitions — close one first' };
+    }
+    if (!cfg || !cfg.specialty || typeof cfg.tier !== 'number') {
+      return { ok: false, error: 'Specialty and tier required' };
+    }
+    const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    const durationWeeks = cfg.durationWeeks || REQ_DEFAULT_DURATION_WEEKS;
+    const req = {
+      id: 'req_' + (S.hiring.fairIndex++ + 1).toString(36) + '_' + (currentWeek % 997),
+      specialty: cfg.specialty,
+      tier: cfg.tier,
+      targetSalary: cfg.targetSalary || null,
+      postedAtWeek: currentWeek,
+      expiresAtWeek: currentWeek + durationWeeks,
+      durationWeeks,
+      matchedCount: 0,
+    };
+    S.hiring.requisitions.push(req);
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('📋 Posted requisition: ' + cfg.specialty + ' · tier ' + cfg.tier + ' (' + durationWeeks + ' weeks)');
+    document.dispatchEvent(new CustomEvent('tycoon:req-posted', { detail: { req } }));
+    return { ok: true, req };
+  }
+
+  function closeRequisition(reqId) {
+    ensureState();
+    S.hiring.requisitions = (S.hiring.requisitions || []).filter(r => r.id !== reqId);
+    if (typeof markDirty === 'function') markDirty();
+  }
+
+  function cleanupExpiredRequisitions() {
+    if (!S.hiring || !S.hiring.requisitions) return;
+    const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    const before = S.hiring.requisitions.length;
+    S.hiring.requisitions = S.hiring.requisitions.filter(r => r.expiresAtWeek > currentWeek);
+    const expired = before - S.hiring.requisitions.length;
+    if (expired > 0 && typeof log === 'function') {
+      log('📋 ' + expired + ' requisition' + (expired > 1 ? 's' : '') + ' expired');
+    }
   }
 
   // ---------- Cleanup expired candidates ----------
@@ -15575,10 +15780,13 @@ let _clockValidated = false;
   function onWeekTick() {
     ensureState();
     cleanupExpired();
+    cleanupExpiredRequisitions();
     _weeksUntilNextCandidate -= 1;
     if (_weeksUntilNextCandidate <= 0) {
-      generateCandidateInMarket();
-      _weeksUntilNextCandidate = currentRecruiter().intervalWeeks;
+      const r = currentRecruiter();
+      const count = r.candidatesPerTick || 1;
+      for (let i = 0; i < count; i++) generateCandidateInMarket();
+      _weeksUntilNextCandidate = r.intervalWeeks;
     }
   }
 
@@ -15698,6 +15906,11 @@ let _clockValidated = false;
     currentRecruiter,
     recruiterAnnualSalary,
     RECRUITER_TIERS,
+    // Requisitions (Phase 3)
+    postRequisition,
+    closeRequisition,
+    MAX_ACTIVE_REQS,
+    REQ_DEFAULT_DURATION_WEEKS,
     INTERVIEW_COST,
     BASE_CANDIDATE_INTERVAL_WEEKS,
     CANDIDATE_LIFETIME_WEEKS,
