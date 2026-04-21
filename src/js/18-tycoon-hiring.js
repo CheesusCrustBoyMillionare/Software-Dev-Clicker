@@ -91,11 +91,12 @@
   const REQ_MATCH_PROB = 0.6;
 
   function ensureState() {
-    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0, lastViewedAtWeek: 0, recruiterTier: 0, specialtyFilter: null, requisitions: [] };
+    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0, lastViewedAtWeek: 0, recruiterTier: 0, specialtyFilter: null, requisitions: [], outsideOffers: [] };
     if (!Array.isArray(S.hiring.queue)) S.hiring.queue = [];
     if (typeof S.hiring.lastViewedAtWeek !== 'number') S.hiring.lastViewedAtWeek = 0;
     if (typeof S.hiring.recruiterTier !== 'number') S.hiring.recruiterTier = 0;
     if (!Array.isArray(S.hiring.requisitions)) S.hiring.requisitions = [];
+    if (!Array.isArray(S.hiring.outsideOffers)) S.hiring.outsideOffers = [];
   }
 
   // Public helper for the UI so it can mark "seen" when the player opens the
@@ -223,6 +224,140 @@
     }
     // Phase 4: referrals from happy employees (tier 3+)
     if (currentRecruiter().referrals) maybeGenerateReferral();
+    // Phase 4b: reverse poaching — rivals poach YOUR low-morale seniors
+    processOutsideOffers();
+    maybeGenerateOutsideOffer();
+  }
+
+  // ---------- Reverse poaching (Phase 4b) ----------
+  // Each week, each tier-3+ employee with morale < REVERSE_POACH_MIN_MORALE has
+  // a small chance to receive an outside offer from an active rival. The
+  // player can Match (pay the new salary), Exceed (pay +20%, morale bump),
+  // or Decline (employee leaves). Unanswered offers auto-expire.
+  const REVERSE_POACH_MIN_MORALE = 50;
+  const REVERSE_POACH_MIN_TIER = 3;              // Senior Dev+
+  const REVERSE_POACH_WEEKLY_PROB = 0.04;        // ~1 per 25 weeks per eligible emp
+  const OUTSIDE_OFFER_DURATION_WEEKS = 3;
+
+  function maybeGenerateOutsideOffer() {
+    ensureState();
+    const rivals = (S.rivals || []).filter(r => r.status === 'active');
+    if (!rivals.length) return;
+    const candidates = (S.employees || []).filter(e =>
+      (e.tier || 0) >= REVERSE_POACH_MIN_TIER &&
+      (e.morale || 0) < REVERSE_POACH_MIN_MORALE &&
+      !S.hiring.outsideOffers.some(o => o.employeeId === e.id)
+    );
+    if (!candidates.length) return;
+    for (const emp of candidates) {
+      if (Math.random() >= REVERSE_POACH_WEEKLY_PROB) continue;
+      const rival = rivals[Math.floor(Math.random() * rivals.length)];
+      const bump = 1.2 + Math.random() * 0.2;  // 1.20x to 1.40x
+      const newSalary = Math.round((emp.salary || 0) * bump);
+      const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+      const offer = {
+        id: 'poach_' + (S.hiring.fairIndex++).toString(36) + '_' + emp.id,
+        employeeId: emp.id,
+        employeeName: emp.name,
+        employeeTierName: emp.tierName,
+        employeeSpecialty: emp.specialty,
+        currentSalary: emp.salary,
+        newSalary,
+        rivalId: rival.id,
+        rivalName: rival.name,
+        rivalIcon: rival.icon,
+        postedAtWeek: currentWeek,
+        expiresAtWeek: currentWeek + OUTSIDE_OFFER_DURATION_WEEKS,
+      };
+      S.hiring.outsideOffers.push(offer);
+      if (typeof markDirty === 'function') markDirty();
+      if (typeof log === 'function') {
+        log('\u{1F4E8} ' + (rival.icon || '') + ' ' + rival.name + ' made ' + emp.name + ' an offer ($' +
+            (newSalary/1000).toFixed(0) + 'K, vs your $' + ((emp.salary||0)/1000).toFixed(0) + 'K)');
+      }
+      document.dispatchEvent(new CustomEvent('tycoon:outside-offer', { detail: { offer } }));
+      return;  // one per tick max
+    }
+  }
+
+  function processOutsideOffers() {
+    if (!S.hiring || !S.hiring.outsideOffers) return;
+    const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    const expired = S.hiring.outsideOffers.filter(o => o.expiresAtWeek <= currentWeek);
+    if (expired.length === 0) return;
+    for (const o of expired) {
+      // Auto-leave: employee quits for the rival
+      loseEmployeeToRival(o, /*silent=*/false);
+    }
+    S.hiring.outsideOffers = S.hiring.outsideOffers.filter(o => o.expiresAtWeek > currentWeek);
+    if (typeof markDirty === 'function') markDirty();
+  }
+
+  function loseEmployeeToRival(offer, silent) {
+    const emp = (S.employees || []).find(e => e.id === offer.employeeId);
+    if (!emp) return;
+    S.employees = S.employees.filter(e => e.id !== offer.employeeId);
+    // Detach from any project teams
+    for (const p of (S.projects?.active || [])) {
+      if (Array.isArray(p.team)) p.team = p.team.filter(id => id !== offer.employeeId);
+    }
+    if (!silent && typeof log === 'function') {
+      log('\u{1F4A8} ' + emp.name + ' left for ' + (offer.rivalIcon || '') + ' ' + offer.rivalName);
+    }
+    document.dispatchEvent(new CustomEvent('tycoon:employee-departed', {
+      detail: { employeeId: emp.id, toRivalId: offer.rivalId, toRivalName: offer.rivalName }
+    }));
+  }
+
+  // Player chooses Match — pay the new salary, employee stays, morale bumps to 70.
+  function matchOutsideOffer(offerId) {
+    ensureState();
+    const offer = S.hiring.outsideOffers.find(o => o.id === offerId);
+    if (!offer) return { ok: false, error: 'Offer not found' };
+    const emp = (S.employees || []).find(e => e.id === offer.employeeId);
+    if (!emp) { removeOfferById(offerId); return { ok: false, error: 'Employee no longer on staff' }; }
+    emp.salary = offer.newSalary;
+    emp.morale = Math.max(emp.morale || 0, 70);
+    removeOfferById(offerId);
+    if (typeof log === 'function') log('\u{1F91D} Matched ' + offer.rivalName + '\u2019s offer — ' + emp.name + ' stays at $' + (offer.newSalary/1000).toFixed(0) + 'K');
+    document.dispatchEvent(new CustomEvent('tycoon:offer-matched', { detail: { offer, employee: emp } }));
+    return { ok: true, employee: emp };
+  }
+
+  // Player chooses Exceed — pay new salary + 20%, morale jumps to 85, tiny stat bump.
+  function exceedOutsideOffer(offerId) {
+    ensureState();
+    const offer = S.hiring.outsideOffers.find(o => o.id === offerId);
+    if (!offer) return { ok: false, error: 'Offer not found' };
+    const emp = (S.employees || []).find(e => e.id === offer.employeeId);
+    if (!emp) { removeOfferById(offerId); return { ok: false, error: 'Employee no longer on staff' }; }
+    emp.salary = Math.round(offer.newSalary * 1.20);
+    emp.morale = Math.max(emp.morale || 0, 85);
+    // Small stat boost — pick a random stat, +1 up to tier cap
+    const TIERS = window.TYCOON_TIERS || [];
+    const cap = TIERS[emp.tier]?.statCap || 10;
+    const k = ['design','tech','polish','speed'][Math.floor(Math.random() * 4)];
+    if (emp.stats) emp.stats[k] = Math.min(cap, (emp.stats[k] || 0) + 1);
+    removeOfferById(offerId);
+    if (typeof log === 'function') log('\u{1F386} Exceeded ' + offer.rivalName + '\u2019s offer — ' + emp.name + ' feels valued at $' + (emp.salary/1000).toFixed(0) + 'K (+' + k + ')');
+    document.dispatchEvent(new CustomEvent('tycoon:offer-exceeded', { detail: { offer, employee: emp } }));
+    return { ok: true, employee: emp };
+  }
+
+  // Player chooses Decline — employee leaves for the rival.
+  function declineOutsideOffer(offerId) {
+    ensureState();
+    const offer = S.hiring.outsideOffers.find(o => o.id === offerId);
+    if (!offer) return { ok: false, error: 'Offer not found' };
+    loseEmployeeToRival(offer, false);
+    removeOfferById(offerId);
+    return { ok: true };
+  }
+
+  function removeOfferById(offerId) {
+    if (!S.hiring) return;
+    S.hiring.outsideOffers = (S.hiring.outsideOffers || []).filter(o => o.id !== offerId);
+    if (typeof markDirty === 'function') markDirty();
   }
 
   // ---------- Referrals (Phase 4) ----------
@@ -441,6 +576,11 @@
     // Phase 4 — exposed for debug/testing
     maybeGenerateReferral,
     injectPoachedCandidates,
+    // Reverse poaching (Phase 4b)
+    maybeGenerateOutsideOffer,
+    matchOutsideOffer,
+    exceedOutsideOffer,
+    declineOutsideOffer,
     INTERVIEW_COST,
     BASE_CANDIDATE_INTERVAL_WEEKS,
     CANDIDATE_LIFETIME_WEEKS,

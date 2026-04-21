@@ -228,6 +228,13 @@
   color: #f0883e;
 }
 .t-btn.t-teams-idle:hover { background: rgba(240, 136, 62, 0.22); border-color: #f0883e; }
+/* Red "urgent" variant — used by the Hiring button when outside offers are pending */
+.t-btn.t-hiring-urgent {
+  background: rgba(248, 81, 73, 0.14);
+  border-color: rgba(248, 81, 73, 0.6);
+  color: #ff7b72;
+}
+.t-btn.t-hiring-urgent:hover { background: rgba(248, 81, 73, 0.24); border-color: #f85149; }
 .t-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .t-modal-ov {
@@ -1831,6 +1838,7 @@
     const ov = h('div', { className: 't-modal-ov', id: '_t_hiring_modal' },
       h('div', { className: 't-modal', style: { maxWidth: '760px' } },
         h('h2', null, '💼 Talent Market'),
+        renderOutsideOffersBlock(),   // urgent — shown first
         renderRecruiterBlock(),
         renderRequisitionsBlock(),
         renderMarketBody(),
@@ -1901,6 +1909,82 @@
     },
       header, desc,
       actions.length ? h('div', { style: { display:'flex', gap:'8px', marginTop:'8px' } }, ...actions) : null
+    );
+  }
+
+  // Outside offers block — shows pending rival poach attempts on YOUR
+  // employees. Rendered regardless of recruiter tier since the threat can
+  // appear at any time (it's triggered by morale, not recruiter upgrade).
+  function renderOutsideOffersBlock() {
+    const offers = S.hiring?.outsideOffers || [];
+    if (offers.length === 0) return null;
+    const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    const H = window.tycoonHiring;
+
+    return h('div', { style: { marginBottom: '12px', padding: '10px 12px', background: 'rgba(248,81,73,0.06)', border: '1px solid #f85149', borderRadius: '6px' } },
+      h('div', { style: { color:'#ff7b72', fontWeight:700, fontSize:'0.88rem', marginBottom:'4px' } },
+        '\u26A0 Rival Offers (' + offers.length + ') \u2014 your people are getting poached'),
+      h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginBottom:'8px' } },
+        'Low morale on senior staff leaves them open to outside offers. Match the salary to keep them, exceed to re-engage them, or let them walk.'),
+      ...offers.map(o => {
+        const weeksLeft = Math.max(0, o.expiresAtWeek - currentWeek);
+        return h('div', {
+          style: { padding:'10px', background:'#0d1117', border:'1px solid #30363d', borderRadius:'4px', marginBottom:'6px' }
+        },
+          h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'4px' } },
+            h('div', { style: { color:'#f0f6fc', fontWeight:700, fontSize:'0.85rem' } },
+              o.employeeName + ' \u2014 ' + o.employeeTierName + ' \u00b7 ' + o.employeeSpecialty),
+            h('div', { style: { color:'#8b949e', fontSize:'0.7rem' } },
+              weeksLeft + ' week' + (weeksLeft === 1 ? '' : 's') + ' to decide')),
+          h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
+            (o.rivalIcon || '') + ' ' + o.rivalName + ' is offering \u00a0',
+            h('span', { style:{color:'#ff7b72', fontWeight:700} }, '$' + (o.newSalary/1000).toFixed(0) + 'K'),
+            ' \u2014 you\u2019re paying \u00a0',
+            h('span', { style:{color:'#8b949e'} }, '$' + (o.currentSalary/1000).toFixed(0) + 'K'),
+            ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)'),
+          h('div', { style: { display:'flex', gap:'6px' } },
+            h('button', {
+              className: 't-btn',
+              style: { padding:'4px 10px', fontSize:'0.72rem' },
+              title: 'Pay the rival\'s salary. Employee stays, morale restored to 70.',
+              onclick: () => {
+                const r = H.matchOutsideOffer(o.id);
+                if (!r.ok) { pushToast(r.error); return; }
+                pushToast(o.employeeName + ' stays — matched at $' + (o.newSalary/1000).toFixed(0) + 'K');
+                rerenderHiringModal();
+                refreshTopBar();
+                refreshMain();
+              }
+            }, 'Match $' + (o.newSalary/1000).toFixed(0) + 'K'),
+            h('button', {
+              className: 't-btn',
+              style: { padding:'4px 10px', fontSize:'0.72rem' },
+              title: 'Pay 20% above the rival\'s offer. Morale jumps, +1 random stat.',
+              onclick: () => {
+                const r = H.exceedOutsideOffer(o.id);
+                if (!r.ok) { pushToast(r.error); return; }
+                pushToast(o.employeeName + ' feels valued — stayed with a stat bump');
+                rerenderHiringModal();
+                refreshTopBar();
+                refreshMain();
+              }
+            }, 'Exceed $' + Math.round(o.newSalary*1.2/1000) + 'K'),
+            h('button', {
+              className: 't-btn secondary',
+              style: { padding:'4px 10px', fontSize:'0.72rem' },
+              title: 'Let them go. They join the rival.',
+              onclick: () => {
+                if (!confirm(o.employeeName + ' will leave for ' + o.rivalName + '. Proceed?')) return;
+                H.declineOutsideOffer(o.id);
+                pushToast(o.employeeName + ' left for ' + o.rivalName);
+                rerenderHiringModal();
+                refreshTopBar();
+                refreshMain();
+              }
+            }, 'Let go')
+          )
+        );
+      })
     );
   }
 
@@ -2070,6 +2154,8 @@
     // Preserves the outer overlay so the modal observer's pause stays pinned.
     inner.innerHTML = '';
     inner.appendChild(h('h2', null, '💼 Talent Market'));
+    const offersBlock = renderOutsideOffersBlock();
+    if (offersBlock) inner.appendChild(offersBlock);
     const recBlock = renderRecruiterBlock();
     if (recBlock) inner.appendChild(recBlock);
     const reqBlock = renderRequisitionsBlock();
@@ -2214,14 +2300,22 @@
         h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project'),
         (() => {
           const newCount = window.tycoonHiring?.newCandidatesSinceView?.() || 0;
+          const offerCount = (S.hiring?.outsideOffers || []).length;
+          // Pending outside offers are more urgent than new candidates —
+          // prioritize them in the label.
+          const urgent = offerCount > 0;
           const label = '\uD83D\uDCBC Hiring' +
             (queueSize > 0 ? ' (' + queueSize + ')' : '') +
-            (newCount > 0 ? ' \u2014 ' + newCount + ' NEW' : '');
+            (offerCount > 0 ? ' \u2014 \u26A0 ' + offerCount + ' OFFER' + (offerCount === 1 ? '' : 'S') :
+             newCount > 0 ? ' \u2014 ' + newCount + ' NEW' : '');
+          const title = offerCount > 0
+            ? offerCount + ' rival offer' + (offerCount === 1 ? '' : 's') + ' pending on your staff — respond in the Talent Market'
+            : (newCount > 0
+                ? newCount + ' new candidate' + (newCount === 1 ? '' : 's') + ' on the market since you last looked'
+                : (queueSize > 0 ? 'Open the Talent Market to review candidates' : 'Nobody on the market yet — check back in a few weeks'));
           return h('button', {
-            className: 't-btn secondary' + (newCount > 0 ? ' t-teams-idle' : ''),
-            title: newCount > 0
-              ? newCount + ' new candidate' + (newCount === 1 ? '' : 's') + ' on the market since you last looked'
-              : (queueSize > 0 ? 'Open the Talent Market to review candidates' : 'Nobody on the market yet — check back in a few weeks'),
+            className: 't-btn secondary' + (urgent || newCount > 0 ? ' t-teams-idle' : '') + (urgent ? ' t-hiring-urgent' : ''),
+            title,
             onclick: () => openHiringModal()
           }, label);
         })(),
@@ -2920,6 +3014,17 @@
     if (c) pushToast('💼 ' + c.name + ' (' + c.tierName + ') is looking for work', 'win');
     refreshMain();
   });
+
+  // Rival made an offer to YOUR employee. More urgent than a new candidate —
+  // use a red/warn toast and refresh Studio panel so the pending-offer badge
+  // appears on the Hiring button.
+  document.addEventListener('tycoon:outside-offer', (e) => {
+    const o = e.detail?.offer;
+    if (!o) return;
+    pushToast('\u26A0 ' + o.rivalName + ' made ' + o.employeeName + ' an offer — 3 weeks to respond');
+    refreshMain();
+  });
+  document.addEventListener('tycoon:employee-departed', () => { refreshMain(); refreshTopBar(); });
   document.addEventListener('tycoon:employee-hired', (e) => {
     // Auto-assign to the single active project if there is exactly one.
     // Zero ambiguity in that case; saves a trip to the Teams modal.
