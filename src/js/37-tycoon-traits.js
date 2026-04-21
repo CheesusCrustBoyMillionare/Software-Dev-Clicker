@@ -71,7 +71,6 @@
     { id: 't_lean_ops',          name: 'Lean Operator',      desc: '\u221215% monthly loan payments and payroll',
       hook: { kind: 'leanOps', mul: 0.85 } },
     { id: 't_trend_chaser',      name: 'Trend Chaser',       desc: '+30% launch sales on ships in the last 2 years of an era window',
-      wired: false,
       hook: { kind: 'trendChaser', mul: 1.30, eraEndWindowYears: 2 } },
     { id: 't_early_riser',       name: 'Early Riser',        desc: '+15% output during weeks 1\u20136 of a project',
       hook: { kind: 'earlyPhase', weeks: 6, outputMul: 1.15 } },
@@ -80,14 +79,12 @@
     { id: 't_nihilist',          name: 'Nihilist',           desc: 'Morale doesn\'t affect output (flat 1.0\u00D7), but max morale capped at 65',
       hook: { kind: 'moraleFlat', capMorale: 65 } },
     { id: 't_showman',           name: 'Showman',            desc: '+40% marketing multipliers, but 1st marketing channel costs +50%',
-      wired: false,
       hook: { kind: 'showman', mktMul: 1.40, firstChannelCostMul: 1.50 } },
     { id: 't_coder_purist',      name: 'Coder Purist',       desc: 'Tech axis ships get +15% critic; design-heavy types get \u221210%',
       hook: { kind: 'codePurist', techBonus: 0.15, designPenalty: 0.10 } },
     { id: 't_serial_founder',    name: 'Serial Founder',     desc: 'First project ships 30% faster; subsequent projects normal',
       hook: { kind: 'firstShipSpeed', mul: 0.70 } },
     { id: 't_contrarian',        name: 'Contrarian',         desc: '+25% launch sales on types with current low market heat',
-      wired: false,
       hook: { kind: 'contrarian', mul: 1.25 } },
   ];
   // Traits without an explicit wired:false flag are wired. Default-wired

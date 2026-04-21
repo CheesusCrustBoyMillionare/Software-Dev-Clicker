@@ -139,11 +139,26 @@
     }
     // Diminishing returns for 5+ channels (spread too thin)
     if (selected.length >= 5) mult *= 0.92;
+    // v11.1: Showman founder trait — +40% marketing multiplier (pair with
+    // the first-channel cost bump in totalCost).
+    const showman = window.tycoonTraits?.founderTraitHook?.('showman');
+    if (showman?.mktMul) mult *= showman.mktMul;
     return { mult, breakdown, synergies };
   }
 
+  // v11.1: totalCost applies the Showman first-channel cost bump. When the
+  // player picks the first channel in the UI (selectedIds.length === 1 in
+  // the marketing modal rerender), that first channel costs +50%. Later
+  // channels are priced normally. Modeled as a function of channel ORDER
+  // in the passed array, so the UI's channel-order is authoritative.
   function totalCost(channelIds) {
-    return channelIds.reduce((s, id) => s + (CHANNEL_BY_ID[id]?.cost || 0), 0);
+    if (!channelIds || channelIds.length === 0) return 0;
+    const showman = window.tycoonTraits?.founderTraitHook?.('showman');
+    const firstBump = showman?.firstChannelCostMul || 1;
+    return channelIds.reduce((s, id, i) => {
+      const cost = CHANNEL_BY_ID[id]?.cost || 0;
+      return s + (i === 0 ? Math.round(cost * firstBump) : cost);
+    }, 0);
   }
 
   // ---------- Public API ----------

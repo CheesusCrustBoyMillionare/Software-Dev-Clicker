@@ -915,7 +915,32 @@
         ...lm.collision.notes
       ];
     }
-    return Math.round(base * scopeMul * mktMul * platformMul * launchMul);
+    // v11.1 founder traits applied to launch sales
+    let traitMul = 1;
+    const shipYear = S.calendar?.year || 1980;
+    // Trend Chaser — ship in the last N years of a project-type's era window
+    const trend = window.tycoonTraits?.founderTraitHook?.('trendChaser');
+    if (trend) {
+      const typeDef = PROJECT_TYPES[proj.type];
+      const eraEnd = typeDef.era[1];
+      const windowYears = trend.eraEndWindowYears || 2;
+      if (shipYear >= eraEnd - windowYears + 1 && shipYear <= eraEnd) {
+        traitMul *= (trend.mul || 1);
+        if (!proj.launchNotes) proj.launchNotes = [];
+        proj.launchNotes.push('\u{1F4C8} Trend Chaser — shipping in the last ' + windowYears + ' years of the ' + typeDef.label + ' era');
+      }
+    }
+    // Contrarian — project type has low market heat
+    const contra = window.tycoonTraits?.founderTraitHook?.('contrarian');
+    if (contra) {
+      const heat = window.tycoonMarket?.heatForType?.(proj.type);
+      if (typeof heat === 'number' && heat < 15) {
+        traitMul *= (contra.mul || 1);
+        if (!proj.launchNotes) proj.launchNotes = [];
+        proj.launchNotes.push('\u{1F9ED} Contrarian — ' + proj.type + ' market was cold');
+      }
+    }
+    return Math.round(base * scopeMul * mktMul * platformMul * launchMul * traitMul);
   }
 
   // ---------- Lookup helpers ----------
