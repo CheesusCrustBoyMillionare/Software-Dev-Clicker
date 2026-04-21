@@ -2085,71 +2085,106 @@
     const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
     const H = window.tycoonHiring;
 
-    return h('div', { style: { marginBottom: '12px', padding: '10px 12px', background: 'rgba(248,81,73,0.06)', border: '1px solid #f85149', borderRadius: '6px' } },
-      h('div', { style: { color:'#ff7b72', fontWeight:700, fontSize:'0.88rem', marginBottom:'4px' } },
-        '\u26A0 Rival Offers (' + offers.length + ') \u2014 your people are getting poached'),
-      h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginBottom:'8px' } },
-        'Low morale on senior staff leaves them open to outside offers. Match the salary to keep them, exceed to re-engage them, or let them walk.'),
-      ...offers.map(o => {
-        const weeksLeft = Math.max(0, o.expiresAtWeek - currentWeek);
-        return h('div', {
-          style: { padding:'10px', background:'#0d1117', border:'1px solid #30363d', borderRadius:'4px', marginBottom:'6px' }
-        },
-          h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'4px' } },
-            h('div', { style: { color:'#f0f6fc', fontWeight:700, fontSize:'0.85rem' } },
-              o.employeeName + ' \u2014 ' + o.employeeTierName + ' \u00b7 ' + o.employeeSpecialty),
-            h('div', { style: { color:'#8b949e', fontSize:'0.7rem' } },
-              weeksLeft + ' week' + (weeksLeft === 1 ? '' : 's') + ' to decide')),
-          h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
+    // Split the offers into two categories so the header reflects what the
+    // player is actually looking at — rival poaches (critical) vs. internal
+    // raise requests from Negotiator-trait staff (important but less urgent).
+    const rivalOffers = offers.filter(o => !o.isInternalRaise);
+    const raiseOffers = offers.filter(o => o.isInternalRaise);
+    const blocks = [];
+
+    const renderOffer = (o, isRaise) => {
+      const weeksLeft = Math.max(0, o.expiresAtWeek - currentWeek);
+      const sourceLine = isRaise
+        ? h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
+            '\uD83D\uDCB0 ' + (o.employeeName) + ' wants \u00a0',
+            h('span', { style:{color:'#ffd33d', fontWeight:700} }, '$' + (o.newSalary/1000).toFixed(0) + 'K'),
+            ' \u2014 you\u2019re paying \u00a0',
+            h('span', { style:{color:'#8b949e'} }, '$' + (o.currentSalary/1000).toFixed(0) + 'K'),
+            ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)')
+        : h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
             (o.rivalIcon || '') + ' ' + o.rivalName + ' is offering \u00a0',
             h('span', { style:{color:'#ff7b72', fontWeight:700} }, '$' + (o.newSalary/1000).toFixed(0) + 'K'),
             ' \u2014 you\u2019re paying \u00a0',
             h('span', { style:{color:'#8b949e'} }, '$' + (o.currentSalary/1000).toFixed(0) + 'K'),
-            ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)'),
-          h('div', { style: { display:'flex', gap:'6px' } },
-            h('button', {
-              className: 't-btn',
-              style: { padding:'4px 10px', fontSize:'0.72rem' },
-              title: 'Pay the rival\'s salary. Employee stays, morale restored to 70.',
-              onclick: () => {
-                const r = H.matchOutsideOffer(o.id);
-                if (!r.ok) { pushToast(r.error); return; }
-                pushToast(o.employeeName + ' stays — matched at $' + (o.newSalary/1000).toFixed(0) + 'K');
-                rerenderHiringModal();
-                refreshTopBar();
-                refreshMain();
-              }
-            }, 'Match $' + (o.newSalary/1000).toFixed(0) + 'K'),
-            h('button', {
-              className: 't-btn',
-              style: { padding:'4px 10px', fontSize:'0.72rem' },
-              title: 'Pay 20% above the rival\'s offer. Morale jumps, +1 random stat.',
-              onclick: () => {
-                const r = H.exceedOutsideOffer(o.id);
-                if (!r.ok) { pushToast(r.error); return; }
-                pushToast(o.employeeName + ' feels valued — stayed with a stat bump');
-                rerenderHiringModal();
-                refreshTopBar();
-                refreshMain();
-              }
-            }, 'Exceed $' + Math.round(o.newSalary*1.2/1000) + 'K'),
-            h('button', {
-              className: 't-btn secondary',
-              style: { padding:'4px 10px', fontSize:'0.72rem' },
-              title: 'Let them go. They join the rival.',
-              onclick: () => {
-                if (!confirm(o.employeeName + ' will leave for ' + o.rivalName + '. Proceed?')) return;
-                H.declineOutsideOffer(o.id);
-                pushToast(o.employeeName + ' left for ' + o.rivalName);
-                rerenderHiringModal();
-                refreshTopBar();
-                refreshMain();
-              }
-            }, 'Let go')
-          )
-        );
-      })
-    );
+            ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)');
+      return h('div', {
+        style: { padding:'10px', background:'#0d1117', border:'1px solid #30363d', borderRadius:'4px', marginBottom:'6px' }
+      },
+        h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'4px' } },
+          h('div', { style: { color:'#f0f6fc', fontWeight:700, fontSize:'0.85rem' } },
+            o.employeeName + ' \u2014 ' + o.employeeTierName + ' \u00b7 ' + o.employeeSpecialty),
+          h('div', { style: { color:'#8b949e', fontSize:'0.7rem' } },
+            weeksLeft + ' week' + (weeksLeft === 1 ? '' : 's') + ' to decide')),
+        sourceLine,
+        h('div', { style: { display:'flex', gap:'6px' } },
+          h('button', {
+            className: 't-btn',
+            style: { padding:'4px 10px', fontSize:'0.72rem' },
+            title: isRaise ? 'Approve the raise. Morale restored to 70.' : 'Pay the rival\'s salary. Employee stays, morale restored to 70.',
+            onclick: () => {
+              const r = H.matchOutsideOffer(o.id);
+              if (!r.ok) { pushToast(r.error); return; }
+              pushToast(o.employeeName + (isRaise ? '\u2019s raise approved at $' : ' stays — matched at $') + (o.newSalary/1000).toFixed(0) + 'K');
+              rerenderHiringModal();
+              refreshTopBar();
+              refreshMain();
+            }
+          }, isRaise ? 'Approve $' + (o.newSalary/1000).toFixed(0) + 'K' : 'Match $' + (o.newSalary/1000).toFixed(0) + 'K'),
+          h('button', {
+            className: 't-btn',
+            style: { padding:'4px 10px', fontSize:'0.72rem' },
+            title: isRaise ? 'Give more than they asked. Morale jumps to 85 + stat bump.' : 'Pay 20% above the rival\'s offer. Morale jumps, +1 random stat.',
+            onclick: () => {
+              const r = H.exceedOutsideOffer(o.id);
+              if (!r.ok) { pushToast(r.error); return; }
+              pushToast(o.employeeName + ' feels valued — stayed with a stat bump');
+              rerenderHiringModal();
+              refreshTopBar();
+              refreshMain();
+            }
+          }, 'Exceed $' + Math.round(o.newSalary*1.2/1000) + 'K'),
+          h('button', {
+            className: 't-btn secondary',
+            style: { padding:'4px 10px', fontSize:'0.72rem' },
+            title: isRaise ? 'Deny the raise. Morale drops 10; employee stays.' : 'Let them go. They join the rival.',
+            onclick: () => {
+              if (!isRaise && !confirm(o.employeeName + ' will leave for ' + o.rivalName + '. Proceed?')) return;
+              H.declineOutsideOffer(o.id);
+              pushToast(isRaise
+                ? o.employeeName + '\u2019s raise denied — morale dropped'
+                : o.employeeName + ' left for ' + o.rivalName);
+              rerenderHiringModal();
+              refreshTopBar();
+              refreshMain();
+            }
+          }, isRaise ? 'Deny' : 'Let go')
+        )
+      );
+    };
+
+    if (rivalOffers.length > 0) {
+      blocks.push(h('div', {
+        style: { marginBottom:'12px', padding:'10px 12px', background: 'rgba(248,81,73,0.06)', border: '1px solid #f85149', borderRadius: '6px' }
+      },
+        h('div', { style: { color:'#ff7b72', fontWeight:700, fontSize:'0.88rem', marginBottom:'4px' } },
+          '\u26A0 Rival Offers (' + rivalOffers.length + ') \u2014 your people are getting poached'),
+        h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginBottom:'8px' } },
+          'Low morale on senior staff leaves them open to outside offers. Match the salary to keep them, exceed to re-engage them, or let them walk.'),
+        ...rivalOffers.map(o => renderOffer(o, false))
+      ));
+    }
+    if (raiseOffers.length > 0) {
+      blocks.push(h('div', {
+        style: { marginBottom:'12px', padding:'10px 12px', background: 'rgba(255,211,61,0.06)', border: '1px solid #ffd33d', borderRadius: '6px' }
+      },
+        h('div', { style: { color:'#ffd33d', fontWeight:700, fontSize:'0.88rem', marginBottom:'4px' } },
+          '\uD83D\uDCB0 Raise Requests (' + raiseOffers.length + ') \u2014 your Negotiators are asking'),
+        h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginBottom:'8px' } },
+          'Employees with the Negotiator trait periodically ask for raises. Approve to pay the ask, exceed to make them ecstatic, or deny (\u221210 morale, they stay).'),
+        ...raiseOffers.map(o => renderOffer(o, true))
+      ));
+    }
+    return h('div', null, ...blocks);
   }
 
   // Requisitions block — only rendered when the current recruiter (Head of

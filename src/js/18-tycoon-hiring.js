@@ -328,8 +328,17 @@
     const expired = S.hiring.outsideOffers.filter(o => o.expiresAtWeek <= currentWeek);
     if (expired.length === 0) return;
     for (const o of expired) {
-      // Auto-leave: employee quits for the rival
-      loseEmployeeToRival(o, /*silent=*/false);
+      if (o.isInternalRaise) {
+        // Raise request ignored — morale hit, employee stays
+        const emp = (S.employees || []).find(e => e.id === o.employeeId);
+        if (emp) {
+          emp.morale = Math.max(0, (emp.morale || 70) - 10);
+          if (typeof log === 'function') log('\uD83D\uDCA2 ' + emp.name + '\u2019s raise request went unanswered \u2014 morale \u221210');
+        }
+      } else {
+        // Rival poach — employee quits
+        loseEmployeeToRival(o, /*silent=*/false);
+      }
     }
     S.hiring.outsideOffers = S.hiring.outsideOffers.filter(o => o.expiresAtWeek > currentWeek);
     if (typeof markDirty === 'function') markDirty();
@@ -386,12 +395,21 @@
     return { ok: true, employee: emp };
   }
 
-  // Player chooses Decline — employee leaves for the rival.
+  // Player chooses Decline. For a rival poach → employee leaves. For an
+  // internal Negotiator raise request → employee stays but morale drops.
   function declineOutsideOffer(offerId) {
     ensureState();
     const offer = S.hiring.outsideOffers.find(o => o.id === offerId);
     if (!offer) return { ok: false, error: 'Offer not found' };
-    loseEmployeeToRival(offer, false);
+    if (offer.isInternalRaise) {
+      const emp = (S.employees || []).find(e => e.id === offer.employeeId);
+      if (emp) {
+        emp.morale = Math.max(0, (emp.morale || 70) - 10);
+        if (typeof log === 'function') log('\uD83D\uDCA2 Raise denied: ' + emp.name + ' \u2014 morale \u221210');
+      }
+    } else {
+      loseEmployeeToRival(offer, false);
+    }
     removeOfferById(offerId);
     return { ok: true };
   }
@@ -485,6 +503,51 @@
     }
     if (typeof markDirty === 'function') markDirty();
   }
+
+  // ---------- Negotiator trait raise requests (v11.1) ----------
+  // Negotiators ask for raises 2× as often as baseline. Since baseline is
+  // "never," we set the Negotiator cadence at ~26 weeks. The raise request
+  // reuses the outsideOffers data structure + UI so the player sees it in
+  // the same Talent Market block with Match / Exceed / Decline buttons.
+  // Decline = morale drop (but no departure — they stay, just unhappy).
+  const NEGOTIATOR_WEEKLY_PROB = 1 / 26;  // one request every ~26 weeks per Negotiator
+  const RAISE_ASK_MUL = 1.10;             // 10% salary bump request
+
+  function maybeGenerateNegotiatorRaise() {
+    ensureState();
+    const negotiators = (S.employees || []).filter(e =>
+      Array.isArray(e.traits) && e.traits.includes('Negotiator') &&
+      !S.hiring.outsideOffers.some(o => o.employeeId === e.id)
+    );
+    if (!negotiators.length) return;
+    for (const emp of negotiators) {
+      if (Math.random() >= NEGOTIATOR_WEEKLY_PROB) continue;
+      const newSalary = Math.round((emp.salary || 0) * RAISE_ASK_MUL);
+      const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+      const offer = {
+        id: 'raise_' + (S.hiring.fairIndex++).toString(36) + '_' + emp.id,
+        employeeId: emp.id,
+        employeeName: emp.name,
+        employeeTierName: emp.tierName,
+        employeeSpecialty: emp.specialty,
+        currentSalary: emp.salary,
+        newSalary,
+        isInternalRaise: true,          // differentiates UI + decline behavior
+        rivalId: null,
+        rivalName: 'Negotiator trait',
+        rivalIcon: '\uD83D\uDCB0',
+        postedAtWeek: currentWeek,
+        expiresAtWeek: currentWeek + OUTSIDE_OFFER_DURATION_WEEKS,
+      };
+      S.hiring.outsideOffers.push(offer);
+      if (typeof markDirty === 'function') markDirty();
+      if (typeof log === 'function') log('\uD83D\uDCB0 ' + emp.name + ' (Negotiator) asks for a raise — $' + (newSalary/1000).toFixed(0) + 'K vs your $' + ((emp.salary||0)/1000).toFixed(0) + 'K');
+      document.dispatchEvent(new CustomEvent('tycoon:outside-offer', { detail: { offer } }));
+      return;  // one per tick
+    }
+  }
+  // Expose via the sentinel the employees module looks for
+  window._tycoonMaybeNegotiatorRaise = maybeGenerateNegotiatorRaise;
 
   // Listen for rival bankruptcy and trigger poaching if enabled
   document.addEventListener('tycoon:rival-bankrupt', (e) => {

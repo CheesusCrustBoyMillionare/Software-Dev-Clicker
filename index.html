@@ -9194,6 +9194,9 @@ let _clockValidated = false;
     const researchPolish  = window.tycoonResearch?.qualityMultiplierFor?.('polish', proj.type) || 1;
     const teamMult = window.tycoonResearch?.teamProductivityMultiplier?.() || 1;
     const devSpeedMult = window.tycoonResearch?.devSpeedMultiplierForType?.(proj.type) || 1;
+    // v11.1: employee trait team multipliers. Team Player boosts the WHOLE
+    // team; Lone Wolf / Veteran are per-contributor (computed inside the loop).
+    const teamTraitMul = computeTeamTraitMultiplier(contributors);
     // v3 roguelite: founder-level output modifier (Night Owl, Caffeinated,
     // Chip on Shoulder, Scrappy, Workaholic) + per-axis modifier (passions +
     // Polish Snob). Computed once per tick since S.founder is shared.
@@ -9215,10 +9218,12 @@ let _clockValidated = false;
       const fAxT = c.isFounder ? founderAxisT : 1.0;
       const fAxD = c.isFounder ? founderAxisD : 1.0;
       const fAxP = c.isFounder ? founderAxisP : 1.0;
+      // Per-contributor trait multiplier (Lone Wolf, Veteran)
+      const traitMul = computeContributorTraitMultiplier(c, contributors, proj);
 
-      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * perProjMul * teamMult * researchTech   * devSpeedMult * fOut * fAxT);
-      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * perProjMul * teamMult * researchDesign * devSpeedMult * fOut * fAxD);
-      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * perProjMul * teamMult * researchPolish * devSpeedMult * fOut * fAxP);
+      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchTech   * devSpeedMult * fOut * fAxT);
+      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchDesign * devSpeedMult * fOut * fAxD);
+      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchPolish * devSpeedMult * fOut * fAxP);
       proj.bugs += (bugRisk * 0.3 * perProjMul);
       if (proj.crunching) {
         c.morale = Math.max(0, (c.morale || 70) - 3);
@@ -9253,6 +9258,7 @@ let _clockValidated = false;
     const founderAxisP = window.tycoonTraits?.founderAxisMul?.('polish') ?? 1;
     const perfHook = window.tycoonTraits?.founderTraitHook?.('polishPhase');
     const perfMul = perfHook?.qualityMul || 1.0;
+    const teamTraitMul = computeTeamTraitMultiplier(contributors);
 
     for (const c of contributors) {
       const es = effectiveStats(c);
@@ -9264,9 +9270,10 @@ let _clockValidated = false;
       const fOut = c.isFounder ? founderOut : 1.0;
       const fAxP = c.isFounder ? founderAxisP : 1.0;
       const fPerf = c.isFounder ? perfMul : 1.0;
+      const traitMul = computeContributorTraitMultiplier(c, contributors, proj);
 
-      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * perProjMul * fOut));
-      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * perProjMul * fOut * fAxP * fPerf);
+      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * perProjMul * fOut * traitMul));
+      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * perProjMul * teamTraitMul * traitMul * fOut * fAxP * fPerf);
     }
 
     // Workaholic morale drain applies in polish phase too.
@@ -9279,6 +9286,70 @@ let _clockValidated = false;
     // Toxic drain during polish phase too
     applyToxicDrain(contributors);
   }
+
+  // v11.1: employee-trait multipliers used by developOneWeek + polishOneWeek.
+  //
+  // Team Player: +10% team-wide synergy per Team Player on the team (stacks).
+  // Lone Wolf on a multi-person team: −5% to team synergy (stacks).
+  // The returned value is applied to every contributor's output.
+  function computeTeamTraitMultiplier(contributors) {
+    if (!Array.isArray(contributors) || contributors.length === 0) return 1;
+    const has = (c, t) => Array.isArray(c.traits) && c.traits.includes(t);
+    const teamPlayers = contributors.filter(c => has(c, 'Team Player')).length;
+    const loneWolves = contributors.length > 1
+      ? contributors.filter(c => has(c, 'Lone Wolf')).length
+      : 0;
+    return 1 + (teamPlayers * 0.10) - (loneWolves * 0.05);
+  }
+
+  // Per-contributor trait multiplier — reads traits that affect only this
+  // individual's output, not the whole team.
+  //   Lone Wolf, solo on the project: +20% to own output.
+  //   Veteran: +15% output on project types they've shipped before.
+  function computeContributorTraitMultiplier(c, contributors, proj) {
+    const traits = c.traits;
+    if (!Array.isArray(traits) || traits.length === 0) return 1;
+    let mul = 1;
+    if (traits.includes('Lone Wolf') && contributors.length === 1) mul *= 1.20;
+    if (traits.includes('Veteran') && proj && Array.isArray(c.shippedTypes) && c.shippedTypes.includes(proj.type)) {
+      mul *= 1.15;
+    }
+    return mul;
+  }
+
+  // Mentor growth — called once per week from tycoonEmployees weekly tick.
+  // For each project with a Mentor on the team, every junior (tier ≤ 2)
+  // teammate gains 0.1 of growth in a random stat. When a stat's growth
+  // pool crosses 1.0, the stat increments by 1 (capped at tier statCap + 1).
+  function applyMentorGrowth() {
+    if (!S.projects?.active) return;
+    const TIERS = window.TYCOON_TIERS || [];
+    const has = (c, t) => Array.isArray(c.traits) && c.traits.includes(t);
+    for (const proj of S.projects.active) {
+      const contributors = getContributorsFor(proj);
+      const mentors = contributors.filter(c => has(c, 'Mentor')).length;
+      if (!mentors) continue;
+      for (const c of contributors) {
+        if (c.isFounder) continue;
+        if ((c.tier || 0) > 2) continue;  // only juniors/interns/mids
+        if (has(c, 'Mentor')) continue;    // mentors don't mentor themselves
+        if (!c.mentorGrowth) c.mentorGrowth = { tech:0, design:0, polish:0, speed:0 };
+        // Pick a random axis per mentor per week
+        for (let i = 0; i < mentors; i++) {
+          const axis = ['tech','design','polish','speed'][Math.floor(Math.random() * 4)];
+          c.mentorGrowth[axis] = (c.mentorGrowth[axis] || 0) + 0.1;
+          if (c.mentorGrowth[axis] >= 1) {
+            const cap = (TIERS[c.tier]?.statCap || 10) + 1;
+            c.stats[axis] = Math.min(cap, (c.stats[axis] || 0) + 1);
+            c.mentorGrowth[axis] -= 1;
+            if (typeof log === 'function') log('\uD83C\uDF93 Mentor growth: ' + c.name + ' +1 ' + axis);
+          }
+        }
+      }
+    }
+  }
+  // Expose so tycoonEmployees can call it from its weekly tick
+  window._tycoonApplyMentorGrowth = applyMentorGrowth;
 
   // v11.1: Toxic-teammate morale drain. Called from developOneWeek +
   // polishOneWeek. Each Toxic contributor subtracts 0.5 morale/wk from every
@@ -9472,6 +9543,18 @@ let _clockValidated = false;
       }
       if (typeof log === 'function' && teamIds.length > 0) {
         log('\uD83C\uDF89 Team morale +' + hitBonus + ' — ' + proj.name + ' ' + (proj.criticScore >= 90 ? 'shipped a hit' : 'shipped solid') + ' (critic ' + proj.criticScore + ')');
+      }
+    }
+
+    // v11.1: Record the shipped project-type on each team member so the
+    // Veteran trait can later check "this is a type I've shipped before → +15%".
+    if (Array.isArray(proj.team)) {
+      for (const empId of proj.team) {
+        if (empId === 'founder') continue;
+        const emp = (S.employees || []).find(e => e.id === empId);
+        if (!emp) continue;
+        if (!Array.isArray(emp.shippedTypes)) emp.shippedTypes = [];
+        if (!emp.shippedTypes.includes(proj.type)) emp.shippedTypes.push(proj.type);
       }
     }
 
@@ -13056,71 +13139,106 @@ let _clockValidated = false;
     const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
     const H = window.tycoonHiring;
 
-    return h('div', { style: { marginBottom: '12px', padding: '10px 12px', background: 'rgba(248,81,73,0.06)', border: '1px solid #f85149', borderRadius: '6px' } },
-      h('div', { style: { color:'#ff7b72', fontWeight:700, fontSize:'0.88rem', marginBottom:'4px' } },
-        '\u26A0 Rival Offers (' + offers.length + ') \u2014 your people are getting poached'),
-      h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginBottom:'8px' } },
-        'Low morale on senior staff leaves them open to outside offers. Match the salary to keep them, exceed to re-engage them, or let them walk.'),
-      ...offers.map(o => {
-        const weeksLeft = Math.max(0, o.expiresAtWeek - currentWeek);
-        return h('div', {
-          style: { padding:'10px', background:'#0d1117', border:'1px solid #30363d', borderRadius:'4px', marginBottom:'6px' }
-        },
-          h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'4px' } },
-            h('div', { style: { color:'#f0f6fc', fontWeight:700, fontSize:'0.85rem' } },
-              o.employeeName + ' \u2014 ' + o.employeeTierName + ' \u00b7 ' + o.employeeSpecialty),
-            h('div', { style: { color:'#8b949e', fontSize:'0.7rem' } },
-              weeksLeft + ' week' + (weeksLeft === 1 ? '' : 's') + ' to decide')),
-          h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
+    // Split the offers into two categories so the header reflects what the
+    // player is actually looking at — rival poaches (critical) vs. internal
+    // raise requests from Negotiator-trait staff (important but less urgent).
+    const rivalOffers = offers.filter(o => !o.isInternalRaise);
+    const raiseOffers = offers.filter(o => o.isInternalRaise);
+    const blocks = [];
+
+    const renderOffer = (o, isRaise) => {
+      const weeksLeft = Math.max(0, o.expiresAtWeek - currentWeek);
+      const sourceLine = isRaise
+        ? h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
+            '\uD83D\uDCB0 ' + (o.employeeName) + ' wants \u00a0',
+            h('span', { style:{color:'#ffd33d', fontWeight:700} }, '$' + (o.newSalary/1000).toFixed(0) + 'K'),
+            ' \u2014 you\u2019re paying \u00a0',
+            h('span', { style:{color:'#8b949e'} }, '$' + (o.currentSalary/1000).toFixed(0) + 'K'),
+            ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)')
+        : h('div', { style: { color:'#c9d1d9', fontSize:'0.78rem', marginBottom:'8px' } },
             (o.rivalIcon || '') + ' ' + o.rivalName + ' is offering \u00a0',
             h('span', { style:{color:'#ff7b72', fontWeight:700} }, '$' + (o.newSalary/1000).toFixed(0) + 'K'),
             ' \u2014 you\u2019re paying \u00a0',
             h('span', { style:{color:'#8b949e'} }, '$' + (o.currentSalary/1000).toFixed(0) + 'K'),
-            ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)'),
-          h('div', { style: { display:'flex', gap:'6px' } },
-            h('button', {
-              className: 't-btn',
-              style: { padding:'4px 10px', fontSize:'0.72rem' },
-              title: 'Pay the rival\'s salary. Employee stays, morale restored to 70.',
-              onclick: () => {
-                const r = H.matchOutsideOffer(o.id);
-                if (!r.ok) { pushToast(r.error); return; }
-                pushToast(o.employeeName + ' stays — matched at $' + (o.newSalary/1000).toFixed(0) + 'K');
-                rerenderHiringModal();
-                refreshTopBar();
-                refreshMain();
-              }
-            }, 'Match $' + (o.newSalary/1000).toFixed(0) + 'K'),
-            h('button', {
-              className: 't-btn',
-              style: { padding:'4px 10px', fontSize:'0.72rem' },
-              title: 'Pay 20% above the rival\'s offer. Morale jumps, +1 random stat.',
-              onclick: () => {
-                const r = H.exceedOutsideOffer(o.id);
-                if (!r.ok) { pushToast(r.error); return; }
-                pushToast(o.employeeName + ' feels valued — stayed with a stat bump');
-                rerenderHiringModal();
-                refreshTopBar();
-                refreshMain();
-              }
-            }, 'Exceed $' + Math.round(o.newSalary*1.2/1000) + 'K'),
-            h('button', {
-              className: 't-btn secondary',
-              style: { padding:'4px 10px', fontSize:'0.72rem' },
-              title: 'Let them go. They join the rival.',
-              onclick: () => {
-                if (!confirm(o.employeeName + ' will leave for ' + o.rivalName + '. Proceed?')) return;
-                H.declineOutsideOffer(o.id);
-                pushToast(o.employeeName + ' left for ' + o.rivalName);
-                rerenderHiringModal();
-                refreshTopBar();
-                refreshMain();
-              }
-            }, 'Let go')
-          )
-        );
-      })
-    );
+            ' (+' + Math.round((o.newSalary/o.currentSalary - 1) * 100) + '%)');
+      return h('div', {
+        style: { padding:'10px', background:'#0d1117', border:'1px solid #30363d', borderRadius:'4px', marginBottom:'6px' }
+      },
+        h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'4px' } },
+          h('div', { style: { color:'#f0f6fc', fontWeight:700, fontSize:'0.85rem' } },
+            o.employeeName + ' \u2014 ' + o.employeeTierName + ' \u00b7 ' + o.employeeSpecialty),
+          h('div', { style: { color:'#8b949e', fontSize:'0.7rem' } },
+            weeksLeft + ' week' + (weeksLeft === 1 ? '' : 's') + ' to decide')),
+        sourceLine,
+        h('div', { style: { display:'flex', gap:'6px' } },
+          h('button', {
+            className: 't-btn',
+            style: { padding:'4px 10px', fontSize:'0.72rem' },
+            title: isRaise ? 'Approve the raise. Morale restored to 70.' : 'Pay the rival\'s salary. Employee stays, morale restored to 70.',
+            onclick: () => {
+              const r = H.matchOutsideOffer(o.id);
+              if (!r.ok) { pushToast(r.error); return; }
+              pushToast(o.employeeName + (isRaise ? '\u2019s raise approved at $' : ' stays — matched at $') + (o.newSalary/1000).toFixed(0) + 'K');
+              rerenderHiringModal();
+              refreshTopBar();
+              refreshMain();
+            }
+          }, isRaise ? 'Approve $' + (o.newSalary/1000).toFixed(0) + 'K' : 'Match $' + (o.newSalary/1000).toFixed(0) + 'K'),
+          h('button', {
+            className: 't-btn',
+            style: { padding:'4px 10px', fontSize:'0.72rem' },
+            title: isRaise ? 'Give more than they asked. Morale jumps to 85 + stat bump.' : 'Pay 20% above the rival\'s offer. Morale jumps, +1 random stat.',
+            onclick: () => {
+              const r = H.exceedOutsideOffer(o.id);
+              if (!r.ok) { pushToast(r.error); return; }
+              pushToast(o.employeeName + ' feels valued — stayed with a stat bump');
+              rerenderHiringModal();
+              refreshTopBar();
+              refreshMain();
+            }
+          }, 'Exceed $' + Math.round(o.newSalary*1.2/1000) + 'K'),
+          h('button', {
+            className: 't-btn secondary',
+            style: { padding:'4px 10px', fontSize:'0.72rem' },
+            title: isRaise ? 'Deny the raise. Morale drops 10; employee stays.' : 'Let them go. They join the rival.',
+            onclick: () => {
+              if (!isRaise && !confirm(o.employeeName + ' will leave for ' + o.rivalName + '. Proceed?')) return;
+              H.declineOutsideOffer(o.id);
+              pushToast(isRaise
+                ? o.employeeName + '\u2019s raise denied — morale dropped'
+                : o.employeeName + ' left for ' + o.rivalName);
+              rerenderHiringModal();
+              refreshTopBar();
+              refreshMain();
+            }
+          }, isRaise ? 'Deny' : 'Let go')
+        )
+      );
+    };
+
+    if (rivalOffers.length > 0) {
+      blocks.push(h('div', {
+        style: { marginBottom:'12px', padding:'10px 12px', background: 'rgba(248,81,73,0.06)', border: '1px solid #f85149', borderRadius: '6px' }
+      },
+        h('div', { style: { color:'#ff7b72', fontWeight:700, fontSize:'0.88rem', marginBottom:'4px' } },
+          '\u26A0 Rival Offers (' + rivalOffers.length + ') \u2014 your people are getting poached'),
+        h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginBottom:'8px' } },
+          'Low morale on senior staff leaves them open to outside offers. Match the salary to keep them, exceed to re-engage them, or let them walk.'),
+        ...rivalOffers.map(o => renderOffer(o, false))
+      ));
+    }
+    if (raiseOffers.length > 0) {
+      blocks.push(h('div', {
+        style: { marginBottom:'12px', padding:'10px 12px', background: 'rgba(255,211,61,0.06)', border: '1px solid #ffd33d', borderRadius: '6px' }
+      },
+        h('div', { style: { color:'#ffd33d', fontWeight:700, fontSize:'0.88rem', marginBottom:'4px' } },
+          '\uD83D\uDCB0 Raise Requests (' + raiseOffers.length + ') \u2014 your Negotiators are asking'),
+        h('div', { style: { color:'#8b949e', fontSize:'0.7rem', marginBottom:'8px' } },
+          'Employees with the Negotiator trait periodically ask for raises. Approve to pay the ask, exceed to make them ecstatic, or deny (\u221210 morale, they stay).'),
+        ...raiseOffers.map(o => renderOffer(o, true))
+      ));
+    }
+    return h('div', null, ...blocks);
   }
 
   // Requisitions block — only rendered when the current recruiter (Head of
@@ -15878,8 +15996,19 @@ let _clockValidated = false;
     for (const emp of (S.employees || [])) {
       if (typeof emp.morale !== 'number') { emp.morale = 70; continue; }
       const gap = 70 - emp.morale;
-      if (Math.abs(gap) < 0.05) continue;  // close enough — no drift noise
-      emp.morale = Math.max(0, Math.min(100, emp.morale + gap * 0.1));
+      if (Math.abs(gap) >= 0.05) {
+        emp.morale = Math.max(0, Math.min(100, emp.morale + gap * 0.1));
+      }
+    }
+    // v11.1: Mentor trait — junior stat growth via tycoonProjects helper.
+    if (typeof window._tycoonApplyMentorGrowth === 'function') {
+      try { window._tycoonApplyMentorGrowth(); } catch (e) { console.error('[mentor growth]', e); }
+    }
+    // v11.1: Negotiator trait — periodically fires a raise-request offer
+    // modeled identically to rival outside offers (same response UI). Base
+    // cadence is every ~26 game-weeks per Negotiator. See hiring module.
+    if (typeof window._tycoonMaybeNegotiatorRaise === 'function') {
+      try { window._tycoonMaybeNegotiatorRaise(); } catch (e) { console.error('[negotiator]', e); }
     }
   }
 
@@ -16292,8 +16421,17 @@ let _clockValidated = false;
     const expired = S.hiring.outsideOffers.filter(o => o.expiresAtWeek <= currentWeek);
     if (expired.length === 0) return;
     for (const o of expired) {
-      // Auto-leave: employee quits for the rival
-      loseEmployeeToRival(o, /*silent=*/false);
+      if (o.isInternalRaise) {
+        // Raise request ignored — morale hit, employee stays
+        const emp = (S.employees || []).find(e => e.id === o.employeeId);
+        if (emp) {
+          emp.morale = Math.max(0, (emp.morale || 70) - 10);
+          if (typeof log === 'function') log('\uD83D\uDCA2 ' + emp.name + '\u2019s raise request went unanswered \u2014 morale \u221210');
+        }
+      } else {
+        // Rival poach — employee quits
+        loseEmployeeToRival(o, /*silent=*/false);
+      }
     }
     S.hiring.outsideOffers = S.hiring.outsideOffers.filter(o => o.expiresAtWeek > currentWeek);
     if (typeof markDirty === 'function') markDirty();
@@ -16350,12 +16488,21 @@ let _clockValidated = false;
     return { ok: true, employee: emp };
   }
 
-  // Player chooses Decline — employee leaves for the rival.
+  // Player chooses Decline. For a rival poach → employee leaves. For an
+  // internal Negotiator raise request → employee stays but morale drops.
   function declineOutsideOffer(offerId) {
     ensureState();
     const offer = S.hiring.outsideOffers.find(o => o.id === offerId);
     if (!offer) return { ok: false, error: 'Offer not found' };
-    loseEmployeeToRival(offer, false);
+    if (offer.isInternalRaise) {
+      const emp = (S.employees || []).find(e => e.id === offer.employeeId);
+      if (emp) {
+        emp.morale = Math.max(0, (emp.morale || 70) - 10);
+        if (typeof log === 'function') log('\uD83D\uDCA2 Raise denied: ' + emp.name + ' \u2014 morale \u221210');
+      }
+    } else {
+      loseEmployeeToRival(offer, false);
+    }
     removeOfferById(offerId);
     return { ok: true };
   }
@@ -16449,6 +16596,51 @@ let _clockValidated = false;
     }
     if (typeof markDirty === 'function') markDirty();
   }
+
+  // ---------- Negotiator trait raise requests (v11.1) ----------
+  // Negotiators ask for raises 2× as often as baseline. Since baseline is
+  // "never," we set the Negotiator cadence at ~26 weeks. The raise request
+  // reuses the outsideOffers data structure + UI so the player sees it in
+  // the same Talent Market block with Match / Exceed / Decline buttons.
+  // Decline = morale drop (but no departure — they stay, just unhappy).
+  const NEGOTIATOR_WEEKLY_PROB = 1 / 26;  // one request every ~26 weeks per Negotiator
+  const RAISE_ASK_MUL = 1.10;             // 10% salary bump request
+
+  function maybeGenerateNegotiatorRaise() {
+    ensureState();
+    const negotiators = (S.employees || []).filter(e =>
+      Array.isArray(e.traits) && e.traits.includes('Negotiator') &&
+      !S.hiring.outsideOffers.some(o => o.employeeId === e.id)
+    );
+    if (!negotiators.length) return;
+    for (const emp of negotiators) {
+      if (Math.random() >= NEGOTIATOR_WEEKLY_PROB) continue;
+      const newSalary = Math.round((emp.salary || 0) * RAISE_ASK_MUL);
+      const currentWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+      const offer = {
+        id: 'raise_' + (S.hiring.fairIndex++).toString(36) + '_' + emp.id,
+        employeeId: emp.id,
+        employeeName: emp.name,
+        employeeTierName: emp.tierName,
+        employeeSpecialty: emp.specialty,
+        currentSalary: emp.salary,
+        newSalary,
+        isInternalRaise: true,          // differentiates UI + decline behavior
+        rivalId: null,
+        rivalName: 'Negotiator trait',
+        rivalIcon: '\uD83D\uDCB0',
+        postedAtWeek: currentWeek,
+        expiresAtWeek: currentWeek + OUTSIDE_OFFER_DURATION_WEEKS,
+      };
+      S.hiring.outsideOffers.push(offer);
+      if (typeof markDirty === 'function') markDirty();
+      if (typeof log === 'function') log('\uD83D\uDCB0 ' + emp.name + ' (Negotiator) asks for a raise — $' + (newSalary/1000).toFixed(0) + 'K vs your $' + ((emp.salary||0)/1000).toFixed(0) + 'K');
+      document.dispatchEvent(new CustomEvent('tycoon:outside-offer', { detail: { offer } }));
+      return;  // one per tick
+    }
+  }
+  // Expose via the sentinel the employees module looks for
+  window._tycoonMaybeNegotiatorRaise = maybeGenerateNegotiatorRaise;
 
   // Listen for rival bankruptcy and trigger poaching if enabled
   document.addEventListener('tycoon:rival-bankrupt', (e) => {

@@ -358,8 +358,19 @@
     for (const emp of (S.employees || [])) {
       if (typeof emp.morale !== 'number') { emp.morale = 70; continue; }
       const gap = 70 - emp.morale;
-      if (Math.abs(gap) < 0.05) continue;  // close enough — no drift noise
-      emp.morale = Math.max(0, Math.min(100, emp.morale + gap * 0.1));
+      if (Math.abs(gap) >= 0.05) {
+        emp.morale = Math.max(0, Math.min(100, emp.morale + gap * 0.1));
+      }
+    }
+    // v11.1: Mentor trait — junior stat growth via tycoonProjects helper.
+    if (typeof window._tycoonApplyMentorGrowth === 'function') {
+      try { window._tycoonApplyMentorGrowth(); } catch (e) { console.error('[mentor growth]', e); }
+    }
+    // v11.1: Negotiator trait — periodically fires a raise-request offer
+    // modeled identically to rival outside offers (same response UI). Base
+    // cadence is every ~26 game-weeks per Negotiator. See hiring module.
+    if (typeof window._tycoonMaybeNegotiatorRaise === 'function') {
+      try { window._tycoonMaybeNegotiatorRaise(); } catch (e) { console.error('[negotiator]', e); }
     }
   }
 

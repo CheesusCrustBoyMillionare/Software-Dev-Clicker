@@ -396,6 +396,9 @@
     const researchPolish  = window.tycoonResearch?.qualityMultiplierFor?.('polish', proj.type) || 1;
     const teamMult = window.tycoonResearch?.teamProductivityMultiplier?.() || 1;
     const devSpeedMult = window.tycoonResearch?.devSpeedMultiplierForType?.(proj.type) || 1;
+    // v11.1: employee trait team multipliers. Team Player boosts the WHOLE
+    // team; Lone Wolf / Veteran are per-contributor (computed inside the loop).
+    const teamTraitMul = computeTeamTraitMultiplier(contributors);
     // v3 roguelite: founder-level output modifier (Night Owl, Caffeinated,
     // Chip on Shoulder, Scrappy, Workaholic) + per-axis modifier (passions +
     // Polish Snob). Computed once per tick since S.founder is shared.
@@ -417,10 +420,12 @@
       const fAxT = c.isFounder ? founderAxisT : 1.0;
       const fAxD = c.isFounder ? founderAxisD : 1.0;
       const fAxP = c.isFounder ? founderAxisP : 1.0;
+      // Per-contributor trait multiplier (Lone Wolf, Veteran)
+      const traitMul = computeContributorTraitMultiplier(c, contributors, proj);
 
-      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * perProjMul * teamMult * researchTech   * devSpeedMult * fOut * fAxT);
-      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * perProjMul * teamMult * researchDesign * devSpeedMult * fOut * fAxD);
-      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * perProjMul * teamMult * researchPolish * devSpeedMult * fOut * fAxP);
+      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchTech   * devSpeedMult * fOut * fAxT);
+      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchDesign * devSpeedMult * fOut * fAxD);
+      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchPolish * devSpeedMult * fOut * fAxP);
       proj.bugs += (bugRisk * 0.3 * perProjMul);
       if (proj.crunching) {
         c.morale = Math.max(0, (c.morale || 70) - 3);
@@ -455,6 +460,7 @@
     const founderAxisP = window.tycoonTraits?.founderAxisMul?.('polish') ?? 1;
     const perfHook = window.tycoonTraits?.founderTraitHook?.('polishPhase');
     const perfMul = perfHook?.qualityMul || 1.0;
+    const teamTraitMul = computeTeamTraitMultiplier(contributors);
 
     for (const c of contributors) {
       const es = effectiveStats(c);
@@ -466,9 +472,10 @@
       const fOut = c.isFounder ? founderOut : 1.0;
       const fAxP = c.isFounder ? founderAxisP : 1.0;
       const fPerf = c.isFounder ? perfMul : 1.0;
+      const traitMul = computeContributorTraitMultiplier(c, contributors, proj);
 
-      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * perProjMul * fOut));
-      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * perProjMul * fOut * fAxP * fPerf);
+      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * perProjMul * fOut * traitMul));
+      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * perProjMul * teamTraitMul * traitMul * fOut * fAxP * fPerf);
     }
 
     // Workaholic morale drain applies in polish phase too.
@@ -481,6 +488,70 @@
     // Toxic drain during polish phase too
     applyToxicDrain(contributors);
   }
+
+  // v11.1: employee-trait multipliers used by developOneWeek + polishOneWeek.
+  //
+  // Team Player: +10% team-wide synergy per Team Player on the team (stacks).
+  // Lone Wolf on a multi-person team: −5% to team synergy (stacks).
+  // The returned value is applied to every contributor's output.
+  function computeTeamTraitMultiplier(contributors) {
+    if (!Array.isArray(contributors) || contributors.length === 0) return 1;
+    const has = (c, t) => Array.isArray(c.traits) && c.traits.includes(t);
+    const teamPlayers = contributors.filter(c => has(c, 'Team Player')).length;
+    const loneWolves = contributors.length > 1
+      ? contributors.filter(c => has(c, 'Lone Wolf')).length
+      : 0;
+    return 1 + (teamPlayers * 0.10) - (loneWolves * 0.05);
+  }
+
+  // Per-contributor trait multiplier — reads traits that affect only this
+  // individual's output, not the whole team.
+  //   Lone Wolf, solo on the project: +20% to own output.
+  //   Veteran: +15% output on project types they've shipped before.
+  function computeContributorTraitMultiplier(c, contributors, proj) {
+    const traits = c.traits;
+    if (!Array.isArray(traits) || traits.length === 0) return 1;
+    let mul = 1;
+    if (traits.includes('Lone Wolf') && contributors.length === 1) mul *= 1.20;
+    if (traits.includes('Veteran') && proj && Array.isArray(c.shippedTypes) && c.shippedTypes.includes(proj.type)) {
+      mul *= 1.15;
+    }
+    return mul;
+  }
+
+  // Mentor growth — called once per week from tycoonEmployees weekly tick.
+  // For each project with a Mentor on the team, every junior (tier ≤ 2)
+  // teammate gains 0.1 of growth in a random stat. When a stat's growth
+  // pool crosses 1.0, the stat increments by 1 (capped at tier statCap + 1).
+  function applyMentorGrowth() {
+    if (!S.projects?.active) return;
+    const TIERS = window.TYCOON_TIERS || [];
+    const has = (c, t) => Array.isArray(c.traits) && c.traits.includes(t);
+    for (const proj of S.projects.active) {
+      const contributors = getContributorsFor(proj);
+      const mentors = contributors.filter(c => has(c, 'Mentor')).length;
+      if (!mentors) continue;
+      for (const c of contributors) {
+        if (c.isFounder) continue;
+        if ((c.tier || 0) > 2) continue;  // only juniors/interns/mids
+        if (has(c, 'Mentor')) continue;    // mentors don't mentor themselves
+        if (!c.mentorGrowth) c.mentorGrowth = { tech:0, design:0, polish:0, speed:0 };
+        // Pick a random axis per mentor per week
+        for (let i = 0; i < mentors; i++) {
+          const axis = ['tech','design','polish','speed'][Math.floor(Math.random() * 4)];
+          c.mentorGrowth[axis] = (c.mentorGrowth[axis] || 0) + 0.1;
+          if (c.mentorGrowth[axis] >= 1) {
+            const cap = (TIERS[c.tier]?.statCap || 10) + 1;
+            c.stats[axis] = Math.min(cap, (c.stats[axis] || 0) + 1);
+            c.mentorGrowth[axis] -= 1;
+            if (typeof log === 'function') log('\uD83C\uDF93 Mentor growth: ' + c.name + ' +1 ' + axis);
+          }
+        }
+      }
+    }
+  }
+  // Expose so tycoonEmployees can call it from its weekly tick
+  window._tycoonApplyMentorGrowth = applyMentorGrowth;
 
   // v11.1: Toxic-teammate morale drain. Called from developOneWeek +
   // polishOneWeek. Each Toxic contributor subtracts 0.5 morale/wk from every
@@ -674,6 +745,18 @@
       }
       if (typeof log === 'function' && teamIds.length > 0) {
         log('\uD83C\uDF89 Team morale +' + hitBonus + ' — ' + proj.name + ' ' + (proj.criticScore >= 90 ? 'shipped a hit' : 'shipped solid') + ' (critic ' + proj.criticScore + ')');
+      }
+    }
+
+    // v11.1: Record the shipped project-type on each team member so the
+    // Veteran trait can later check "this is a type I've shipped before → +15%".
+    if (Array.isArray(proj.team)) {
+      for (const empId of proj.team) {
+        if (empId === 'founder') continue;
+        const emp = (S.employees || []).find(e => e.id === empId);
+        if (!emp) continue;
+        if (!Array.isArray(emp.shippedTypes)) emp.shippedTypes = [];
+        if (!emp.shippedTypes.includes(proj.type)) emp.shippedTypes.push(proj.type);
       }
     }
 
