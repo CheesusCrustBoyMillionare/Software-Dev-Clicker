@@ -340,6 +340,10 @@
 .t-candidate-card.interviewed { border-color: #58a6ff; }
 .t-candidate-card.matched-req { border-color: #bc8cff; background: rgba(188,140,255,0.06); }
 .t-candidate-card.matched-req.interviewed { border-color: #bc8cff; box-shadow: 0 0 0 1px #bc8cff44; }
+.t-candidate-card.referred { border-color: #7ee787; background: rgba(126,231,135,0.05); }
+.t-candidate-card.referred.interviewed { border-color: #7ee787; box-shadow: 0 0 0 1px #7ee78744; }
+.t-candidate-card.poached { border-color: #ffd33d; background: rgba(255,211,61,0.05); }
+.t-candidate-card.poached.interviewed { border-color: #ffd33d; box-shadow: 0 0 0 1px #ffd33d44; }
 
 /* Requisition rows (phase 3) */
 .t-req-row {
@@ -2077,11 +2081,23 @@
   }
 
   function renderCandidateCard(c) {
-    // Highlight candidates that arrived via a posted requisition
-    const cardClasses = 't-candidate-card' + (c.interviewed ? ' interviewed' : '') + (c.reqId ? ' matched-req' : '');
-    const reqBadge = c.reqId ? h('div', { style: { color: '#bc8cff', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } }, '📋 FROM REQUISITION') : null;
+    // Highlight candidates by their source — requisition, referral, poach.
+    // Only one of these tags applies per candidate; priority: poach > req > referral.
+    const cardClasses = 't-candidate-card'
+      + (c.interviewed ? ' interviewed' : '')
+      + (c.poachedFromRival ? ' poached' : c.reqId ? ' matched-req' : c.referralFromId ? ' referred' : '');
+    let sourceBadge = null;
+    if (c.poachedFromRival) {
+      sourceBadge = h('div', { style: { color: '#ffd33d', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } },
+        '\u26A1 POACHED FROM ' + (c.poachedFromIcon || '') + ' ' + c.poachedFromRival.toUpperCase());
+    } else if (c.reqId) {
+      sourceBadge = h('div', { style: { color: '#bc8cff', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } }, '📋 FROM REQUISITION');
+    } else if (c.referralFromName) {
+      sourceBadge = h('div', { style: { color: '#7ee787', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } },
+        '\uD83E\uDD1D REFERRED BY ' + c.referralFromName.toUpperCase());
+    }
     const card = h('div', { className: cardClasses },
-      reqBadge,
+      sourceBadge,
       h('div', { className: 'c-top' },
         h('div', null,
           h('div', { className: 'c-name' }, c.name),

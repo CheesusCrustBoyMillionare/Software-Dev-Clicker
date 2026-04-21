@@ -61,6 +61,19 @@
       poaching: false,
       desc: 'A full-time hiring lead. 2 candidates per week AND you can post requisitions targeting a specific specialty + tier — matched applicants trickle in over the req\u2019s lifetime.',
     },
+    {
+      tier: 3,
+      name: 'Executive Recruiter',
+      icon: '\uD83C\uDFC6',
+      annualSalary: 480000,  // ~$40K/month
+      intervalWeeks: 1,
+      candidatesPerTick: 2,
+      filterBySpecialty: true,
+      postRequisitions: true,
+      referrals: true,       // happy employees refer candidates from their network
+      poaching: true,        // failing rivals' employees leak into the market
+      desc: 'An elite talent operator. Adds two new candidate streams: referrals from your happy employees (morale 80+) and poaching ex-talent from failing rival studios.',
+    },
   ];
   const RECRUITER_BY_TIER = Object.fromEntries(RECRUITER_TIERS.map(r => [r.tier, r]));
 
@@ -208,7 +221,101 @@
       for (let i = 0; i < count; i++) generateCandidateInMarket();
       _weeksUntilNextCandidate = r.intervalWeeks;
     }
+    // Phase 4: referrals from happy employees (tier 3+)
+    if (currentRecruiter().referrals) maybeGenerateReferral();
   }
+
+  // ---------- Referrals (Phase 4) ----------
+  // Each week, each employee with morale >= REFERRAL_MIN_MORALE has a small
+  // chance to refer a candidate from their network. The referred candidate
+  // shares the referrer's specialty and sits one tier at or below.
+  const REFERRAL_MIN_MORALE = 80;
+  const REFERRAL_WEEKLY_PROB = 0.08;  // ~1 referral per 12 weeks per happy employee
+
+  function maybeGenerateReferral() {
+    ensureState();
+    if (S.hiring.queue.length >= MAX_QUEUE) return;
+    const happyEmps = (S.employees || []).filter(e => (e.morale || 0) >= REFERRAL_MIN_MORALE);
+    if (!happyEmps.length) return;
+    // Only one referral attempt per tick — iterate the happy list looking for a hit
+    for (const ref of happyEmps) {
+      if (Math.random() >= REFERRAL_WEEKLY_PROB) continue;
+      // Build candidate opts biased toward the referrer's specialty + tier
+      const refTier = (typeof ref.tier === 'number') ? ref.tier : 1;
+      const c = window.tycoonEmployees.generateCandidate({
+        specialty: ref.specialty,
+        tier: Math.max(0, refTier - (Math.random() < 0.7 ? 0 : 1)),
+      });
+      c.fairId = ++S.hiring.fairIndex;
+      c.offeredAtWeek = window.tycoonProjects.absoluteWeek();
+      c.expiresAtWeek = c.offeredAtWeek + CANDIDATE_LIFETIME_WEEKS;
+      c.referralFromId = ref.id;
+      c.referralFromName = ref.name;
+      // Referral discount: 10-15% off asking salary as a network favor
+      c.askingSalary = Math.round(c.askingSalary * (0.85 + Math.random() * 0.05));
+      S.hiring.queue.push(c);
+      if (typeof markDirty === 'function') markDirty();
+      if (typeof log === 'function') log('\uD83E\uDD1D ' + ref.name + ' referred ' + c.name + ' (' + c.tierName + ' \u00b7 ' + c.specialty + ')');
+      document.dispatchEvent(new CustomEvent('tycoon:hiring-fair', {
+        detail: { fairId: c.fairId, candidates: [c], referral: true }
+      }));
+      return;  // one referral max per tick
+    }
+  }
+
+  // ---------- Poaching (Phase 4) ----------
+  // When a rival studio goes bankrupt, 1-2 ex-employees surface in the
+  // market. Stats get +1 across the board and a 20% salary uplift; they
+  // carry a `poachedFromRival` tag for the UI. Only active when the
+  // recruiter tier is Executive Recruiter (3).
+  function injectPoachedCandidates(rival) {
+    ensureState();
+    if (!currentRecruiter().poaching) return;
+    const n = 1 + Math.floor(Math.random() * 2);  // 1 or 2
+    for (let i = 0; i < n; i++) {
+      if (S.hiring.queue.length >= MAX_QUEUE) break;
+      // High tier (3-5), prefer rival's focus-axis specialty when available
+      const tier = 3 + Math.floor(Math.random() * 3);
+      const specPool = {
+        game: ['gamedev','coder','frontend'],
+        business: ['backend','coder','devops'],
+        web: ['frontend','webdev','backend'],
+        mobile: ['mobile','frontend','coder'],
+        saas: ['backend','cloud','devops'],
+        ai: ['agent','cloud','backend'],
+      };
+      const focus = Array.isArray(rival.focus) ? rival.focus[0] : null;
+      const pool = specPool[focus] || ['coder','frontend','backend'];
+      const specialty = pool[Math.floor(Math.random() * pool.length)];
+      const c = window.tycoonEmployees.generateCandidate({ tier, specialty });
+      // Bump each stat by 1 (clamped to tier cap + 1 for consistency)
+      const TIERS = window.TYCOON_TIERS || [];
+      const cap = (TIERS[tier]?.statCap || 10) + 1;
+      for (const k of ['design','tech','polish','speed']) {
+        c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 1);
+      }
+      c.askingSalary = Math.round(c.askingSalary * 1.20);
+      c.fairId = ++S.hiring.fairIndex;
+      c.offeredAtWeek = window.tycoonProjects.absoluteWeek();
+      c.expiresAtWeek = c.offeredAtWeek + CANDIDATE_LIFETIME_WEEKS;
+      c.poachedFromRival = rival.name;
+      c.poachedFromIcon = rival.icon;
+      S.hiring.queue.push(c);
+      if (typeof log === 'function') log('\u26A1 ' + (rival.icon || '') + ' ' + c.name + ' from ' + rival.name + ' lists on the market');
+      document.dispatchEvent(new CustomEvent('tycoon:hiring-fair', {
+        detail: { fairId: c.fairId, candidates: [c], poached: true }
+      }));
+    }
+    if (typeof markDirty === 'function') markDirty();
+  }
+
+  // Listen for rival bankruptcy and trigger poaching if enabled
+  document.addEventListener('tycoon:rival-bankrupt', (e) => {
+    const rivalId = e?.detail?.rivalId;
+    if (!rivalId) return;
+    const rival = (S.rivals || []).find(r => r.id === rivalId);
+    if (rival) injectPoachedCandidates(rival);
+  });
 
   // ---------- Recruiter management ----------
   function hireRecruiter(tier) {
@@ -331,6 +438,9 @@
     closeRequisition,
     MAX_ACTIVE_REQS,
     REQ_DEFAULT_DURATION_WEEKS,
+    // Phase 4 — exposed for debug/testing
+    maybeGenerateReferral,
+    injectPoachedCandidates,
     INTERVIEW_COST,
     BASE_CANDIDATE_INTERVAL_WEEKS,
     CANDIDATE_LIFETIME_WEEKS,
