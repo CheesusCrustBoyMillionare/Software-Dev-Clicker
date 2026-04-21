@@ -11137,7 +11137,20 @@ let _clockValidated = false;
   width: 100%; margin-top: 4px; padding: 8px 10px; background: #0d1117; color: #c9d1d9;
   border: 1px solid #30363d; border-radius: 4px; font-family: inherit; font-size: 0.9rem;
 }
-.t-modal .t-modal-actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
+.t-modal .t-modal-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+  /* Sticky footer so Close / Continue / Confirm stay in view even when the
+     modal content is long enough to scroll. The negative side+bottom margins
+     cancel the .t-modal's 24px padding so the bar reaches the modal edges;
+     the internal 14px 24px padding keeps the buttons away from the borders.
+     Opaque bg + top border + upward shadow hide the scrolling content behind. */
+  position: sticky; bottom: 0; z-index: 2;
+  margin: 20px -24px -24px;
+  padding: 14px 24px;
+  background: #161b22;
+  border-top: 1px solid #30363d;
+  box-shadow: 0 -6px 16px -8px rgba(0,0,0,0.5);
+}
 
 .t-feat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 6px; }
 .t-feat-card {
