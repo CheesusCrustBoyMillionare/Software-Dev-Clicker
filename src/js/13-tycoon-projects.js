@@ -378,7 +378,11 @@
   }
 
   // Morale affects productivity — below 40 = -20%, above 85 = +15% "Flow state"
+  // v11.1: Nihilist founder trait flattens morale's effect on output to 1.0.
+  // The matching morale cap (≤65 for the team) is enforced in
+  // tycoonEmployees onWeekTick so mid-range drift still works.
   function moraleMultiplier(m) {
+    if (window.tycoonTraits?.founderTraitHook?.('moraleFlat')) return 1;
     if (m == null) return 1;
     if (m < 25) return 0.5;     // quit risk
     if (m < 40) return 0.8;     // discontent
@@ -394,8 +398,14 @@
     if (contributors.length === 0) return;
     const typeDef = PROJECT_TYPES[proj.type];
     const w = typeDef.weights;
-    const crunchMul = proj.crunching ? 1.30 : 1.0;
-    const bugRisk   = proj.crunching ? 1.50 : 1.0;
+    // v11.1: Crunch Addict founder trait reworks crunch numbers:
+    // output +20% (was +30%), bug risk neutralized (was +50%). Trait-less
+    // founder keeps the original crunch rules.
+    const crunchRework = window.tycoonTraits?.founderTraitHook?.('crunchRework');
+    const crunchOutMul = crunchRework?.outputMul ?? 1.30;
+    const crunchBugMul = crunchRework?.bugRiskMul ?? 1.50;
+    const crunchMul = proj.crunching ? crunchOutMul : 1.0;
+    const bugRisk   = proj.crunching ? crunchBugMul : 1.0;
     const perProjMul = 1;
 
     const researchTech    = window.tycoonResearch?.qualityMultiplierFor?.('tech', proj.type) || 1;
@@ -459,7 +469,9 @@
     const contributors = getContributorsFor(proj);
     if (contributors.length === 0) return;
     const perProjMul = 1;
-    const crunchMul = proj.crunching ? 1.30 : 1.0;
+    // v11.1: Crunch Addict — same output rework applies in polish phase.
+    const crunchRework = window.tycoonTraits?.founderTraitHook?.('crunchRework');
+    const crunchMul = proj.crunching ? (crunchRework?.outputMul ?? 1.30) : 1.0;
 
     // v3 roguelite: founder mods for polish phase. Perfectionist gives an
     // additional quality bump on top of the normal polish gains.
@@ -844,6 +856,14 @@
     // Random luck ±5
     const luck = (Math.random() - 0.5) * 10;
     let critic = Math.round(weighted + featureBonus - bugPenalty + luck);
+    // v11.1: Coder Purist founder trait applies a critic adjustment based on
+    // the project's primary axis — tech-primary gets +15%, design-primary
+    // takes -10%. Polish-primary is neutral.
+    const purist = window.tycoonTraits?.founderTraitHook?.('codePurist');
+    if (purist) {
+      if (primaryAxis === 'tech')   critic = Math.round(critic * (1 + (purist.techBonus || 0)));
+      if (primaryAxis === 'design') critic = Math.round(critic * (1 - (purist.designPenalty || 0)));
+    }
     critic = Math.max(1, Math.min(100, critic));
 
     // User score: weighted toward polish + bug sensitivity. Diverges from

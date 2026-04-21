@@ -9176,7 +9176,11 @@ let _clockValidated = false;
   }
 
   // Morale affects productivity — below 40 = -20%, above 85 = +15% "Flow state"
+  // v11.1: Nihilist founder trait flattens morale's effect on output to 1.0.
+  // The matching morale cap (≤65 for the team) is enforced in
+  // tycoonEmployees onWeekTick so mid-range drift still works.
   function moraleMultiplier(m) {
+    if (window.tycoonTraits?.founderTraitHook?.('moraleFlat')) return 1;
     if (m == null) return 1;
     if (m < 25) return 0.5;     // quit risk
     if (m < 40) return 0.8;     // discontent
@@ -9192,8 +9196,14 @@ let _clockValidated = false;
     if (contributors.length === 0) return;
     const typeDef = PROJECT_TYPES[proj.type];
     const w = typeDef.weights;
-    const crunchMul = proj.crunching ? 1.30 : 1.0;
-    const bugRisk   = proj.crunching ? 1.50 : 1.0;
+    // v11.1: Crunch Addict founder trait reworks crunch numbers:
+    // output +20% (was +30%), bug risk neutralized (was +50%). Trait-less
+    // founder keeps the original crunch rules.
+    const crunchRework = window.tycoonTraits?.founderTraitHook?.('crunchRework');
+    const crunchOutMul = crunchRework?.outputMul ?? 1.30;
+    const crunchBugMul = crunchRework?.bugRiskMul ?? 1.50;
+    const crunchMul = proj.crunching ? crunchOutMul : 1.0;
+    const bugRisk   = proj.crunching ? crunchBugMul : 1.0;
     const perProjMul = 1;
 
     const researchTech    = window.tycoonResearch?.qualityMultiplierFor?.('tech', proj.type) || 1;
@@ -9257,7 +9267,9 @@ let _clockValidated = false;
     const contributors = getContributorsFor(proj);
     if (contributors.length === 0) return;
     const perProjMul = 1;
-    const crunchMul = proj.crunching ? 1.30 : 1.0;
+    // v11.1: Crunch Addict — same output rework applies in polish phase.
+    const crunchRework = window.tycoonTraits?.founderTraitHook?.('crunchRework');
+    const crunchMul = proj.crunching ? (crunchRework?.outputMul ?? 1.30) : 1.0;
 
     // v3 roguelite: founder mods for polish phase. Perfectionist gives an
     // additional quality bump on top of the normal polish gains.
@@ -9642,6 +9654,14 @@ let _clockValidated = false;
     // Random luck ±5
     const luck = (Math.random() - 0.5) * 10;
     let critic = Math.round(weighted + featureBonus - bugPenalty + luck);
+    // v11.1: Coder Purist founder trait applies a critic adjustment based on
+    // the project's primary axis — tech-primary gets +15%, design-primary
+    // takes -10%. Polish-primary is neutral.
+    const purist = window.tycoonTraits?.founderTraitHook?.('codePurist');
+    if (purist) {
+      if (primaryAxis === 'tech')   critic = Math.round(critic * (1 + (purist.techBonus || 0)));
+      if (primaryAxis === 'design') critic = Math.round(critic * (1 - (purist.designPenalty || 0)));
+    }
     critic = Math.max(1, Math.min(100, critic));
 
     // User score: weighted toward polish + bug sensitivity. Diverges from
@@ -16000,12 +16020,21 @@ let _clockValidated = false;
     // near-baseline drift is gentle enough that drains like Toxic (-0.5/wk)
     // still find meaningful equilibria below 70. Previously used flat ±1/±0.5
     // rates which were completely neutralized by Toxic at the 70 floor.
+    // v11.1: Nihilist founder trait caps every employee's morale (including
+    // the founder) at its capMorale value. Applied before drift so the drift
+    // target still reads as 70 — the cap clamps the result afterward.
+    const nihilist = window.tycoonTraits?.founderTraitHook?.('moraleFlat');
+    const moraleCap = nihilist?.capMorale ?? 100;
     for (const emp of (S.employees || [])) {
       if (typeof emp.morale !== 'number') { emp.morale = 70; continue; }
       const gap = 70 - emp.morale;
       if (Math.abs(gap) >= 0.05) {
         emp.morale = Math.max(0, Math.min(100, emp.morale + gap * 0.1));
       }
+      if (emp.morale > moraleCap) emp.morale = moraleCap;
+    }
+    if (S.founder && typeof S.founder.morale === 'number' && S.founder.morale > moraleCap) {
+      S.founder.morale = moraleCap;
     }
     // v11.1: Mentor trait — junior stat growth via tycoonProjects helper.
     if (typeof window._tycoonApplyMentorGrowth === 'function') {
@@ -20869,16 +20898,13 @@ let _clockValidated = false;
     { id: 't_early_riser',       name: 'Early Riser',        desc: '+15% output during weeks 1\u20136 of a project',
       hook: { kind: 'earlyPhase', weeks: 6, outputMul: 1.15 } },
     { id: 't_crunch_addict',     name: 'Crunch Addict',      desc: 'Crunch mode: +20% output (was +30%), but no bug risk penalty',
-      wired: false,
       hook: { kind: 'crunchRework', outputMul: 1.20, bugRiskMul: 1.0 } },
     { id: 't_nihilist',          name: 'Nihilist',           desc: 'Morale doesn\'t affect output (flat 1.0\u00D7), but max morale capped at 65',
-      wired: false,
       hook: { kind: 'moraleFlat', capMorale: 65 } },
     { id: 't_showman',           name: 'Showman',            desc: '+40% marketing multipliers, but 1st marketing channel costs +50%',
       wired: false,
       hook: { kind: 'showman', mktMul: 1.40, firstChannelCostMul: 1.50 } },
     { id: 't_coder_purist',      name: 'Coder Purist',       desc: 'Tech axis ships get +15% critic; design-heavy types get \u221210%',
-      wired: false,
       hook: { kind: 'codePurist', techBonus: 0.15, designPenalty: 0.10 } },
     { id: 't_serial_founder',    name: 'Serial Founder',     desc: 'First project ships 30% faster; subsequent projects normal',
       hook: { kind: 'firstShipSpeed', mul: 0.70 } },

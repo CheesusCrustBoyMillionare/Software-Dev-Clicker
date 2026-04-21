@@ -355,12 +355,21 @@
     // near-baseline drift is gentle enough that drains like Toxic (-0.5/wk)
     // still find meaningful equilibria below 70. Previously used flat ±1/±0.5
     // rates which were completely neutralized by Toxic at the 70 floor.
+    // v11.1: Nihilist founder trait caps every employee's morale (including
+    // the founder) at its capMorale value. Applied before drift so the drift
+    // target still reads as 70 — the cap clamps the result afterward.
+    const nihilist = window.tycoonTraits?.founderTraitHook?.('moraleFlat');
+    const moraleCap = nihilist?.capMorale ?? 100;
     for (const emp of (S.employees || [])) {
       if (typeof emp.morale !== 'number') { emp.morale = 70; continue; }
       const gap = 70 - emp.morale;
       if (Math.abs(gap) >= 0.05) {
         emp.morale = Math.max(0, Math.min(100, emp.morale + gap * 0.1));
       }
+      if (emp.morale > moraleCap) emp.morale = moraleCap;
+    }
+    if (S.founder && typeof S.founder.morale === 'number' && S.founder.morale > moraleCap) {
+      S.founder.morale = moraleCap;
     }
     // v11.1: Mentor trait — junior stat growth via tycoonProjects helper.
     if (typeof window._tycoonApplyMentorGrowth === 'function') {
