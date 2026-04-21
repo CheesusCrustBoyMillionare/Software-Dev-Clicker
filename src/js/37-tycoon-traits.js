@@ -65,9 +65,8 @@
     // effects aren't hooked into the gameplay loop. They'll light up in
     // a future patch. Keeps the founder UI honest: every rolled trait
     // has a real effect, no dud descriptions.
-    { id: 't_polymath',          name: 'Polymath',           desc: '+10% output on ALL axes, but \u221210% to matched-axis specialty bonus',
-      wired: false,
-      hook: { kind: 'polymath', axisMul: 1.10, specialtyPenalty: 0.9 } },
+    { id: 't_polymath',          name: 'Polymath',           desc: '+10% output on the two axes OUTSIDE your specialty\u2019s primary axis (jack-of-all-trades, master of one)',
+      hook: { kind: 'polymath', nonSpecialtyMul: 1.10 } },
     { id: 't_lean_ops',          name: 'Lean Operator',      desc: '\u221215% monthly loan payments and payroll',
       hook: { kind: 'leanOps', mul: 0.85 } },
     { id: 't_trend_chaser',      name: 'Trend Chaser',       desc: '+30% launch sales on ships in the last 2 years of an era window',
@@ -409,6 +408,14 @@
       ((c.year || 1980) - 1980) * 48 + ((c.month || 1) - 1) * 4 + ((c.week || 1) - 1));
   }
 
+  // Specialty → primary quality-axis map (mirrors 13-tycoon-projects +
+  // 17-tycoon-employees). Kept in sync manually; only 10 entries.
+  const SPECIALTY_AXIS_LOCAL = {
+    coder:'tech', backend:'tech', network:'tech', cloud:'tech',
+    frontend:'design', webdev:'design', gamedev:'design', agent:'design',
+    mobile:'polish', devops:'polish',
+  };
+
   // Per-axis multiplier for FOUNDER contributions — combines passion mult
   // with any axis-shifting trait (Polish Snob). Returns 1.0 for non-founder.
   function founderAxisMul(axis) {
@@ -419,6 +426,13 @@
     if (shift) {
       if (axis === 'polish' && shift.polishMul) mul *= shift.polishMul;
       if (axis === 'design' && shift.designMul) mul *= shift.designMul;
+    }
+    // v11.1: Polymath — +10% on axes outside the founder's specialty axis.
+    // Rewards breadth (the two axes they're not already built around).
+    const poly = founderTraitHook('polymath');
+    if (poly) {
+      const specAxis = SPECIALTY_AXIS_LOCAL[f.specialty] || 'tech';
+      if (axis !== specAxis) mul *= (poly.nonSpecialtyMul || 1);
     }
     return mul;
   }
