@@ -210,9 +210,32 @@
       // Meta
       createdAtWeek
     };
+    // Apply team Speed to the initial design phase duration too
+    proj.phaseWeeksRequired = applySpeedToDuration(proj, proj.phaseWeeksRequired);
     S.projects.active.push(proj);
     if (typeof markDirty === 'function') markDirty();
     return proj;
+  }
+
+  // ---------- Speed-stat wiring (v11.1) ----------
+  // The team's average Speed stat compresses phase duration at phase-start.
+  // Baseline ≈ 5 (a solid junior); each point above 5 trims 4% off the phase;
+  // each point below adds 4% (capped ±30%). Team Speed locked in at phase
+  // transition so a mid-phase reassign doesn't shift an already-committed
+  // schedule. Founder + assigned employees both count equally.
+  function avgTeamSpeed(proj) {
+    const contributors = getContributorsFor(proj);
+    if (!contributors.length) return 5;
+    let total = 0;
+    for (const c of contributors) total += (c.stats?.speed || 0);
+    return total / contributors.length;
+  }
+  function applySpeedToDuration(proj, baseWeeks) {
+    if (!baseWeeks) return baseWeeks;
+    const avg = avgTeamSpeed(proj);
+    // 1 - 0.04 × (avg - 5), clamped to [0.7, 1.3] — 30% fastest, 30% slowest
+    const mul = Math.max(0.7, Math.min(1.3, 1 - (avg - 5) * 0.04));
+    return Math.max(1, Math.round(baseWeeks * mul));
   }
 
   // ---------- Phase advancement ----------
@@ -224,11 +247,11 @@
     if (proj.phase === 'design') {
       proj.phase = 'development';
       proj.phaseStartedAtWeek = absoluteWeek();
-      proj.phaseWeeksRequired = scope.phaseWeeks.development;
+      proj.phaseWeeksRequired = applySpeedToDuration(proj, scope.phaseWeeks.development);
     } else if (proj.phase === 'development') {
       proj.phase = 'polish';
       proj.phaseStartedAtWeek = absoluteWeek();
-      proj.phaseWeeksRequired = scope.phaseWeeks.polish;
+      proj.phaseWeeksRequired = applySpeedToDuration(proj, scope.phaseWeeks.polish);
       // v3 roguelite: Perfectionist founder extends polish phase duration.
       // Quality mult is applied in polishOneWeek (above).
       const perf = window.tycoonTraits?.founderTraitHook?.('polishPhase');
@@ -827,6 +850,9 @@
     advance: advancePhase,
     ship: shipProject,
     find: findProject,
+    // Helpers for UI
+    avgTeamSpeed,
+    applySpeedToDuration,
     // Scoring (exposed for testing)
     computeCriticScore,
     computeLaunchSales,

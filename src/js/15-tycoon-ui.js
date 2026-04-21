@@ -407,6 +407,20 @@
     return '$' + Math.round(n);
   }
 
+  // ---------- Quality-axis helpers (used by project UI) ----------
+  // Consistent color palette for the three quality axes so the New Project
+  // modal, active project detail, and info lines all match.
+  const AXIS_COLOR = { design: '#bc8cff', tech: '#58a6ff', polish: '#f0883e' };
+  const AXIS_ICON  = { design: '🎨',       tech: '🛠',      polish: '✨' };
+  function axisPrimaryLabel(weights) {
+    if (!weights) return '';
+    const top = Object.entries(weights).sort((a,b) => b[1] - a[1])[0];
+    return top ? (top[0] + '-heavy') : '';
+  }
+  function axisStr(name, w) {
+    return name + ' ' + Math.round((w || 0) * 100) + '%';
+  }
+
   function getRootEl() { return document.getElementById('tycoon-overlay'); }
 
   // ---------- Top bar ----------
@@ -1533,17 +1547,47 @@
           deadlineBlock
         ),
 
-        // Quality
-        h('div', { style: { marginBottom: '14px' } },
-          h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700, marginBottom:'4px' } }, 'Quality'),
-          h('div', { style: { display:'flex', gap:'10px', flexWrap:'wrap' } },
-            h('div', { className: 't-qstat' }, 'TECH ', h('span', { className: 'v' }, String(Math.round(proj.quality.tech)))),
-            h('div', { className: 't-qstat' }, 'DESIGN ', h('span', { className: 'v' }, String(Math.round(proj.quality.design)))),
-            h('div', { className: 't-qstat' }, 'POLISH ', h('span', { className: 'v' }, String(Math.round(proj.quality.polish)))),
-            h('div', { className: 't-qstat', style: { color: proj.bugs > 50 ? '#f85149' : proj.bugs > 20 ? '#f0883e' : '#8b949e' } },
-              'BUGS ', h('span', { className: 'v' }, String(Math.round(proj.bugs))))
-          )
-        ),
+        // Quality — weighted by project type so it's obvious which axis
+        // matters most for THIS project. The bar width scales the raw value
+        // by the type's weight, so a design-heavy project shows Design as the
+        // tallest bar even at equal raw numbers.
+        (() => {
+          const w = typeDef?.weights || { design:1/3, tech:1/3, polish:1/3 };
+          const topAxis = Object.entries(w).sort((a,b) => b[1] - a[1])[0][0];
+          const row = (axis, raw) => {
+            const weight = w[axis] || 0;
+            // Normalize bar width against a realistic cap — 100 is a strong
+            // late-dev score. Bars above 100 saturate visually.
+            const pct = Math.min(100, Math.max(0, raw));
+            const isPrimary = axis === topAxis;
+            const color = AXIS_COLOR[axis] || '#8b949e';
+            return h('div', { style: { marginBottom: '6px' } },
+              h('div', { style: { display:'flex', justifyContent:'space-between', fontSize:'.72rem', marginBottom:'3px' } },
+                h('span', { style: { color, fontWeight: 700 } },
+                  (AXIS_ICON[axis] || '') + ' ' + axis.toUpperCase() +
+                  (isPrimary ? ' · primary' : '')),
+                h('span', { style: { color: '#c9d1d9', fontVariantNumeric: 'tabular-nums' } },
+                  Math.round(raw) + ' \u00b7 ' + Math.round(weight * 100) + '% weight')
+              ),
+              h('div', { style: { height: '6px', background: '#0d1117', border: '1px solid #21262d', borderRadius: '3px', overflow: 'hidden' } },
+                h('div', { style: { width: pct + '%', height: '100%', background: color, opacity: isPrimary ? 1 : 0.55 } })
+              )
+            );
+          };
+          return h('div', { style: { marginBottom: '14px' } },
+            h('div', { style: { color:'#c9d1d9', fontSize:'.78rem', fontWeight:700, marginBottom:'6px' } }, 'Quality'),
+            row('design', proj.quality.design),
+            row('tech', proj.quality.tech),
+            row('polish', proj.quality.polish),
+            // Bugs + team speed summary row
+            h('div', { style: { display:'flex', gap:'10px', flexWrap:'wrap', marginTop: '8px' } },
+              h('div', { className: 't-qstat', style: { color: proj.bugs > 50 ? '#f85149' : proj.bugs > 20 ? '#f0883e' : '#8b949e' } },
+                'BUGS ', h('span', { className: 'v' }, String(Math.round(proj.bugs)))),
+              h('div', { className: 't-qstat', title: 'Average team Speed — locked in at phase start. Higher Speed shortens phase duration.' },
+                '⚡ SPEED ', h('span', { className: 'v' }, (window.tycoonProjects?.avgTeamSpeed?.(proj) || 0).toFixed(1)))
+            )
+          );
+        })(),
 
         // Team
         teamRows.length > 0 && h('div', { style: { marginBottom: '14px' } },
@@ -2311,11 +2355,25 @@
             },
               ...Object.keys(window.PROJECT_TYPES).filter(k => window.isProjectTypeAvailable(k)).map(key => {
                 const t = window.PROJECT_TYPES[key];
+                // Label each type with its primary quality axis so the player
+                // can see at a glance which stat matters most.
+                const axisLabel = axisPrimaryLabel(t.weights);
                 return h('option', { value: key, selected: key === config.type ? true : null },
-                  (t.icon || '') + ' ' + t.label);
+                  (t.icon || '') + ' ' + t.label + ' \u2014 ' + axisLabel);
               })
             )
           ),
+          // Show the full weight breakdown for the currently selected type
+          (() => {
+            const t = window.PROJECT_TYPES[config.type];
+            if (!t?.weights) return null;
+            const w = t.weights;
+            return h('div', { style: { color: '#8b949e', fontSize: '0.72rem', margin: '-8px 0 8px', fontStyle: 'italic' } },
+              'Quality weights: ' +
+              axisStr('design', w.design) + ' \u00b7 ' +
+              axisStr('tech', w.tech) + ' \u00b7 ' +
+              axisStr('polish', w.polish));
+          })(),
           // Platform selector (Phase 4C)
           (() => {
             const avail = window.tycoonPlatforms?.availableForType?.(config.type) || [];
