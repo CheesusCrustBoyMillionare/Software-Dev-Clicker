@@ -420,6 +420,10 @@
         if (!c.isFounder) c.morale = Math.max(0, (c.morale || 70) - (wk.moraleDrain || 0));
       }
     }
+    // v11.1: Toxic trait — each Toxic teammate drains everyone else on the
+    // project by 0.5 morale/week (-2/month, per the trait hint). Stacks if
+    // you somehow assembled multiple toxics on one team.
+    applyToxicDrain(contributors);
   }
 
   // ---------- Per-tick polish work ----------
@@ -458,6 +462,28 @@
     if (wk && contributors.some(c => c.isFounder)) {
       for (const c of contributors) {
         if (!c.isFounder) c.morale = Math.max(0, (c.morale || 70) - (wk.moraleDrain || 0));
+      }
+    }
+    // Toxic drain during polish phase too
+    applyToxicDrain(contributors);
+  }
+
+  // v11.1: Toxic-teammate morale drain. Called from developOneWeek +
+  // polishOneWeek. Each Toxic contributor subtracts 0.5 morale/wk from every
+  // OTHER member on the team (founder included). Toxic folks don't drain
+  // themselves. The founder is never a Toxic carrier (founder traits are a
+  // separate catalog), so this only fires for employees.
+  function applyToxicDrain(contributors) {
+    if (!Array.isArray(contributors) || contributors.length < 2) return;
+    const toxicCount = contributors.filter(c => Array.isArray(c.traits) && c.traits.includes('Toxic')).length;
+    if (toxicCount === 0) return;
+    const drainPerTick = 0.5 * toxicCount;
+    for (const c of contributors) {
+      if (Array.isArray(c.traits) && c.traits.includes('Toxic')) continue;
+      if (c.isFounder && S.founder) {
+        S.founder.morale = Math.max(0, (S.founder.morale || 70) - drainPerTick);
+      } else {
+        c.morale = Math.max(0, (c.morale || 70) - drainPerTick);
       }
     }
   }
@@ -613,6 +639,24 @@
       const delta = imposter.moraleDelta || -8;
       for (const e of (S.employees || [])) {
         e.morale = Math.max(0, (e.morale || 70) + delta);
+      }
+    }
+    // v11.1: hit-project morale bump. Shipping a 90+ critic project bumps
+    // every contributor's morale by +8 (balances the Imposter floor and
+    // rewards high-quality work). +5 for 80-89 so a solid ship also helps.
+    if (proj.criticScore >= 80) {
+      const hitBonus = proj.criticScore >= 90 ? 8 : 5;
+      const teamIds = Array.isArray(proj.team) ? proj.team : [];
+      for (const empId of teamIds) {
+        if (empId === 'founder' && S.founder) {
+          S.founder.morale = Math.min(100, (S.founder.morale || 70) + hitBonus);
+          continue;
+        }
+        const emp = (S.employees || []).find(e => e.id === empId);
+        if (emp) emp.morale = Math.min(100, (emp.morale || 70) + hitBonus);
+      }
+      if (typeof log === 'function' && teamIds.length > 0) {
+        log('\uD83C\uDF89 Team morale +' + hitBonus + ' — ' + proj.name + ' ' + (proj.criticScore >= 90 ? 'shipped a hit' : 'shipped solid') + ' (critic ' + proj.criticScore + ')');
       }
     }
 

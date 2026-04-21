@@ -101,7 +101,7 @@
     'Methodical':    { hint:'+2 Tech, -1 Speed', effect: { tech:+2, speed:-1 } },
     'Creative':      { hint:'+2 Design, unlocks innovation', effect: { design:+2 } },
     'Mentor':        { hint:'+0.1/wk growth to juniors on team', effect: {} },
-    'Toxic':         { hint:'-2 morale/mo to teammates', effect: {} },
+    'Toxic':         { hint:'-0.5 morale/wk to every teammate on the same project', effect: {}, tag:'teamMoraleDrain' },
     'Team Player':   { hint:'+10% team synergy', effect: {} },
     'Veteran':       { hint:'+15% quality on sequels', effect: {} },
     'Negotiator':    { hint:'Asks for raises 2× as often; +0.1× salary', effect: {} },
@@ -348,6 +348,18 @@
     if (_weeksSinceLastPayroll >= PAYROLL_INTERVAL) {
       _weeksSinceLastPayroll = 0;
       runPayroll();
+    }
+    // v11.1: natural morale drift toward the 70 baseline using proportional
+    // decay — each week, morale moves 10% of its gap to 70. Far-from-baseline
+    // states recover fast (20 → 70 in ~50 weeks, fast early then asymptotic);
+    // near-baseline drift is gentle enough that drains like Toxic (-0.5/wk)
+    // still find meaningful equilibria below 70. Previously used flat ±1/±0.5
+    // rates which were completely neutralized by Toxic at the 70 floor.
+    for (const emp of (S.employees || [])) {
+      if (typeof emp.morale !== 'number') { emp.morale = 70; continue; }
+      const gap = 70 - emp.morale;
+      if (Math.abs(gap) < 0.05) continue;  // close enough — no drift noise
+      emp.morale = Math.max(0, Math.min(100, emp.morale + gap * 0.1));
     }
   }
 
