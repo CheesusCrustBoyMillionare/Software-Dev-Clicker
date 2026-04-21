@@ -8,23 +8,61 @@
 (function(){
   'use strict';
 
-  const CANDIDATE_INTERVAL_WEEKS = 2;   // one new candidate every 2 weeks
+  const BASE_CANDIDATE_INTERVAL_WEEKS = 2;  // default rate with no recruiter
   const INITIAL_INTERVAL_WEEKS = 2;     // first candidate arrives this many weeks after career start
   const MAX_QUEUE = 6;                  // stop generating once we hit this; resumes as candidates expire/hire
   const CANDIDATE_LIFETIME_WEEKS = 8;   // how long a candidate stays on the market
   const INTERVIEW_COST = 1000;
   const INTERVIEW_WEEKS = 1;            // 1 game-week to "interview"
   // Legacy compat — external callers / hints still reference FAIR_INTERVAL_WEEKS
-  const FAIR_INTERVAL_WEEKS = CANDIDATE_INTERVAL_WEEKS;
+  const FAIR_INTERVAL_WEEKS = BASE_CANDIDATE_INTERVAL_WEEKS;
+
+  // ---------- Recruiter tiers (v11.1 Phase 2) ----------
+  // The Recruiter is a support role (not in S.employees — they don't contribute
+  // to projects). Each tier scales candidate flow and unlocks hiring features.
+  // Annual salary flows through tycoonEmployees.weeklyBurn so it shows up in
+  // runway + Finance consistently.
+  const RECRUITER_TIERS = [
+    {
+      tier: 0,
+      name: 'None',
+      icon: '',
+      annualSalary: 0,
+      intervalWeeks: BASE_CANDIDATE_INTERVAL_WEEKS,
+      filterBySpecialty: false,
+      postRequisitions: false,
+      referrals: false,
+      poaching: false,
+      desc: 'No recruiter. One candidate appears every 2 weeks from the open market.',
+    },
+    {
+      tier: 1,
+      name: 'Recruiter',
+      icon: '\uD83D\uDC64',
+      annualSalary: 50000,   // ~$4.2K/month
+      intervalWeeks: 1,      // candidate flow doubled
+      filterBySpecialty: true,
+      postRequisitions: false,
+      referrals: false,
+      poaching: false,
+      desc: 'A dedicated recruiter doubles candidate flow and lets you filter the market by specialty.',
+    },
+  ];
+  const RECRUITER_BY_TIER = Object.fromEntries(RECRUITER_TIERS.map(r => [r.tier, r]));
+
+  function currentRecruiter() {
+    return RECRUITER_BY_TIER[(S.hiring?.recruiterTier) || 0] || RECRUITER_TIERS[0];
+  }
 
   let _weeksUntilNextCandidate = INITIAL_INTERVAL_WEEKS;
 
   // ---------- Candidate queue ----------
   // Lives in S.hiring.queue so it persists with save
   function ensureState() {
-    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0, lastViewedAtWeek: 0 };
+    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0, lastViewedAtWeek: 0, recruiterTier: 0, specialtyFilter: null };
     if (!Array.isArray(S.hiring.queue)) S.hiring.queue = [];
     if (typeof S.hiring.lastViewedAtWeek !== 'number') S.hiring.lastViewedAtWeek = 0;
+    if (typeof S.hiring.recruiterTier !== 'number') S.hiring.recruiterTier = 0;
   }
 
   // Public helper for the UI so it can mark "seen" when the player opens the
@@ -79,8 +117,32 @@
     _weeksUntilNextCandidate -= 1;
     if (_weeksUntilNextCandidate <= 0) {
       generateCandidateInMarket();
-      _weeksUntilNextCandidate = CANDIDATE_INTERVAL_WEEKS;
+      _weeksUntilNextCandidate = currentRecruiter().intervalWeeks;
     }
+  }
+
+  // ---------- Recruiter management ----------
+  function hireRecruiter(tier) {
+    ensureState();
+    const def = RECRUITER_BY_TIER[tier];
+    if (!def) return { ok: false, error: 'Unknown recruiter tier' };
+    if (tier === 0) {
+      // "Fire" the recruiter — drop back to baseline
+      S.hiring.recruiterTier = 0;
+      if (typeof log === 'function') log('\uD83D\uDC64 Recruiter dismissed');
+    } else {
+      S.hiring.recruiterTier = tier;
+      // Reset the countdown to the new interval so the change takes effect immediately
+      _weeksUntilNextCandidate = Math.min(_weeksUntilNextCandidate, def.intervalWeeks);
+      if (typeof log === 'function') log(def.icon + ' Hired ' + def.name + ' ($' + (def.annualSalary/1000).toFixed(0) + 'K/yr)');
+    }
+    if (typeof markDirty === 'function') markDirty();
+    document.dispatchEvent(new CustomEvent('tycoon:recruiter-changed', { detail: { tier, def } }));
+    return { ok: true, recruiter: def };
+  }
+
+  function recruiterAnnualSalary() {
+    return currentRecruiter().annualSalary || 0;
   }
 
   let _unsub = null;
@@ -170,8 +232,13 @@
     forceFair,
     markMarketViewed,
     newCandidatesSinceView,
+    // Recruiter (Phase 2)
+    hireRecruiter,
+    currentRecruiter,
+    recruiterAnnualSalary,
+    RECRUITER_TIERS,
     INTERVIEW_COST,
-    CANDIDATE_INTERVAL_WEEKS,
+    BASE_CANDIDATE_INTERVAL_WEEKS,
     CANDIDATE_LIFETIME_WEEKS,
     MAX_QUEUE,
     FAIR_INTERVAL_WEEKS,  // legacy alias
@@ -181,10 +248,11 @@
         queue: S.hiring.queue,
         weeksUntilNextCandidate: _weeksUntilNextCandidate,
         newSinceView: newCandidatesSinceView(),
+        recruiter: currentRecruiter(),
       };
     }
   };
   if (window.dbg) window.dbg.hiring = window.tycoonHiring;
 
-  console.log('[tycoon-hiring] module loaded. Rolling market: 1 candidate every ' + CANDIDATE_INTERVAL_WEEKS + ' weeks, queue caps at ' + MAX_QUEUE + '.');
+  console.log('[tycoon-hiring] module loaded. Rolling market: 1 candidate every ' + BASE_CANDIDATE_INTERVAL_WEEKS + ' weeks baseline, queue caps at ' + MAX_QUEUE + '.');
 })();

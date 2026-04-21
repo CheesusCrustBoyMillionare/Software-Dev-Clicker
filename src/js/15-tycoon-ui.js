@@ -1800,11 +1800,6 @@
   // across overlapping modals (e.g. an MC decision firing mid-hiring) works
   // because the observer counts all .t-modal-ov elements.
   function openHiringModal() {
-    const queue = S.hiring?.queue || [];
-    if (queue.length === 0) {
-      pushToast('Talent Market is empty — a new candidate usually surfaces every 2 weeks.');
-      return;
-    }
     // Tear down any existing modal — the rerender path replaces the DOM
     // node rather than going through closeHiringModal.
     const existing = document.getElementById('_t_hiring_modal');
@@ -1816,17 +1811,125 @@
     const ov = h('div', { className: 't-modal-ov', id: '_t_hiring_modal' },
       h('div', { className: 't-modal', style: { maxWidth: '760px' } },
         h('h2', null, '💼 Talent Market'),
-        h('div', { style: { color:'#8b949e', fontSize:'0.8rem', marginBottom:'12px' } },
-          queue.length + ' candidate' + (queue.length===1?'':'s') +
-          ' on the market · Interview $' + window.tycoonHiring.INTERVIEW_COST +
-          ' (reveals stats + hidden trait) · New arrivals roughly every 2 weeks'),
-        h('div', { className: 't-candidate-grid' }, ...queue.map(renderCandidateCard)),
+        renderRecruiterBlock(),
+        renderMarketBody(),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: closeHiringModal }, 'Close')
         )
       )
     );
     document.body.appendChild(ov);
+  }
+
+  // Recruiter hire/fire block at the top of the Talent Market modal.
+  function renderRecruiterBlock() {
+    const H = window.tycoonHiring;
+    if (!H) return null;
+    const current = H.currentRecruiter();
+    const tiers = H.RECRUITER_TIERS || [];
+    const currentTier = current.tier;
+    const nextDef = tiers.find(t => t.tier === currentTier + 1);
+
+    const bg = currentTier > 0 ? 'rgba(126,231,135,0.06)' : 'rgba(88,166,255,0.06)';
+    const border = currentTier > 0 ? '#2ea043' : '#58a6ff';
+
+    const header = h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'baseline' } },
+      h('div', { style: { color: currentTier > 0 ? '#7ee787' : '#79c0ff', fontWeight: 700, fontSize: '0.88rem' } },
+        currentTier > 0 ? (current.icon + ' ' + current.name + ' on staff') : '👥 No recruiter on staff'),
+      currentTier > 0 ? h('div', { style: { color:'#c9d1d9', fontSize: '0.72rem' } },
+        '$' + (current.annualSalary/1000).toFixed(0) + 'K/yr · 1 candidate / ' + current.intervalWeeks + ' week' + (current.intervalWeeks === 1 ? '' : 's')) : null
+    );
+    const desc = h('div', { style: { color:'#8b949e', fontSize:'0.72rem', marginTop:'2px' } }, current.desc);
+
+    const actions = [];
+    if (nextDef) {
+      const canAfford = (S.cash || 0) > nextDef.annualSalary / 12;  // ~1 month runway sanity check
+      actions.push(h('button', {
+        className: 't-btn',
+        disabled: canAfford ? null : true,
+        title: canAfford ? ('Start paying $' + (nextDef.annualSalary/1000).toFixed(0) + 'K/yr for a ' + nextDef.name) : 'Need at least a month of runway',
+        onclick: () => {
+          const r = H.hireRecruiter(nextDef.tier);
+          if (r.ok) {
+            pushToast(nextDef.icon + ' ' + nextDef.name + ' hired — candidate flow is now 1 / ' + nextDef.intervalWeeks + ' week' + (nextDef.intervalWeeks === 1 ? '' : 's'));
+            rerenderHiringModal();
+            refreshTopBar();
+            refreshMain();
+          } else {
+            pushToast(r.error);
+          }
+        }
+      }, 'Hire ' + nextDef.name + ' — $' + (nextDef.annualSalary/1000).toFixed(0) + 'K/yr'));
+    }
+    if (currentTier > 0) {
+      actions.push(h('button', {
+        className: 't-btn secondary',
+        onclick: () => {
+          if (!confirm('Dismiss the recruiter? Candidate flow drops back to 1 per 2 weeks.')) return;
+          H.hireRecruiter(0);
+          pushToast('Recruiter dismissed');
+          rerenderHiringModal();
+          refreshTopBar();
+          refreshMain();
+        }
+      }, 'Dismiss'));
+    }
+
+    return h('div', {
+      style: { background: bg, border: '1px solid ' + border, borderRadius: '6px', padding: '10px 12px', marginBottom: '12px' }
+    },
+      header, desc,
+      actions.length ? h('div', { style: { display:'flex', gap:'8px', marginTop:'8px' } }, ...actions) : null
+    );
+  }
+
+  function renderMarketBody() {
+    const queue = S.hiring?.queue || [];
+    const H = window.tycoonHiring;
+    const recruiter = H?.currentRecruiter?.() || { filterBySpecialty: false };
+    const filter = S.hiring?.specialtyFilter || null;
+    const filteredQueue = (filter && recruiter.filterBySpecialty)
+      ? queue.filter(c => c.specialty === filter)
+      : queue;
+
+    // Specialty filter UI — only rendered when the recruiter unlocks it
+    let filterUI = null;
+    if (recruiter.filterBySpecialty) {
+      const allSpecs = Array.from(new Set(queue.map(c => c.specialty))).sort();
+      filterUI = h('div', { style: { display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px', fontSize:'0.78rem', color:'#c9d1d9' } },
+        h('span', null, 'Filter by specialty:'),
+        h('select', {
+          value: filter || '',
+          onchange: (e) => {
+            S.hiring.specialtyFilter = e.target.value || null;
+            if (typeof markDirty === 'function') markDirty();
+            rerenderHiringModal();
+          },
+          style: { padding: '4px 8px', background:'#0d1117', color:'#c9d1d9', border:'1px solid #30363d', borderRadius:'3px' }
+        },
+          h('option', { value: '', selected: !filter }, 'All specialties'),
+          ...allSpecs.map(s => h('option', { value: s, selected: filter === s ? true : null }, s))
+        ),
+        filter ? h('span', { style:{color:'#8b949e', fontSize:'0.72rem'} },
+          '(' + filteredQueue.length + ' of ' + queue.length + ')') : null
+      );
+    }
+
+    const bodyEmpty = h('div', { className: 't-empty' },
+      queue.length === 0
+        ? 'Talent Market is empty — a new candidate usually surfaces every ' + (recruiter.intervalWeeks) + ' week' + (recruiter.intervalWeeks === 1 ? '' : 's') + '.'
+        : 'No candidates match the current specialty filter.');
+
+    return h('div', null,
+      h('div', { style: { color:'#8b949e', fontSize:'0.8rem', marginBottom:'10px' } },
+        queue.length + ' candidate' + (queue.length===1?'':'s') +
+        ' on the market · Interview $' + H.INTERVIEW_COST +
+        ' (reveals stats + hidden trait) · New arrivals every ' + recruiter.intervalWeeks + ' week' + (recruiter.intervalWeeks === 1 ? '' : 's')),
+      filterUI,
+      filteredQueue.length > 0
+        ? h('div', { className: 't-candidate-grid' }, ...filteredQueue.map(renderCandidateCard))
+        : bodyEmpty
+    );
   }
 
   function closeHiringModal() {
@@ -1843,24 +1946,19 @@
   function rerenderHiringModal() {
     const modal = document.getElementById('_t_hiring_modal');
     if (!modal) return;
-    const queue = S.hiring?.queue || [];
-    if (queue.length === 0) {
-      // Queue emptied (all hired/passed). Close the modal cleanly, which
-      // restores pause to the pre-fair state.
-      closeHiringModal();
-      return;
-    }
-    const grid = modal.querySelector('.t-candidate-grid');
-    const header = modal.querySelector('.t-modal > div[style*="color"]');
-    if (grid) {
-      grid.innerHTML = '';
-      queue.forEach(c => grid.appendChild(renderCandidateCard(c)));
-    }
-    if (header) {
-      header.textContent = queue.length + ' candidate' + (queue.length === 1 ? '' : 's') +
-        ' on the market \u00B7 Interview $' + window.tycoonHiring.INTERVIEW_COST +
-        ' (reveals stats + hidden trait) \u00B7 New arrivals roughly every 2 weeks';
-    }
+    const inner = modal.querySelector('.t-modal');
+    if (!inner) return;
+    // Full re-render — the recruiter block + filter UI + candidate grid all
+    // need refreshing after hire/pass/negotiate or recruiter-tier changes.
+    // Preserves the outer overlay so the modal observer's pause stays pinned.
+    inner.innerHTML = '';
+    inner.appendChild(h('h2', null, '💼 Talent Market'));
+    const recBlock = renderRecruiterBlock();
+    if (recBlock) inner.appendChild(recBlock);
+    inner.appendChild(renderMarketBody());
+    inner.appendChild(h('div', { className: 't-modal-actions' },
+      h('button', { className: 't-btn', onclick: closeHiringModal }, 'Close')
+    ));
   }
 
   function renderCandidateCard(c) {

@@ -353,18 +353,21 @@
 
   function runPayroll() {
     const employees = S.employees || [];
-    if (employees.length === 0) return;
+    const recruiterSalary = window.tycoonHiring?.recruiterAnnualSalary?.() || 0;
+    if (employees.length === 0 && recruiterSalary === 0) return;
     // Biweekly portion of annual salary
     let total = 0;
     for (const emp of employees) {
       total += (emp.salary || 0) * (PAYROLL_INTERVAL / WEEKS_PER_YEAR);
     }
+    total += recruiterSalary * (PAYROLL_INTERVAL / WEEKS_PER_YEAR);
     total = Math.round(total);
     if (total <= 0) return;
     S.cash = (S.cash || 0) - total;
     S.tExpenses = (S.tExpenses || 0) + total;
     if (typeof markDirty === 'function') markDirty();
-    if (typeof log === 'function') log('💸 Payroll: $' + total.toLocaleString() + ' (' + employees.length + ' engineers)');
+    const label = employees.length + ' engineer' + (employees.length === 1 ? '' : 's') + (recruiterSalary > 0 ? ' + recruiter' : '');
+    if (typeof log === 'function') log('💸 Payroll: $' + total.toLocaleString() + ' (' + label + ')');
     document.dispatchEvent(new CustomEvent('tycoon:payroll', { detail: { amount: total, employeeCount: employees.length } }));
   }
 
@@ -382,7 +385,9 @@
   // ---------- Compute per-week burn rate (for runway / finance panel) ----------
   function annualBurn() {
     const employees = S.employees || [];
-    return employees.reduce((s, e) => s + (e.salary || 0), 0);
+    const engBurn = employees.reduce((s, e) => s + (e.salary || 0), 0);
+    const recruiterBurn = window.tycoonHiring?.recruiterAnnualSalary?.() || 0;
+    return engBurn + recruiterBurn;
   }
   function weeklyBurn() {
     return Math.round(annualBurn() / WEEKS_PER_YEAR);
