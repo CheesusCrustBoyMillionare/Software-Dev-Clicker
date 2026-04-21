@@ -59,9 +59,9 @@
       body: 'Interview candidates before hiring to reveal hidden stats. Match specialties to your project types.'
     },
     {
-      id: 'first_fair', trigger: 'event', event: 'tycoon:hiring-fair', icon: '\u{1F3AA}',
-      title: 'Hiring Fair',
-      body: 'Premium candidates, limited time. The game auto-paused for you \u2014 take your time reviewing.'
+      id: 'first_fair', trigger: 'event', event: 'tycoon:hiring-fair', icon: '\u{1F4BC}',
+      title: 'Talent Market',
+      body: 'A candidate just listed on the market. New arrivals surface every ~2 weeks; each stays for 8. Open \uD83D\uDCBC Hiring from the Studio panel when you\u2019re ready to interview and hire.'
     },
 
     // ----- Research / Era -----

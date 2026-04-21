@@ -1802,21 +1802,24 @@
   function openHiringModal() {
     const queue = S.hiring?.queue || [];
     if (queue.length === 0) {
-      pushToast('No candidates currently on the market. Wait for the next Hiring Fair.');
+      pushToast('Talent Market is empty — a new candidate usually surfaces every 2 weeks.');
       return;
     }
     // Tear down any existing modal — the rerender path replaces the DOM
     // node rather than going through closeHiringModal.
     const existing = document.getElementById('_t_hiring_modal');
     if (existing) existing.remove();
+    // Mark the market as viewed so the "NEW" badge on the Hiring button clears
+    window.tycoonHiring?.markMarketViewed?.();
     refreshTopBar();
+    refreshMain();  // re-render the Studio panel's Hiring button to drop the NEW badge
     const ov = h('div', { className: 't-modal-ov', id: '_t_hiring_modal' },
       h('div', { className: 't-modal', style: { maxWidth: '760px' } },
-        h('h2', null, '🎪 Hiring Fair'),
+        h('h2', null, '💼 Talent Market'),
         h('div', { style: { color:'#8b949e', fontSize:'0.8rem', marginBottom:'12px' } },
           queue.length + ' candidate' + (queue.length===1?'':'s') +
-          ' available · Interview $' + window.tycoonHiring.INTERVIEW_COST +
-          ' (reveals stats + hidden trait)'),
+          ' on the market · Interview $' + window.tycoonHiring.INTERVIEW_COST +
+          ' (reveals stats + hidden trait) · New arrivals roughly every 2 weeks'),
         h('div', { className: 't-candidate-grid' }, ...queue.map(renderCandidateCard)),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: closeHiringModal }, 'Close')
@@ -1855,8 +1858,8 @@
     }
     if (header) {
       header.textContent = queue.length + ' candidate' + (queue.length === 1 ? '' : 's') +
-        ' available \u00B7 Interview $' + window.tycoonHiring.INTERVIEW_COST +
-        ' (reveals stats + hidden trait)';
+        ' on the market \u00B7 Interview $' + window.tycoonHiring.INTERVIEW_COST +
+        ' (reveals stats + hidden trait) \u00B7 New arrivals roughly every 2 weeks';
     }
   }
 
@@ -1976,8 +1979,19 @@
       renderFounderCard(),
       h('div', { style: { marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
         h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project'),
-        h('button', { className: 't-btn secondary', onclick: () => openHiringModal() },
-          '🎪 Hiring' + (queueSize > 0 ? ' (' + queueSize + ' available)' : '')),
+        (() => {
+          const newCount = window.tycoonHiring?.newCandidatesSinceView?.() || 0;
+          const label = '\uD83D\uDCBC Hiring' +
+            (queueSize > 0 ? ' (' + queueSize + ')' : '') +
+            (newCount > 0 ? ' \u2014 ' + newCount + ' NEW' : '');
+          return h('button', {
+            className: 't-btn secondary' + (newCount > 0 ? ' t-teams-idle' : ''),
+            title: newCount > 0
+              ? newCount + ' new candidate' + (newCount === 1 ? '' : 's') + ' on the market since you last looked'
+              : (queueSize > 0 ? 'Open the Talent Market to review candidates' : 'Nobody on the market yet — check back in a few weeks'),
+            onclick: () => openHiringModal()
+          }, label);
+        })(),
         employees.length > 0 && (() => {
           // Count bench engineers when there's at least one active project —
           // surface idle team members so the player can't miss them.
@@ -2665,12 +2679,13 @@
   document.addEventListener('tycoon:speed-changed', () => refreshTopBar());
   document.addEventListener('tycoon:pause-toggled', () => refreshTopBar());
 
-  // Hiring Fair triggers — openHiringModal owns the auto-pause (captures
-  // pre-fair pause state and restores it on close).
+  // New candidate arrived in the rolling market. v11.1 no longer auto-opens
+  // the modal — just surfaces a toast + refreshes the Hiring button badge.
+  // The player opens the modal from the Studio panel when they want.
   document.addEventListener('tycoon:hiring-fair', (e) => {
-    pushToast('🎪 Hiring Fair: ' + (e.detail.candidates?.length || 0) + ' candidates available', 'win');
+    const c = (e.detail?.candidates || [])[0];
+    if (c) pushToast('💼 ' + c.name + ' (' + c.tierName + ') is looking for work', 'win');
     refreshMain();
-    openHiringModal();
   });
   document.addEventListener('tycoon:employee-hired', (e) => {
     // Auto-assign to the single active project if there is exactly one.

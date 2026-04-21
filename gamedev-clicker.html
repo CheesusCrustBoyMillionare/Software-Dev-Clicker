@@ -12712,21 +12712,24 @@ let _clockValidated = false;
   function openHiringModal() {
     const queue = S.hiring?.queue || [];
     if (queue.length === 0) {
-      pushToast('No candidates currently on the market. Wait for the next Hiring Fair.');
+      pushToast('Talent Market is empty — a new candidate usually surfaces every 2 weeks.');
       return;
     }
     // Tear down any existing modal — the rerender path replaces the DOM
     // node rather than going through closeHiringModal.
     const existing = document.getElementById('_t_hiring_modal');
     if (existing) existing.remove();
+    // Mark the market as viewed so the "NEW" badge on the Hiring button clears
+    window.tycoonHiring?.markMarketViewed?.();
     refreshTopBar();
+    refreshMain();  // re-render the Studio panel's Hiring button to drop the NEW badge
     const ov = h('div', { className: 't-modal-ov', id: '_t_hiring_modal' },
       h('div', { className: 't-modal', style: { maxWidth: '760px' } },
-        h('h2', null, '🎪 Hiring Fair'),
+        h('h2', null, '💼 Talent Market'),
         h('div', { style: { color:'#8b949e', fontSize:'0.8rem', marginBottom:'12px' } },
           queue.length + ' candidate' + (queue.length===1?'':'s') +
-          ' available · Interview $' + window.tycoonHiring.INTERVIEW_COST +
-          ' (reveals stats + hidden trait)'),
+          ' on the market · Interview $' + window.tycoonHiring.INTERVIEW_COST +
+          ' (reveals stats + hidden trait) · New arrivals roughly every 2 weeks'),
         h('div', { className: 't-candidate-grid' }, ...queue.map(renderCandidateCard)),
         h('div', { className: 't-modal-actions' },
           h('button', { className: 't-btn', onclick: closeHiringModal }, 'Close')
@@ -12765,8 +12768,8 @@ let _clockValidated = false;
     }
     if (header) {
       header.textContent = queue.length + ' candidate' + (queue.length === 1 ? '' : 's') +
-        ' available \u00B7 Interview $' + window.tycoonHiring.INTERVIEW_COST +
-        ' (reveals stats + hidden trait)';
+        ' on the market \u00B7 Interview $' + window.tycoonHiring.INTERVIEW_COST +
+        ' (reveals stats + hidden trait) \u00B7 New arrivals roughly every 2 weeks';
     }
   }
 
@@ -12886,8 +12889,19 @@ let _clockValidated = false;
       renderFounderCard(),
       h('div', { style: { marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
         h('button', { className: 't-btn', onclick: () => openDesignModal() }, '+ New Project'),
-        h('button', { className: 't-btn secondary', onclick: () => openHiringModal() },
-          '🎪 Hiring' + (queueSize > 0 ? ' (' + queueSize + ' available)' : '')),
+        (() => {
+          const newCount = window.tycoonHiring?.newCandidatesSinceView?.() || 0;
+          const label = '\uD83D\uDCBC Hiring' +
+            (queueSize > 0 ? ' (' + queueSize + ')' : '') +
+            (newCount > 0 ? ' \u2014 ' + newCount + ' NEW' : '');
+          return h('button', {
+            className: 't-btn secondary' + (newCount > 0 ? ' t-teams-idle' : ''),
+            title: newCount > 0
+              ? newCount + ' new candidate' + (newCount === 1 ? '' : 's') + ' on the market since you last looked'
+              : (queueSize > 0 ? 'Open the Talent Market to review candidates' : 'Nobody on the market yet — check back in a few weeks'),
+            onclick: () => openHiringModal()
+          }, label);
+        })(),
         employees.length > 0 && (() => {
           // Count bench engineers when there's at least one active project —
           // surface idle team members so the player can't miss them.
@@ -13575,12 +13589,13 @@ let _clockValidated = false;
   document.addEventListener('tycoon:speed-changed', () => refreshTopBar());
   document.addEventListener('tycoon:pause-toggled', () => refreshTopBar());
 
-  // Hiring Fair triggers — openHiringModal owns the auto-pause (captures
-  // pre-fair pause state and restores it on close).
+  // New candidate arrived in the rolling market. v11.1 no longer auto-opens
+  // the modal — just surfaces a toast + refreshes the Hiring button badge.
+  // The player opens the modal from the Studio panel when they want.
   document.addEventListener('tycoon:hiring-fair', (e) => {
-    pushToast('🎪 Hiring Fair: ' + (e.detail.candidates?.length || 0) + ' candidates available', 'win');
+    const c = (e.detail?.candidates || [])[0];
+    if (c) pushToast('💼 ' + c.name + ' (' + c.tierName + ') is looking for work', 'win');
     refreshMain();
-    openHiringModal();
   });
   document.addEventListener('tycoon:employee-hired', (e) => {
     // Auto-assign to the single active project if there is exactly one.
@@ -15341,45 +15356,66 @@ let _clockValidated = false;
 
   console.log('[tycoon-employees] module loaded. ' + TRAIT_KEYS.length + ' traits, ' + TIERS.length + ' tiers.');
 })();
-// ========== TYCOON HIRING FAIR (v2) ==========
-// Phase 2B: Quarterly Hiring Fair that generates 4-8 candidates at once.
-// Player can Interview / Hire Now / Negotiate / Pass / Hold per candidate.
+// ========== TYCOON HIRING MARKET (v11.1) ==========
+// v11.1: replaced the quarterly Hiring Fair with a rolling Talent Market.
+// Instead of 4-8 candidates dumping all at once every 12 weeks (and auto-
+// opening a modal), one candidate trickles in every CANDIDATE_INTERVAL_WEEKS
+// until the queue caps. Player checks the Hiring button whenever they want.
+// Future phases (Recruiter upgrades) will let the player accelerate this
+// rate and filter by specialty. See the v11.1-polish brainstorm for the roadmap.
 (function(){
   'use strict';
 
-  const FAIR_INTERVAL_WEEKS = 12;       // quarterly
-  const MIN_CANDIDATES = 4;
-  const MAX_CANDIDATES = 8;
+  const CANDIDATE_INTERVAL_WEEKS = 2;   // one new candidate every 2 weeks
+  const INITIAL_INTERVAL_WEEKS = 2;     // first candidate arrives this many weeks after career start
+  const MAX_QUEUE = 6;                  // stop generating once we hit this; resumes as candidates expire/hire
+  const CANDIDATE_LIFETIME_WEEKS = 8;   // how long a candidate stays on the market
   const INTERVIEW_COST = 1000;
   const INTERVIEW_WEEKS = 1;            // 1 game-week to "interview"
+  // Legacy compat — external callers / hints still reference FAIR_INTERVAL_WEEKS
+  const FAIR_INTERVAL_WEEKS = CANDIDATE_INTERVAL_WEEKS;
 
-  // First fair fires early in career to get the player moving
-  let _weeksUntilNextFair = 6;
+  let _weeksUntilNextCandidate = INITIAL_INTERVAL_WEEKS;
 
   // ---------- Candidate queue ----------
   // Lives in S.hiring.queue so it persists with save
   function ensureState() {
-    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0 };
+    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0, lastViewedAtWeek: 0 };
     if (!Array.isArray(S.hiring.queue)) S.hiring.queue = [];
+    if (typeof S.hiring.lastViewedAtWeek !== 'number') S.hiring.lastViewedAtWeek = 0;
   }
 
-  function generateFair() {
+  // Public helper for the UI so it can mark "seen" when the player opens the
+  // modal — drives the new-candidate badge on the Hiring button.
+  function markMarketViewed() {
     ensureState();
-    const count = MIN_CANDIDATES + Math.floor(Math.random() * (MAX_CANDIDATES - MIN_CANDIDATES + 1));
-    const fairId = ++S.hiring.fairIndex;
-    const candidates = [];
-    for (let i = 0; i < count; i++) {
-      const c = window.tycoonEmployees.generateCandidate();
-      c.fairId = fairId;
-      c.offeredAtWeek = window.tycoonProjects.absoluteWeek();
-      c.expiresAtWeek = c.offeredAtWeek + FAIR_INTERVAL_WEEKS; // disappears when next fair arrives
-      candidates.push(c);
-    }
-    S.hiring.queue.push(...candidates);
+    S.hiring.lastViewedAtWeek = (window.tycoonProjects?.absoluteWeek?.() || 0);
     if (typeof markDirty === 'function') markDirty();
-    if (typeof log === 'function') log('🎪 Hiring Fair: ' + count + ' candidates available');
-    document.dispatchEvent(new CustomEvent('tycoon:hiring-fair', { detail: { fairId, candidates } }));
-    return candidates;
+  }
+  function newCandidatesSinceView() {
+    ensureState();
+    const cutoff = S.hiring.lastViewedAtWeek || 0;
+    return S.hiring.queue.filter(c => (c.offeredAtWeek || 0) > cutoff).length;
+  }
+
+  function generateCandidateInMarket() {
+    ensureState();
+    if (S.hiring.queue.length >= MAX_QUEUE) return null;
+    const c = window.tycoonEmployees.generateCandidate();
+    c.fairId = ++S.hiring.fairIndex;  // still a unique id per candidate
+    c.offeredAtWeek = window.tycoonProjects.absoluteWeek();
+    c.expiresAtWeek = c.offeredAtWeek + CANDIDATE_LIFETIME_WEEKS;
+    S.hiring.queue.push(c);
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('💼 New candidate on the market: ' + c.name + ' (' + c.tierName + ' · ' + c.specialty + ')');
+    // Event name kept as 'tycoon:hiring-fair' for backwards compat with the
+    // hint system (first-fair tutorial) even though the semantics are now
+    // "a candidate arrived." UI listener shows a toast but does NOT auto-
+    // open the modal — player decides when to engage.
+    document.dispatchEvent(new CustomEvent('tycoon:hiring-fair', {
+      detail: { fairId: c.fairId, candidates: [c] }
+    }));
+    return c;
   }
 
   // ---------- Cleanup expired candidates ----------
@@ -15398,10 +15434,10 @@ let _clockValidated = false;
   function onWeekTick() {
     ensureState();
     cleanupExpired();
-    _weeksUntilNextFair -= 1;
-    if (_weeksUntilNextFair <= 0) {
-      generateFair();
-      _weeksUntilNextFair = FAIR_INTERVAL_WEEKS;
+    _weeksUntilNextCandidate -= 1;
+    if (_weeksUntilNextCandidate <= 0) {
+      generateCandidateInMarket();
+      _weeksUntilNextCandidate = CANDIDATE_INTERVAL_WEEKS;
     }
   }
 
@@ -15475,10 +15511,10 @@ let _clockValidated = false;
     document.dispatchEvent(new CustomEvent('tycoon:candidate-passed', { detail: { candidateId } }));
   }
 
-  // Force-generate a fair (for debug)
+  // Force-generate a candidate (for debug)
   function forceFair() {
-    _weeksUntilNextFair = 0;
-    return generateFair();
+    _weeksUntilNextCandidate = 0;
+    return generateCandidateInMarket();
   }
 
   // ---------- Public API ----------
@@ -15490,19 +15526,25 @@ let _clockValidated = false;
     startTick: startHiringTick,
     stopTick: stopHiringTick,
     forceFair,
+    markMarketViewed,
+    newCandidatesSinceView,
     INTERVIEW_COST,
-    FAIR_INTERVAL_WEEKS,
+    CANDIDATE_INTERVAL_WEEKS,
+    CANDIDATE_LIFETIME_WEEKS,
+    MAX_QUEUE,
+    FAIR_INTERVAL_WEEKS,  // legacy alias
     state() {
       ensureState();
       return {
         queue: S.hiring.queue,
-        weeksUntilNextFair: _weeksUntilNextFair
+        weeksUntilNextCandidate: _weeksUntilNextCandidate,
+        newSinceView: newCandidatesSinceView(),
       };
     }
   };
   if (window.dbg) window.dbg.hiring = window.tycoonHiring;
 
-  console.log('[tycoon-hiring] module loaded. Fair interval: ' + FAIR_INTERVAL_WEEKS + ' weeks.');
+  console.log('[tycoon-hiring] module loaded. Rolling market: 1 candidate every ' + CANDIDATE_INTERVAL_WEEKS + ' weeks, queue caps at ' + MAX_QUEUE + '.');
 })();
 // ========== TYCOON FINANCE (v2) ==========
 // Phase 2E: Bankruptcy runway warnings + loan system.
@@ -19190,9 +19232,9 @@ let _clockValidated = false;
       body: 'Interview candidates before hiring to reveal hidden stats. Match specialties to your project types.'
     },
     {
-      id: 'first_fair', trigger: 'event', event: 'tycoon:hiring-fair', icon: '\u{1F3AA}',
-      title: 'Hiring Fair',
-      body: 'Premium candidates, limited time. The game auto-paused for you \u2014 take your time reviewing.'
+      id: 'first_fair', trigger: 'event', event: 'tycoon:hiring-fair', icon: '\u{1F4BC}',
+      title: 'Talent Market',
+      body: 'A candidate just listed on the market. New arrivals surface every ~2 weeks; each stays for 8. Open \uD83D\uDCBC Hiring from the Studio panel when you\u2019re ready to interview and hire.'
     },
 
     // ----- Research / Era -----

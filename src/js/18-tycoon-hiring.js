@@ -1,42 +1,63 @@
-// ========== TYCOON HIRING FAIR (v2) ==========
-// Phase 2B: Quarterly Hiring Fair that generates 4-8 candidates at once.
-// Player can Interview / Hire Now / Negotiate / Pass / Hold per candidate.
+// ========== TYCOON HIRING MARKET (v11.1) ==========
+// v11.1: replaced the quarterly Hiring Fair with a rolling Talent Market.
+// Instead of 4-8 candidates dumping all at once every 12 weeks (and auto-
+// opening a modal), one candidate trickles in every CANDIDATE_INTERVAL_WEEKS
+// until the queue caps. Player checks the Hiring button whenever they want.
+// Future phases (Recruiter upgrades) will let the player accelerate this
+// rate and filter by specialty. See the v11.1-polish brainstorm for the roadmap.
 (function(){
   'use strict';
 
-  const FAIR_INTERVAL_WEEKS = 12;       // quarterly
-  const MIN_CANDIDATES = 4;
-  const MAX_CANDIDATES = 8;
+  const CANDIDATE_INTERVAL_WEEKS = 2;   // one new candidate every 2 weeks
+  const INITIAL_INTERVAL_WEEKS = 2;     // first candidate arrives this many weeks after career start
+  const MAX_QUEUE = 6;                  // stop generating once we hit this; resumes as candidates expire/hire
+  const CANDIDATE_LIFETIME_WEEKS = 8;   // how long a candidate stays on the market
   const INTERVIEW_COST = 1000;
   const INTERVIEW_WEEKS = 1;            // 1 game-week to "interview"
+  // Legacy compat — external callers / hints still reference FAIR_INTERVAL_WEEKS
+  const FAIR_INTERVAL_WEEKS = CANDIDATE_INTERVAL_WEEKS;
 
-  // First fair fires early in career to get the player moving
-  let _weeksUntilNextFair = 6;
+  let _weeksUntilNextCandidate = INITIAL_INTERVAL_WEEKS;
 
   // ---------- Candidate queue ----------
   // Lives in S.hiring.queue so it persists with save
   function ensureState() {
-    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0 };
+    if (!S.hiring) S.hiring = { queue: [], fairIndex: 0, lastViewedAtWeek: 0 };
     if (!Array.isArray(S.hiring.queue)) S.hiring.queue = [];
+    if (typeof S.hiring.lastViewedAtWeek !== 'number') S.hiring.lastViewedAtWeek = 0;
   }
 
-  function generateFair() {
+  // Public helper for the UI so it can mark "seen" when the player opens the
+  // modal — drives the new-candidate badge on the Hiring button.
+  function markMarketViewed() {
     ensureState();
-    const count = MIN_CANDIDATES + Math.floor(Math.random() * (MAX_CANDIDATES - MIN_CANDIDATES + 1));
-    const fairId = ++S.hiring.fairIndex;
-    const candidates = [];
-    for (let i = 0; i < count; i++) {
-      const c = window.tycoonEmployees.generateCandidate();
-      c.fairId = fairId;
-      c.offeredAtWeek = window.tycoonProjects.absoluteWeek();
-      c.expiresAtWeek = c.offeredAtWeek + FAIR_INTERVAL_WEEKS; // disappears when next fair arrives
-      candidates.push(c);
-    }
-    S.hiring.queue.push(...candidates);
+    S.hiring.lastViewedAtWeek = (window.tycoonProjects?.absoluteWeek?.() || 0);
     if (typeof markDirty === 'function') markDirty();
-    if (typeof log === 'function') log('🎪 Hiring Fair: ' + count + ' candidates available');
-    document.dispatchEvent(new CustomEvent('tycoon:hiring-fair', { detail: { fairId, candidates } }));
-    return candidates;
+  }
+  function newCandidatesSinceView() {
+    ensureState();
+    const cutoff = S.hiring.lastViewedAtWeek || 0;
+    return S.hiring.queue.filter(c => (c.offeredAtWeek || 0) > cutoff).length;
+  }
+
+  function generateCandidateInMarket() {
+    ensureState();
+    if (S.hiring.queue.length >= MAX_QUEUE) return null;
+    const c = window.tycoonEmployees.generateCandidate();
+    c.fairId = ++S.hiring.fairIndex;  // still a unique id per candidate
+    c.offeredAtWeek = window.tycoonProjects.absoluteWeek();
+    c.expiresAtWeek = c.offeredAtWeek + CANDIDATE_LIFETIME_WEEKS;
+    S.hiring.queue.push(c);
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('💼 New candidate on the market: ' + c.name + ' (' + c.tierName + ' · ' + c.specialty + ')');
+    // Event name kept as 'tycoon:hiring-fair' for backwards compat with the
+    // hint system (first-fair tutorial) even though the semantics are now
+    // "a candidate arrived." UI listener shows a toast but does NOT auto-
+    // open the modal — player decides when to engage.
+    document.dispatchEvent(new CustomEvent('tycoon:hiring-fair', {
+      detail: { fairId: c.fairId, candidates: [c] }
+    }));
+    return c;
   }
 
   // ---------- Cleanup expired candidates ----------
@@ -55,10 +76,10 @@
   function onWeekTick() {
     ensureState();
     cleanupExpired();
-    _weeksUntilNextFair -= 1;
-    if (_weeksUntilNextFair <= 0) {
-      generateFair();
-      _weeksUntilNextFair = FAIR_INTERVAL_WEEKS;
+    _weeksUntilNextCandidate -= 1;
+    if (_weeksUntilNextCandidate <= 0) {
+      generateCandidateInMarket();
+      _weeksUntilNextCandidate = CANDIDATE_INTERVAL_WEEKS;
     }
   }
 
@@ -132,10 +153,10 @@
     document.dispatchEvent(new CustomEvent('tycoon:candidate-passed', { detail: { candidateId } }));
   }
 
-  // Force-generate a fair (for debug)
+  // Force-generate a candidate (for debug)
   function forceFair() {
-    _weeksUntilNextFair = 0;
-    return generateFair();
+    _weeksUntilNextCandidate = 0;
+    return generateCandidateInMarket();
   }
 
   // ---------- Public API ----------
@@ -147,17 +168,23 @@
     startTick: startHiringTick,
     stopTick: stopHiringTick,
     forceFair,
+    markMarketViewed,
+    newCandidatesSinceView,
     INTERVIEW_COST,
-    FAIR_INTERVAL_WEEKS,
+    CANDIDATE_INTERVAL_WEEKS,
+    CANDIDATE_LIFETIME_WEEKS,
+    MAX_QUEUE,
+    FAIR_INTERVAL_WEEKS,  // legacy alias
     state() {
       ensureState();
       return {
         queue: S.hiring.queue,
-        weeksUntilNextFair: _weeksUntilNextFair
+        weeksUntilNextCandidate: _weeksUntilNextCandidate,
+        newSinceView: newCandidatesSinceView(),
       };
     }
   };
   if (window.dbg) window.dbg.hiring = window.tycoonHiring;
 
-  console.log('[tycoon-hiring] module loaded. Fair interval: ' + FAIR_INTERVAL_WEEKS + ' weeks.');
+  console.log('[tycoon-hiring] module loaded. Rolling market: 1 candidate every ' + CANDIDATE_INTERVAL_WEEKS + ' weeks, queue caps at ' + MAX_QUEUE + '.');
 })();
