@@ -224,9 +224,51 @@
     }
     // Phase 4: referrals from happy employees (tier 3+)
     if (currentRecruiter().referrals) maybeGenerateReferral();
+    // v11.1: Alumni Job Board (school department) — past alumni occasionally
+    // surface as premium hireable candidates when that node is purchased.
+    if (window.tycoonSchool?.isPurchased?.('n_job_board')) maybeGenerateAlumniCandidate();
     // Phase 4b: reverse poaching — rivals poach YOUR low-morale seniors
     processOutsideOffers();
     maybeGenerateOutsideOffer();
+  }
+
+  // ---------- Alumni Job Board (v11.1) ----------
+  // Past classmates (S.school.alumniHall) occasionally list on the market as
+  // premium senior staff. Tagged fromAlumnus so the UI can highlight, with
+  // +2 stats across the board, inflated salary, and traits carried over.
+  const ALUMNI_WEEKLY_PROB = 0.10;  // ~1 per 10 weeks when hall has entries
+
+  function maybeGenerateAlumniCandidate() {
+    ensureState();
+    if (S.hiring.queue.length >= MAX_QUEUE) return;
+    const hall = S.school?.alumniHall || [];
+    if (!hall.length) return;
+    if (Math.random() >= ALUMNI_WEEKLY_PROB) return;
+    // Skip alumni we've already offered back
+    const eligible = hall.filter(a => !S.hiring.queue.some(c => c.fromAlumnus === a.name));
+    if (!eligible.length) return;
+    const alum = eligible[Math.floor(Math.random() * eligible.length)];
+    // Premium senior generated from scratch, then overlaid with alumnus flavor
+    const c = window.tycoonEmployees.generateCandidate({ tier: 4 });  // Staff by default
+    c.fairId = ++S.hiring.fairIndex;
+    c.offeredAtWeek = window.tycoonProjects.absoluteWeek();
+    c.expiresAtWeek = c.offeredAtWeek + CANDIDATE_LIFETIME_WEEKS;
+    c.fromAlumnus = alum.name;
+    c.alumnusRank = alum.rank;
+    c.alumnusFate = alum.fate;
+    // +2 stats across the board (seasoned pro) and +30% salary ask
+    const TIERS = window.TYCOON_TIERS || [];
+    const cap = (TIERS[4]?.statCap || 8) + 1;
+    for (const k of ['tech','design','polish','speed']) {
+      c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 2);
+    }
+    c.askingSalary = Math.round(c.askingSalary * 1.30);
+    S.hiring.queue.push(c);
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('\uD83C\uDF93 Alumnus on market: ' + alum.name + ' (your rank-' + alum.rank + ' grad) — $' + (c.askingSalary/1000).toFixed(0) + 'K');
+    document.dispatchEvent(new CustomEvent('tycoon:hiring-fair', {
+      detail: { fairId: c.fairId, candidates: [c], alumnus: true }
+    }));
   }
 
   // ---------- Reverse poaching (Phase 4b) ----------

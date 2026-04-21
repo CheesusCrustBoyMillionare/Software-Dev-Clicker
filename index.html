@@ -8918,7 +8918,21 @@ let _clockValidated = false;
     const t = PROJECT_TYPES[typeId];
     if (!t) return false;
     year = year == null ? (S.calendar?.year || 1980) : year;
-    return year >= t.era[0] && year <= t.era[1];
+    // v11.1: honor research nodes with effect.type === 'unlock_early' —
+    // pulls the era-start back by 1 year. Previously the research existed
+    // (n_mobile_os promises "target mobile one year sooner") but the
+    // effect was never read anywhere. Now it is.
+    let eraMin = t.era[0];
+    const R = window.tycoonResearch;
+    if (R?.NODE_BY_ID) {
+      for (const id of (S.research?.completed || [])) {
+        const node = R.NODE_BY_ID[id];
+        if (node?.effect?.type === 'unlock_early' && node.effect.projectType === typeId) {
+          eraMin = Math.min(eraMin, t.era[0] - 1);
+        }
+      }
+    }
+    return year >= eraMin && year <= t.era[1];
   }
   window.isProjectTypeAvailable = isTypeAvailable;
 
@@ -9382,7 +9396,10 @@ let _clockValidated = false;
 
     // Revenue: contract payout (lump) or first distributed launch-week payout
     if (proj.isContract) {
-      const paid = Math.round(proj.payment * macroMult);
+      // v11.1: Alumni Network "Alumni in Every Camp" department node grants
+      // a flat +15% on contract payouts when purchased.
+      const alumniMul = window.tycoonSchool?.isPurchased?.('n_every_camp') ? 1.15 : 1;
+      const paid = Math.round(proj.payment * macroMult * alumniMul);
       S.cash = (S.cash || 0) + paid;
       S.tRevenue = (S.tRevenue || 0) + paid;
       proj.actualPayment = paid;
@@ -11305,6 +11322,8 @@ let _clockValidated = false;
 .t-candidate-card.referred.interviewed { border-color: #7ee787; box-shadow: 0 0 0 1px #7ee78744; }
 .t-candidate-card.poached { border-color: #ffd33d; background: rgba(255,211,61,0.05); }
 .t-candidate-card.poached.interviewed { border-color: #ffd33d; box-shadow: 0 0 0 1px #ffd33d44; }
+.t-candidate-card.alumnus { border-color: #79c0ff; background: rgba(121,192,255,0.05); }
+.t-candidate-card.alumnus.interviewed { border-color: #79c0ff; box-shadow: 0 0 0 1px #79c0ff44; }
 
 /* Requisition rows (phase 3) */
 .t-req-row {
@@ -13283,13 +13302,19 @@ let _clockValidated = false;
   }
 
   function renderCandidateCard(c) {
-    // Highlight candidates by their source — requisition, referral, poach.
-    // Only one of these tags applies per candidate; priority: poach > req > referral.
+    // Highlight candidates by their source — alumnus, poach, requisition, referral.
+    // Only one tag applies; priority: alumnus > poach > req > referral.
     const cardClasses = 't-candidate-card'
       + (c.interviewed ? ' interviewed' : '')
-      + (c.poachedFromRival ? ' poached' : c.reqId ? ' matched-req' : c.referralFromId ? ' referred' : '');
+      + (c.fromAlumnus ? ' alumnus'
+         : c.poachedFromRival ? ' poached'
+         : c.reqId ? ' matched-req'
+         : c.referralFromId ? ' referred' : '');
     let sourceBadge = null;
-    if (c.poachedFromRival) {
+    if (c.fromAlumnus) {
+      sourceBadge = h('div', { style: { color: '#79c0ff', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } },
+        '\uD83C\uDF93 ALUMNUS \u2014 ' + c.fromAlumnus.toUpperCase() + ' (RANK ' + c.alumnusRank + ')');
+    } else if (c.poachedFromRival) {
       sourceBadge = h('div', { style: { color: '#ffd33d', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } },
         '\u26A1 POACHED FROM ' + (c.poachedFromIcon || '') + ' ' + c.poachedFromRival.toUpperCase());
     } else if (c.reqId) {
@@ -16163,9 +16188,51 @@ let _clockValidated = false;
     }
     // Phase 4: referrals from happy employees (tier 3+)
     if (currentRecruiter().referrals) maybeGenerateReferral();
+    // v11.1: Alumni Job Board (school department) — past alumni occasionally
+    // surface as premium hireable candidates when that node is purchased.
+    if (window.tycoonSchool?.isPurchased?.('n_job_board')) maybeGenerateAlumniCandidate();
     // Phase 4b: reverse poaching — rivals poach YOUR low-morale seniors
     processOutsideOffers();
     maybeGenerateOutsideOffer();
+  }
+
+  // ---------- Alumni Job Board (v11.1) ----------
+  // Past classmates (S.school.alumniHall) occasionally list on the market as
+  // premium senior staff. Tagged fromAlumnus so the UI can highlight, with
+  // +2 stats across the board, inflated salary, and traits carried over.
+  const ALUMNI_WEEKLY_PROB = 0.10;  // ~1 per 10 weeks when hall has entries
+
+  function maybeGenerateAlumniCandidate() {
+    ensureState();
+    if (S.hiring.queue.length >= MAX_QUEUE) return;
+    const hall = S.school?.alumniHall || [];
+    if (!hall.length) return;
+    if (Math.random() >= ALUMNI_WEEKLY_PROB) return;
+    // Skip alumni we've already offered back
+    const eligible = hall.filter(a => !S.hiring.queue.some(c => c.fromAlumnus === a.name));
+    if (!eligible.length) return;
+    const alum = eligible[Math.floor(Math.random() * eligible.length)];
+    // Premium senior generated from scratch, then overlaid with alumnus flavor
+    const c = window.tycoonEmployees.generateCandidate({ tier: 4 });  // Staff by default
+    c.fairId = ++S.hiring.fairIndex;
+    c.offeredAtWeek = window.tycoonProjects.absoluteWeek();
+    c.expiresAtWeek = c.offeredAtWeek + CANDIDATE_LIFETIME_WEEKS;
+    c.fromAlumnus = alum.name;
+    c.alumnusRank = alum.rank;
+    c.alumnusFate = alum.fate;
+    // +2 stats across the board (seasoned pro) and +30% salary ask
+    const TIERS = window.TYCOON_TIERS || [];
+    const cap = (TIERS[4]?.statCap || 8) + 1;
+    for (const k of ['tech','design','polish','speed']) {
+      c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 2);
+    }
+    c.askingSalary = Math.round(c.askingSalary * 1.30);
+    S.hiring.queue.push(c);
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof log === 'function') log('\uD83C\uDF93 Alumnus on market: ' + alum.name + ' (your rank-' + alum.rank + ' grad) — $' + (c.askingSalary/1000).toFixed(0) + 'K');
+    document.dispatchEvent(new CustomEvent('tycoon:hiring-fair', {
+      detail: { fairId: c.fairId, candidates: [c], alumnus: true }
+    }));
   }
 
   // ---------- Reverse poaching (Phase 4b) ----------
@@ -21762,13 +21829,67 @@ let _clockValidated = false;
             S.fame = (S.fame || 0) + (eff.amount || 0);
             S.tFame = (S.tFame || 0) + (eff.amount || 0);
             break;
-          // hireAlumni / clientRepBonus / freeContract / extraReview /
-          // contractBonusMul: flag-only effects. Their consumers check
-          // S.school.departments for the node id at the relevant moment
-          // (hire UI, contract offer, ship time, etc.). Phase 8 wires the
-          // extraReview consumer in shipProject (see reviews module hook
-          // above). clientRepBonus is checked at contract generation.
-          // hireAlumni is used by Alumni Hall's hire button.
+          // v11.1: Alumni Network effects wired here. clientRepBonus opens
+          // the next client tier for Top-5-ranked classmates. freeContract
+          // adds a guaranteed contract offer to the queue. hireAlumni sets
+          // a flag read by tycoonHiring each tick to inject an alumnus-
+          // sourced candidate. contractBonusMul is read at ship time in
+          // 13-tycoon-projects (no state here needed).
+          case 'clientRepBonus': {
+            const rank = S.school?.currentClassmateRank;
+            if (typeof rank === 'number' && rank <= 5) {
+              // S.clientReputation may not exist yet — contracts module inits
+              // it lazily on first use. Seed it here so we can flip unlocks.
+              if (!S.clientReputation) {
+                S.clientReputation = {
+                  small_biz:  { avg: 0, count: 0, unlocked: true  },
+                  enterprise: { avg: 0, count: 0, unlocked: false },
+                  tech_giant: { avg: 0, count: 0, unlocked: false },
+                  government: { avg: 0, count: 0, unlocked: false },
+                };
+              }
+              for (const tierId of ['enterprise','tech_giant','government']) {
+                const rep = S.clientReputation[tierId];
+                if (rep && !rep.unlocked) {
+                  rep.unlocked = true;
+                  if (typeof log === 'function') log('\uD83C\uDF93 Gold-Plated Diploma: ' + tierId + ' client tier unlocked early');
+                  break;
+                }
+              }
+            }
+            break;
+          }
+          case 'freeContract': {
+            // Seed a starter contract in the offer queue so week 1 isn't a
+            // runway cliff. Uses the contract module's generator if it can
+            // produce one; otherwise a minimal hand-rolled fallback.
+            if (window.tycoonContracts?.forceOffer) {
+              window.tycoonContracts.forceOffer();
+            } else if (S.projects?.contracts) {
+              S.projects.contracts.push({
+                id: 'free_' + Date.now().toString(36),
+                clientName: 'Alumni Connections',
+                clientTier: 'small_biz',
+                clientTierIcon: '\uD83D\uDCBC',
+                clientTierLabel: 'Small Biz',
+                projectName: 'Starter Tool',
+                projectType: 'business',
+                scope: 'small',
+                allFeatures: [],
+                features: [],
+                payment: 15000,
+                deadline: (window.tycoonProjects?.absoluteWeek?.() || 0) + 24,
+                offeredAtWeek: window.tycoonProjects?.absoluteWeek?.() || 0,
+                expiresAtWeek: (window.tycoonProjects?.absoluteWeek?.() || 0) + 6,
+              });
+            }
+            if (typeof log === 'function') log('\uD83E\uDD1D Alumni Connections: starter contract offer added');
+            break;
+          }
+          // hireAlumni consumed by tycoonHiring.maybeGenerateAlumniCandidate
+          // (wired in 18-tycoon-hiring.js onWeekTick).
+          // extraReview consumed in shipProject (already wired).
+          // contractBonusMul consumed at ship payout (already wired).
           default:
             break;
         }

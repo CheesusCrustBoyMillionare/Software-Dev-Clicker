@@ -120,7 +120,21 @@
     const t = PROJECT_TYPES[typeId];
     if (!t) return false;
     year = year == null ? (S.calendar?.year || 1980) : year;
-    return year >= t.era[0] && year <= t.era[1];
+    // v11.1: honor research nodes with effect.type === 'unlock_early' —
+    // pulls the era-start back by 1 year. Previously the research existed
+    // (n_mobile_os promises "target mobile one year sooner") but the
+    // effect was never read anywhere. Now it is.
+    let eraMin = t.era[0];
+    const R = window.tycoonResearch;
+    if (R?.NODE_BY_ID) {
+      for (const id of (S.research?.completed || [])) {
+        const node = R.NODE_BY_ID[id];
+        if (node?.effect?.type === 'unlock_early' && node.effect.projectType === typeId) {
+          eraMin = Math.min(eraMin, t.era[0] - 1);
+        }
+      }
+    }
+    return year >= eraMin && year <= t.era[1];
   }
   window.isProjectTypeAvailable = isTypeAvailable;
 
@@ -584,7 +598,10 @@
 
     // Revenue: contract payout (lump) or first distributed launch-week payout
     if (proj.isContract) {
-      const paid = Math.round(proj.payment * macroMult);
+      // v11.1: Alumni Network "Alumni in Every Camp" department node grants
+      // a flat +15% on contract payouts when purchased.
+      const alumniMul = window.tycoonSchool?.isPurchased?.('n_every_camp') ? 1.15 : 1;
+      const paid = Math.round(proj.payment * macroMult * alumniMul);
       S.cash = (S.cash || 0) + paid;
       S.tRevenue = (S.tRevenue || 0) + paid;
       proj.actualPayment = paid;

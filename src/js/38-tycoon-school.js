@@ -737,13 +737,67 @@
             S.fame = (S.fame || 0) + (eff.amount || 0);
             S.tFame = (S.tFame || 0) + (eff.amount || 0);
             break;
-          // hireAlumni / clientRepBonus / freeContract / extraReview /
-          // contractBonusMul: flag-only effects. Their consumers check
-          // S.school.departments for the node id at the relevant moment
-          // (hire UI, contract offer, ship time, etc.). Phase 8 wires the
-          // extraReview consumer in shipProject (see reviews module hook
-          // above). clientRepBonus is checked at contract generation.
-          // hireAlumni is used by Alumni Hall's hire button.
+          // v11.1: Alumni Network effects wired here. clientRepBonus opens
+          // the next client tier for Top-5-ranked classmates. freeContract
+          // adds a guaranteed contract offer to the queue. hireAlumni sets
+          // a flag read by tycoonHiring each tick to inject an alumnus-
+          // sourced candidate. contractBonusMul is read at ship time in
+          // 13-tycoon-projects (no state here needed).
+          case 'clientRepBonus': {
+            const rank = S.school?.currentClassmateRank;
+            if (typeof rank === 'number' && rank <= 5) {
+              // S.clientReputation may not exist yet — contracts module inits
+              // it lazily on first use. Seed it here so we can flip unlocks.
+              if (!S.clientReputation) {
+                S.clientReputation = {
+                  small_biz:  { avg: 0, count: 0, unlocked: true  },
+                  enterprise: { avg: 0, count: 0, unlocked: false },
+                  tech_giant: { avg: 0, count: 0, unlocked: false },
+                  government: { avg: 0, count: 0, unlocked: false },
+                };
+              }
+              for (const tierId of ['enterprise','tech_giant','government']) {
+                const rep = S.clientReputation[tierId];
+                if (rep && !rep.unlocked) {
+                  rep.unlocked = true;
+                  if (typeof log === 'function') log('\uD83C\uDF93 Gold-Plated Diploma: ' + tierId + ' client tier unlocked early');
+                  break;
+                }
+              }
+            }
+            break;
+          }
+          case 'freeContract': {
+            // Seed a starter contract in the offer queue so week 1 isn't a
+            // runway cliff. Uses the contract module's generator if it can
+            // produce one; otherwise a minimal hand-rolled fallback.
+            if (window.tycoonContracts?.forceOffer) {
+              window.tycoonContracts.forceOffer();
+            } else if (S.projects?.contracts) {
+              S.projects.contracts.push({
+                id: 'free_' + Date.now().toString(36),
+                clientName: 'Alumni Connections',
+                clientTier: 'small_biz',
+                clientTierIcon: '\uD83D\uDCBC',
+                clientTierLabel: 'Small Biz',
+                projectName: 'Starter Tool',
+                projectType: 'business',
+                scope: 'small',
+                allFeatures: [],
+                features: [],
+                payment: 15000,
+                deadline: (window.tycoonProjects?.absoluteWeek?.() || 0) + 24,
+                offeredAtWeek: window.tycoonProjects?.absoluteWeek?.() || 0,
+                expiresAtWeek: (window.tycoonProjects?.absoluteWeek?.() || 0) + 6,
+              });
+            }
+            if (typeof log === 'function') log('\uD83E\uDD1D Alumni Connections: starter contract offer added');
+            break;
+          }
+          // hireAlumni consumed by tycoonHiring.maybeGenerateAlumniCandidate
+          // (wired in 18-tycoon-hiring.js onWeekTick).
+          // extraReview consumed in shipProject (already wired).
+          // contractBonusMul consumed at ship payout (already wired).
           default:
             break;
         }

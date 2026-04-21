@@ -351,6 +351,8 @@
 .t-candidate-card.referred.interviewed { border-color: #7ee787; box-shadow: 0 0 0 1px #7ee78744; }
 .t-candidate-card.poached { border-color: #ffd33d; background: rgba(255,211,61,0.05); }
 .t-candidate-card.poached.interviewed { border-color: #ffd33d; box-shadow: 0 0 0 1px #ffd33d44; }
+.t-candidate-card.alumnus { border-color: #79c0ff; background: rgba(121,192,255,0.05); }
+.t-candidate-card.alumnus.interviewed { border-color: #79c0ff; box-shadow: 0 0 0 1px #79c0ff44; }
 
 /* Requisition rows (phase 3) */
 .t-req-row {
@@ -2329,13 +2331,19 @@
   }
 
   function renderCandidateCard(c) {
-    // Highlight candidates by their source — requisition, referral, poach.
-    // Only one of these tags applies per candidate; priority: poach > req > referral.
+    // Highlight candidates by their source — alumnus, poach, requisition, referral.
+    // Only one tag applies; priority: alumnus > poach > req > referral.
     const cardClasses = 't-candidate-card'
       + (c.interviewed ? ' interviewed' : '')
-      + (c.poachedFromRival ? ' poached' : c.reqId ? ' matched-req' : c.referralFromId ? ' referred' : '');
+      + (c.fromAlumnus ? ' alumnus'
+         : c.poachedFromRival ? ' poached'
+         : c.reqId ? ' matched-req'
+         : c.referralFromId ? ' referred' : '');
     let sourceBadge = null;
-    if (c.poachedFromRival) {
+    if (c.fromAlumnus) {
+      sourceBadge = h('div', { style: { color: '#79c0ff', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } },
+        '\uD83C\uDF93 ALUMNUS \u2014 ' + c.fromAlumnus.toUpperCase() + ' (RANK ' + c.alumnusRank + ')');
+    } else if (c.poachedFromRival) {
       sourceBadge = h('div', { style: { color: '#ffd33d', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } },
         '\u26A1 POACHED FROM ' + (c.poachedFromIcon || '') + ' ' + c.poachedFromRival.toUpperCase());
     } else if (c.reqId) {
