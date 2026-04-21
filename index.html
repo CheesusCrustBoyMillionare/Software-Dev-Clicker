@@ -13092,12 +13092,29 @@ let _clockValidated = false;
       sourceBadge = h('div', { style: { color: '#7ee787', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } },
         '\uD83E\uDD1D REFERRED BY ' + c.referralFromName.toUpperCase());
     }
+    // Expiration indicator — candidates sit on the market for
+    // CANDIDATE_LIFETIME_WEEKS (8 by default). Show the remaining window
+    // inline with color coding so the player feels the pressure to decide.
+    const curWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    const weeksLeft = Math.max(0, (c.expiresAtWeek || 0) - curWeek);
+    const expColor = weeksLeft <= 1 ? '#f85149'
+                    : weeksLeft <= 3 ? '#f0883e'
+                    : '#8b949e';
+    const expText = weeksLeft <= 0 ? 'expiring now'
+                   : weeksLeft === 1 ? 'leaves in 1 week'
+                   : 'leaves in ' + weeksLeft + ' weeks';
+    const expEl = h('div', {
+      style: { color: expColor, fontSize: '0.68rem', fontWeight: 600, marginTop: '2px', letterSpacing: '.02em' },
+      title: 'Candidates disappear from the market ' + (c.expiresAtWeek - c.offeredAtWeek) + ' weeks after listing'
+    }, '⏳ ' + expText);
+
     const card = h('div', { className: cardClasses },
       sourceBadge,
       h('div', { className: 'c-top' },
         h('div', null,
           h('div', { className: 'c-name' }, c.name),
-          h('div', { className: 'c-tier' }, c.tierName + ' · ' + c.specialty)
+          h('div', { className: 'c-tier' }, c.tierName + ' · ' + c.specialty),
+          expEl
         ),
         h('div', { className: 'c-salary' }, fmtMoney(c.askingSalary) + '/yr')
       ),
@@ -13782,6 +13799,9 @@ let _clockValidated = false;
     _uiTickUnsub = window.tycoonTime.onTick(() => {
       refreshTopBar();
       refreshMain();
+      // If the Talent Market is open, re-render so candidate expiration
+      // timers tick down visibly and any new arrivals show up inline.
+      if (document.getElementById('_t_hiring_modal')) rerenderHiringModal();
       // Weekly autosave — guarantees at most one week of progress lost on
       // a crash / tab close, independent of the 30s wall-clock autosave
       // in the clicker rAF loop (which keeps running at faster tycoon
@@ -15712,7 +15732,7 @@ let _clockValidated = false;
   const BASE_CANDIDATE_INTERVAL_WEEKS = 2;  // default rate with no recruiter
   const INITIAL_INTERVAL_WEEKS = 2;     // first candidate arrives this many weeks after career start
   const MAX_QUEUE = 6;                  // stop generating once we hit this; resumes as candidates expire/hire
-  const CANDIDATE_LIFETIME_WEEKS = 8;   // how long a candidate stays on the market
+  const CANDIDATE_LIFETIME_WEEKS = 6;   // how long a candidate stays on the market (v11.1 reduced from 8)
   const INTERVIEW_COST = 1000;
   const INTERVIEW_WEEKS = 1;            // 1 game-week to "interview"
   // Legacy compat — external callers / hints still reference FAIR_INTERVAL_WEEKS
@@ -19989,7 +20009,7 @@ let _clockValidated = false;
     {
       id: 'first_fair', trigger: 'event', event: 'tycoon:hiring-fair', icon: '\u{1F4BC}',
       title: 'Talent Market',
-      body: 'A candidate just listed on the market. New arrivals surface every ~2 weeks; each stays for 8. Open \uD83D\uDCBC Hiring from the Studio panel when you\u2019re ready to interview and hire.'
+      body: 'A candidate just listed on the market. New arrivals surface every ~2 weeks; each stays for 6 weeks before leaving. Open \uD83D\uDCBC Hiring from the Studio panel when you\u2019re ready to interview and hire.'
     },
 
     // ----- Research / Era -----

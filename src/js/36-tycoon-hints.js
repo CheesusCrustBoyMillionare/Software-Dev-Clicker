@@ -61,7 +61,7 @@
     {
       id: 'first_fair', trigger: 'event', event: 'tycoon:hiring-fair', icon: '\u{1F4BC}',
       title: 'Talent Market',
-      body: 'A candidate just listed on the market. New arrivals surface every ~2 weeks; each stays for 8. Open \uD83D\uDCBC Hiring from the Studio panel when you\u2019re ready to interview and hire.'
+      body: 'A candidate just listed on the market. New arrivals surface every ~2 weeks; each stays for 6 weeks before leaving. Open \uD83D\uDCBC Hiring from the Studio panel when you\u2019re ready to interview and hire.'
     },
 
     // ----- Research / Era -----

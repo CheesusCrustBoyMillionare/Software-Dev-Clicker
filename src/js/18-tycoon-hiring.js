@@ -11,7 +11,7 @@
   const BASE_CANDIDATE_INTERVAL_WEEKS = 2;  // default rate with no recruiter
   const INITIAL_INTERVAL_WEEKS = 2;     // first candidate arrives this many weeks after career start
   const MAX_QUEUE = 6;                  // stop generating once we hit this; resumes as candidates expire/hire
-  const CANDIDATE_LIFETIME_WEEKS = 8;   // how long a candidate stays on the market
+  const CANDIDATE_LIFETIME_WEEKS = 6;   // how long a candidate stays on the market (v11.1 reduced from 8)
   const INTERVIEW_COST = 1000;
   const INTERVIEW_WEEKS = 1;            // 1 game-week to "interview"
   // Legacy compat — external callers / hints still reference FAIR_INTERVAL_WEEKS

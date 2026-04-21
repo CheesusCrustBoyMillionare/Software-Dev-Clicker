@@ -2182,12 +2182,29 @@
       sourceBadge = h('div', { style: { color: '#7ee787', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.04em', marginBottom: '4px' } },
         '\uD83E\uDD1D REFERRED BY ' + c.referralFromName.toUpperCase());
     }
+    // Expiration indicator — candidates sit on the market for
+    // CANDIDATE_LIFETIME_WEEKS (8 by default). Show the remaining window
+    // inline with color coding so the player feels the pressure to decide.
+    const curWeek = window.tycoonProjects?.absoluteWeek?.() || 0;
+    const weeksLeft = Math.max(0, (c.expiresAtWeek || 0) - curWeek);
+    const expColor = weeksLeft <= 1 ? '#f85149'
+                    : weeksLeft <= 3 ? '#f0883e'
+                    : '#8b949e';
+    const expText = weeksLeft <= 0 ? 'expiring now'
+                   : weeksLeft === 1 ? 'leaves in 1 week'
+                   : 'leaves in ' + weeksLeft + ' weeks';
+    const expEl = h('div', {
+      style: { color: expColor, fontSize: '0.68rem', fontWeight: 600, marginTop: '2px', letterSpacing: '.02em' },
+      title: 'Candidates disappear from the market ' + (c.expiresAtWeek - c.offeredAtWeek) + ' weeks after listing'
+    }, '⏳ ' + expText);
+
     const card = h('div', { className: cardClasses },
       sourceBadge,
       h('div', { className: 'c-top' },
         h('div', null,
           h('div', { className: 'c-name' }, c.name),
-          h('div', { className: 'c-tier' }, c.tierName + ' · ' + c.specialty)
+          h('div', { className: 'c-tier' }, c.tierName + ' · ' + c.specialty),
+          expEl
         ),
         h('div', { className: 'c-salary' }, fmtMoney(c.askingSalary) + '/yr')
       ),
@@ -2872,6 +2889,9 @@
     _uiTickUnsub = window.tycoonTime.onTick(() => {
       refreshTopBar();
       refreshMain();
+      // If the Talent Market is open, re-render so candidate expiration
+      // timers tick down visibly and any new arrivals show up inline.
+      if (document.getElementById('_t_hiring_modal')) rerenderHiringModal();
       // Weekly autosave — guarantees at most one week of progress lost on
       // a crash / tab close, independent of the 30s wall-clock autosave
       // in the clicker rAF loop (which keeps running at faster tycoon
