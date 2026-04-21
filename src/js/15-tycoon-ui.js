@@ -2447,6 +2447,13 @@
     _uiTickUnsub = window.tycoonTime.onTick(() => {
       refreshTopBar();
       refreshMain();
+      // Weekly autosave — guarantees at most one week of progress lost on
+      // a crash / tab close, independent of the 30s wall-clock autosave
+      // in the clicker rAF loop (which keeps running at faster tycoon
+      // speeds, so 8× = 12.5s per week anyway; at 1× the weekly save is
+      // the tighter bound).
+      try { if (typeof save === 'function') save(); }
+      catch (e) { console.error('[tycoon-ui] weekly autosave failed:', e); }
     });
   }
 
