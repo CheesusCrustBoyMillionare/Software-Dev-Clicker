@@ -23571,16 +23571,45 @@ let _clockValidated = false;
     return 'Bottom of class';
   }
 
-  // Pick the classmate that's next up — the lowest unenrolled rank.
-  // (Phase 1 starts at the bottom per Q1b, so "lowest rank number unenrolled
-  // from the bottom" = the current next. Actually: classmate.rank 50 first,
-  // then 49, then 48, etc. So "next up" = the max unenrolled rank.)
+  // Pick the classmate that's next up.
+  // v11.3: Replaces the old "always start at the bottom, climb by 1" logic
+  // with a bell-curve-weighted random pick of the unenrolled ranks. Each
+  // new run most often lands mid-class; top-5 or bottom-5 picks are rare.
+  // The result is cached on S.school.nextClassmateRank so re-renders don't
+  // reshuffle the choice — enrollClassmate clears the cache so the next
+  // run rolls fresh.
   function nextUpRank() {
     if (!Array.isArray(S.school?.classRoster)) return null;
     const unenrolled = S.school.classRoster.filter(c => !c.enrolled);
     if (unenrolled.length === 0) return null;
-    // Highest rank number = furthest from top of class = we start at bottom
-    return unenrolled.reduce((max, c) => c.rank > max ? c.rank : max, 0);
+    // Validate any cached pick — could be stale if the classmate was
+    // enrolled via a different code path or if the roster was reset.
+    const cached = S.school?.nextClassmateRank;
+    if (typeof cached === 'number' && unenrolled.some(c => c.rank === cached)) {
+      return cached;
+    }
+    const picked = sampleRankBellCurve(unenrolled);
+    if (!S.school) S.school = {};
+    S.school.nextClassmateRank = picked;
+    if (typeof markDirty === 'function') markDirty();
+    return picked;
+  }
+
+  // Bell-curve sampler — sum of 3 uniforms on [0,1] gives a symmetric,
+  // roughly triangular distribution peaked at 0.5 (mean 0.5, stddev ~0.167).
+  // We map that sample onto the rank-sorted list of unenrolled classmates,
+  // so the middle rank is the most likely draw and the extremes (rank 1
+  // top-of-class, rank 50 bottom-of-class) are rare. With 50 classmates,
+  // each extreme decile gets roughly ~4% of the draws.
+  function sampleRankBellCurve(unenrolledClassmates) {
+    const sortedByRank = unenrolledClassmates.slice().sort((a, b) => a.rank - b.rank);
+    const N = sortedByRank.length;
+    if (N === 1) return sortedByRank[0].rank;
+    const r = (Math.random() + Math.random() + Math.random()) / 3;
+    let idx = Math.floor(r * N);
+    if (idx >= N) idx = N - 1;
+    if (idx < 0) idx = 0;
+    return sortedByRank[idx].rank;
   }
 
   // Enroll a classmate — reset per-run state, copy classmate → founder,
@@ -23615,6 +23644,9 @@ let _clockValidated = false;
       }
     }
     S.school.queuedEraStart = null;
+    // v11.3: clear the cached next-classmate pick so the next run rolls a
+    // fresh bell-curve-weighted rank (otherwise the same rank would re-surface).
+    S.school.nextClassmateRank = null;
     S.calendar = { week: 1, month: 1, year: startYear };
     S.projects = { active: [], shipped: [], contracts: [] };
     S.employees = [];
@@ -23742,37 +23774,12 @@ let _clockValidated = false;
     const unenrolled = roster.filter(c => !c.enrolled).length;
     const enrolled = roster.length - unenrolled;
 
-    // Roster cards — ranked bottom-first since we climb up
-    const sortedRoster = roster.slice().sort((a, b) => b.rank - a.rank);
-    const rosterEls = sortedRoster.map(c => {
-      const isNext = c.rank === nextRank;
-      // Phase 6: ranks above next-up are "locked" — visible but not yet
-      // enrollable. You have to play the next-up classmate first.
-      const isLocked = !c.enrolled && !isNext;
-      const cls = 'ss-roster-card'
-        + (c.enrolled ? ' enrolled' : '')
-        + (isNext ? ' next-up' : '')
-        + (isLocked ? ' locked' : '');
-      const title = c.enrolled
-        ? c.name + ' — rank ' + c.rank + ' (' + (c.fate || 'played') + ')'
-        : (isLocked
-          ? c.name + ' — rank ' + c.rank + ' (locked; enroll rank ' + nextRank + ' next)'
-          : c.name + ' — rank ' + c.rank + ' (ready to enroll)');
-      return hEl('div', {
-        className: cls,
-        title,
-        onclick: () => openClassmateDetail(c.rank),
-      },
-        hEl('div', { className: 'ss-rank' }, 'Rank #' + c.rank),
-        hEl('div', { className: 'ss-name' }, c.name),
-        hEl('span', { className: 'ss-band' }, c.band.replace('_', ' ')),
-        c.enrolled ? hEl('span', { className: 'ss-fate', title: c.fate || '' }, fateIcon(c.fate)) : null,
-        isLocked ? hEl('span', {
-          style: { position: 'absolute', top: '6px', right: '6px', fontSize: '0.85rem', opacity: '0.6' },
-          title: 'Locked'
-        }, '\uD83D\uDD12') : null
-      );
-    });
+    // v11.3: the full 50-card roster grid used to live here. It was hidden
+    // because (a) with the bell-curve-weighted next-classmate picker, there's
+    // no longer a deterministic "locked / next-up" order to visualize, and
+    // (b) the Alumni Hall tab already shows the classmates who've played,
+    // so there's no surprise value in seeing unplayed ranks up front. The
+    // "Next up" detail block below reveals this run's random pick.
 
     const currentBlock = next ? (() => {
       const pe = (axis) => {
@@ -23817,7 +23824,6 @@ let _clockValidated = false;
       hEl('div', { style: { fontSize: '0.85rem', color: '#8b949e', marginBottom: '14px' } },
         'Class of ' + (S.school?.foundedYear || 1980) + ' \u00B7 '
         + enrolled + ' enrolled, ' + unenrolled + ' remaining'),
-      hEl('div', { className: 'ss-roster' }, ...rosterEls),
       currentBlock,
       renderEraStartRow()
     );
