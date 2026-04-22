@@ -3867,12 +3867,30 @@
     pushToast('🏅 ' + a.name + ' — ' + a.desc);
   });
 
-  // v3 roguelite: run-end surfaces the endowment banked. This toast is the
-  // Phase 4 placeholder — Phase 5 routes post-run-end into the school screen
-  // where the full retrospective + class-roster picker live. For now the
-  // existing legacy modal (bankruptcy/win/megacorp) still opens behind this
-  // toast, keeping the retrospective summary alive while we build the
-  // school UI.
+  // Shared helper — called from the "Continue to Alumni Hall" button on the
+  // legacy/victory modals. Dismisses any lingering end-of-run modals, saves,
+  // tears down the tycoon overlay, and opens the school screen.
+  function transitionToSchoolScreen() {
+    if (!window.tycoonSchool?.openSchoolScreen) return;
+    document.getElementById('_t_legacy_modal')?.remove();
+    document.getElementById('_t_victory_modal')?.remove();
+    try { if (typeof save === 'function') save(); } catch (e) {}
+    if (window.tycoonUI?.exit) window.tycoonUI.exit({ noReload: true });
+    window.tycoonSchool.openSchoolScreen();
+  }
+  // Expose for the legacy screen button (same file, different scope via IIFE).
+  window._tycoonTransitionToSchool = transitionToSchoolScreen;
+
+  // v3 roguelite: run-end surfaces the endowment banked. Prior versions had
+  // an automatic 2.5s setTimeout that tore down the legacy/victory modal and
+  // opened the school screen whether the player had read it or not. v11.3
+  // requires an explicit button press on the legacy screen — see the
+  // "Continue to Alumni Hall" button in openLegacyScreen below.
+  //
+  // Each run-end type has its retrospective modal opened by a different code
+  // path — this listener handles the two that DON'T have their own modal
+  // opener (voluntary retirement + age retirement), so the player isn't
+  // softlocked after a retire confirmation with no way forward.
   document.addEventListener('tycoon:run-end', (e) => {
     const { type, endowEarned } = e.detail || {};
     const labels = {
@@ -3884,23 +3902,24 @@
     };
     pushToast((labels[type] || 'Run ended') +
       '  ·  +' + (endowEarned || 0).toLocaleString() + ' endowment banked', 'win');
+    // Save the run's result so the alumni hall reflects it even if the
+    // player later refreshes before pressing the transition button.
+    try { if (typeof save === 'function') save(); } catch (e) {}
 
-    // v3 roguelite: after a retrospective beat, tear down the tycoon overlay
-    // and open the school screen. Existing legacy/victory modals (if any)
-    // get dismissed in the process — Phase 5's school-screen admissions tab
-    // shows the run's alumnus joined the hall. Phase 8 will replace the
-    // per-run retrospective with a richer in-school one.
-    setTimeout(() => {
-      if (!window.tycoonSchool?.openSchoolScreen) return;
-      // Dismiss any legacy/victory modals still open
-      document.getElementById('_t_legacy_modal')?.remove();
-      document.getElementById('_t_victory_modal')?.remove();
-      // Save the run's result before tearing down tycoon
-      try { if (typeof save === 'function') save(); } catch (e) {}
-      // Tear down tycoon overlay without reloading the page
-      if (window.tycoonUI?.exit) window.tycoonUI.exit({ noReload: true });
-      window.tycoonSchool.openSchoolScreen();
-    }, 2500);
+    // Open the retrospective legacy screen for run-end types that don't
+    // already get one from their own event listener:
+    //   bankruptcy     → opened by tycoon:bankruptcy listener
+    //   megacorp_exit  → opened by tycoon:megacorp-exit listener (1.5s delay)
+    //   win_condition  → opened via openVictoryModal → legacy button
+    //   retire_*       → no other opener — handle here
+    if (type === 'retire_voluntary' || type === 'age_retired') {
+      // Small delay so the toast can register before the modal steals focus.
+      setTimeout(() => {
+        if (!document.getElementById('_t_legacy_modal')) {
+          openLegacyScreen(S.calendar?.year || 1980, 'victory');
+        }
+      }, 400);
+    }
   });
 
   // v3 roguelite: voluntary retire button — opens a confirmation. Gated
@@ -4496,31 +4515,53 @@
 
         // Bankruptcy note
         bankrupt && h('div', { style:{background:'#3b1519', border:'1px solid #f85149', borderRadius:'4px', padding:'10px', marginBottom:'14px', color:'#ffa198', fontSize:'0.8rem'} },
-          'Your save slot is now marked DEFUNCT. Next career will start with +5% cash.'),
+          'Your studio is now marked DEFUNCT. ' + founderName + '\u2019s story joins the Alumni Hall, and the next classmate takes over with a small inheritance bonus.'),
 
-        h('div', { className: 't-modal-actions', style:{justifyContent:'center', flexWrap:'wrap'} },
-          // Share card button — copies a text summary to clipboard
-          h('button', { className: 't-btn secondary', onclick: () => {
-            const summary = buildShareCard(founderName, studio, startYear, endYear || S.calendar?.year, years, shipped, hits, awards);
-            try {
-              navigator.clipboard.writeText(summary);
-              pushToast('📋 Career summary copied to clipboard!');
-            } catch (err) {
-              alert(summary);
-            }
-          }}, '📋 Copy Share Card'),
-          h('button', { className: 't-btn', onclick: () => {
-            document.getElementById('_t_legacy_modal')?.remove();
-            if (bankrupt) {
-              // Wipe save + reload for fresh career
-              try { localStorage.removeItem(KEY); } catch (e) {}
-              location.reload();
-            } else {
-              // Resume play (retrospective path)
-              window.tycoonTime?.start();
-            }
-          }}, bankrupt ? 'Start New Career' : 'Continue')
-        )
+        // v11.3: bankruptcy / victory MUST require an explicit button press
+        // to advance. Previously a 2.5s setTimeout in the run-end listener
+        // auto-dismissed this modal; now the player reads at their own pace
+        // and presses "Continue to Alumni Hall" when ready. The roguelite
+        // layer then opens the school screen where their classmate's fate
+        // is recorded and the next run begins.
+        //   - bankruptcy → school screen (not save-wipe — the alumni hall
+        //     persists across runs now; Phase 5+ behavior)
+        //   - victory     → school screen (megacorp exit / win-condition end)
+        //   - retrospective → resume the in-progress career
+        (() => {
+          const isRunEnd = bankrupt || kind === 'victory';
+          const btnLabel = isRunEnd ? '🎓 Continue to Alumni Hall →' : 'Continue';
+          const btnKind = isRunEnd ? '' : ''; // primary in both cases
+          return h('div', { className: 't-modal-actions', style:{justifyContent:'center', flexWrap:'wrap'} },
+            // Share card button — copies a text summary to clipboard
+            h('button', { className: 't-btn secondary', onclick: () => {
+              const summary = buildShareCard(founderName, studio, startYear, endYear || S.calendar?.year, years, shipped, hits, awards);
+              try {
+                navigator.clipboard.writeText(summary);
+                pushToast('📋 Career summary copied to clipboard!');
+              } catch (err) {
+                alert(summary);
+              }
+            }}, '📋 Copy Share Card'),
+            h('button', { className: 't-btn', onclick: () => {
+              if (isRunEnd) {
+                // Transition to the school screen when the player is ready.
+                if (typeof window._tycoonTransitionToSchool === 'function') {
+                  window._tycoonTransitionToSchool();
+                } else {
+                  // Fallback: if the school layer isn't loaded for some reason,
+                  // wipe save + reload so the player isn't softlocked.
+                  document.getElementById('_t_legacy_modal')?.remove();
+                  try { localStorage.removeItem(KEY); } catch (e) {}
+                  location.reload();
+                }
+              } else {
+                // Retrospective path — resume play.
+                document.getElementById('_t_legacy_modal')?.remove();
+                window.tycoonTime?.start();
+              }
+            }}, btnLabel)
+          );
+        })()
       )
     );
     document.body.appendChild(ov);
