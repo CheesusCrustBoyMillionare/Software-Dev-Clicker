@@ -2716,7 +2716,8 @@
         })(),
         h('button', { className: 't-btn secondary', onclick: () => openMarketModal() }, '📊 Market'),
         h('button', { className: 't-btn secondary', onclick: () => openFinanceModal() }, '💰 Finance'),
-        h('button', { className: 't-btn secondary', onclick: () => openLegacyScreen(S.calendar?.year || 1980, 'retrospective') }, '📜 Hall of Fame')
+        h('button', { className: 't-btn secondary', onclick: () => openLegacyScreen(S.calendar?.year || 1980, 'retrospective') }, '📜 Hall of Fame'),
+        h('button', { className: 't-btn secondary', onclick: () => openGuideModal() }, '📖 Guide')
       ),
       employees.length > 0 && h('h2', { style: { marginTop: '16px' } }, 'Team (' + employees.length + ')'),
       employees.length > 0 && h('div', null, ...employees.map(renderEmployeeRow))
@@ -2746,6 +2747,386 @@
 
     main.append(leftPanel, projectsPanel);
     return main;
+  }
+
+  // ---------- Guide modal (v11.2) ----------
+  // "90s-game-manual"–styled help document. Content is static HTML so the
+  // authoring stays in one place rather than hundreds of h() calls. The
+  // container is scrollable and uses the standard t-modal pattern so the
+  // auto-pause MutationObserver freezes the game while it's open.
+  function openGuideModal() {
+    document.getElementById('_t_guide_modal')?.remove();
+
+    const body = document.createElement('div');
+    body.className = 't-guide-body';
+    body.style.cssText = [
+      'max-height:70vh',
+      'overflow-y:auto',
+      'padding:4px 14px 14px',
+      'font-size:0.82rem',
+      'line-height:1.55',
+      'color:#c9d1d9',
+      'border:1px solid #30363d',
+      'border-radius:6px',
+      'background:#0d1117',
+    ].join(';');
+
+    // Authored as a long HTML string for readability. All numeric values
+    // should match the current game (v11.2 stat scale, TIERS, weekly
+    // payroll cadence, etc.) — if a formula changes, update this text too.
+    body.innerHTML = `
+<style>
+  .t-guide-body h1 { color:#f0883e; font-size:1.2rem; margin:18px 0 4px; border-bottom:2px solid #f0883e; padding-bottom:4px; letter-spacing:0.5px; }
+  .t-guide-body h2 { color:#79c0ff; font-size:1rem; margin:18px 0 6px; border-bottom:1px dashed #30363d; padding-bottom:3px; }
+  .t-guide-body h3 { color:#7ee787; font-size:0.9rem; margin:12px 0 4px; }
+  .t-guide-body .t-guide-blurb { color:#8b949e; font-style:italic; margin:4px 0 10px; padding:8px 12px; background:#161b22; border-left:3px solid #f0883e; border-radius:0 4px 4px 0; }
+  .t-guide-body .t-guide-tip { color:#f0883e; background:rgba(240,136,62,0.08); border:1px solid rgba(240,136,62,0.4); padding:6px 10px; margin:8px 0; border-radius:4px; font-size:0.78rem; }
+  .t-guide-body .t-guide-whisper { color:#c084fc; background:rgba(192,132,252,0.08); border:1px dashed rgba(192,132,252,0.4); padding:6px 10px; margin:8px 0; border-radius:4px; font-size:0.78rem; font-style:italic; }
+  .t-guide-body table { width:100%; border-collapse:collapse; margin:8px 0; font-size:0.76rem; }
+  .t-guide-body th, .t-guide-body td { padding:4px 8px; border:1px solid #30363d; text-align:left; }
+  .t-guide-body th { background:#161b22; color:#f0883e; }
+  .t-guide-body code { background:#161b22; color:#7ee787; padding:1px 5px; border-radius:3px; font-size:0.75rem; }
+  .t-guide-body ul, .t-guide-body ol { margin:4px 0 10px 24px; padding:0; }
+  .t-guide-body li { margin:2px 0; }
+  .t-guide-body .t-guide-cover { text-align:center; padding:14px 10px; background:linear-gradient(180deg,#2a1e3a 0%,#0d1117 100%); border:2px solid #f0883e; border-radius:6px; margin-bottom:14px; }
+  .t-guide-body .t-guide-cover .t-guide-title-big { color:#f0883e; font-size:1.6rem; font-weight:900; letter-spacing:1.5px; margin-bottom:4px; text-shadow:2px 2px 0 #000; }
+  .t-guide-body .t-guide-cover .t-guide-subtitle { color:#c9d1d9; font-size:0.85rem; margin-bottom:8px; }
+  .t-guide-body .t-guide-cover .t-guide-version { color:#8b949e; font-size:0.72rem; font-style:italic; }
+  .t-guide-body b { color:#f0f6fc; }
+  .t-guide-body .t-guide-epilepsy { margin-top:24px; padding:10px; border:1px solid #f85149; color:#ffa198; background:rgba(248,81,73,0.06); border-radius:4px; font-size:0.75rem; }
+</style>
+
+<div class="t-guide-cover">
+  <div class="t-guide-title-big">🎮 THE SOFTWARE<br>DEVELOPMENT TYCOON</div>
+  <div class="t-guide-subtitle">A Brand-New Simulation for the Modern IBM PC</div>
+  <div style="color:#79c0ff;font-weight:700;font-size:0.85rem;margin-top:6px;">📖 OFFICIAL PLAYER'S GUIDE</div>
+  <div class="t-guide-version">Version 11.2 · Printed in the year of our Lord MCMXCVIII</div>
+</div>
+
+<div class="t-guide-blurb">"From garage hacker to corporate titan — the tale of the digital age is now YOURS to write!"</div>
+
+<h1>🌟 WELCOME, FUTURE MOGUL!</h1>
+<p>Congratulations on your purchase of <b>THE SOFTWARE DEVELOPMENT TYCOON</b> — the most ambitious simulation to ever grace the personal computer! In this game, YOU will start as a humble classmate at a dusty computer-science school in <b>1980</b> and claw your way to the top of the software industry, shipping games, courting contracts, hiring engineers, battling rivals, and reshaping the digital landscape over <b>four decades</b> of computing history.</p>
+<p>Will you become a legendary Pioneer? A scrappy Fast-Follower? Or will your studio collapse into bankruptcy, forcing your next classmate to pick up the torch?</p>
+<p><b>Only time — and YOUR decisions — will tell.</b></p>
+
+<h1>🏫 CHAPTER 1: WELCOME TO CAMPUS</h1>
+<p>Your adventure begins at <b>The Institute</b> — a computer-science school somewhere in America, the year 1980. Your character is one of <b>50 fresh graduates</b> in a class. Every classmate has:</p>
+<ul>
+  <li><b>Four stats</b> (10–100 each): Tech, Design, Polish, Speed</li>
+  <li><b>Three passions</b> (Burning / Interested / None / Aversion) across three axes</li>
+  <li><b>1–4 mechanical traits</b> (Workaholic, Perfectionist, Mentor, Toxic, Negotiator, Lean Operator, and 19 more!)</li>
+  <li><b>1–3 narrative traits</b> for flavor</li>
+</ul>
+<p>The top 5 students are <b>extremes</b> with blazing stats and many traits. The middle 30 are <b>vanilla generalists</b>. The bottom 5 are <b>specialists</b> — one burning passion, two weak axes, and often surprisingly disruptive traits.</p>
+<div class="t-guide-tip">💡 <b>MANUAL TIP:</b> Your first playthrough starts you at <b>Rank 50</b> — rock bottom! Don't despair. Every run unlocks <b>endowment</b> that permanently improves the school for every future classmate.</div>
+
+<h1>💼 CHAPTER 2: FOUNDING YOUR STUDIO</h1>
+<p>Choose a <b>Scenario</b> to begin:</p>
+<table>
+  <tr><th>#</th><th>Scenario</th><th>Year</th><th>Cash</th></tr>
+  <tr><td>1</td><td>📖 First Studio (Tutorial)</td><td>1980</td><td>$50K</td></tr>
+  <tr><td>2</td><td>🏖️ Sandbox 1980</td><td>1980</td><td>$50K</td></tr>
+  <tr><td>3</td><td>🕹️ Mid-80s Game Shop</td><td>1985</td><td>$100K</td></tr>
+  <tr><td>4</td><td>💥 Dot-Com Bust Survivor</td><td>2001</td><td>$200K</td></tr>
+  <tr><td>5</td><td>🤖 AI Revolution</td><td>2022</td><td>$5M</td></tr>
+  <tr><td>6</td><td>🎲 Custom Start</td><td>—</td><td>Your call!</td></tr>
+</table>
+<p>Pick a <b>Specialty</b> (Coder, Frontend, Backend, Game Dev, etc.) and a starter <b>Trait</b>. Your specialty permanently biases your stats: <b>+20 to your primary axis, −10 to the other two quality axes</b>. A Game Dev founder has higher Design; a Coder has higher Tech. This is <b>baked in</b> — no runtime multiplier fudgery. What you see is what you ship.</p>
+
+<h1>📅 CHAPTER 3: THE CALENDAR</h1>
+<p>The game runs on a simulated calendar:</p>
+<ul>
+  <li><b>48 weeks per year</b> (4 weeks per "month")</li>
+  <li><b>Game speed:</b> 0× (paused), 1×, 2×, 4×, 8×</li>
+  <li>Press <b>SPACE</b> to pause, <b>1–4</b> for speed levels</li>
+  <li>Changing speed <b>preserves mid-week progress</b> — no cheating!</li>
+  <li>Opening any menu or modal <b>auto-pauses</b> the game</li>
+</ul>
+<div class="t-guide-tip">🕐 <b>MANUAL TIP:</b> The game autosaves every week. If your dog chews the power cable, you'll lose at most 1 week of progress!</div>
+
+<h1>🛠️ CHAPTER 4: PROJECTS — THE HEART OF THE GAME</h1>
+<p>Your studio ships two kinds of software:</p>
+
+<h2>🎮 Own-IP Projects (Your Gamble)</h2>
+<p>Design and build your own game, tool, or platform. You pick:</p>
+<ul>
+  <li><b>Type</b> (Game, Business Tool, Web App, Mobile, SaaS, AI, etc.)</li>
+  <li><b>Scope</b> (Small 6mo, Medium 12mo, Large 24mo)</li>
+  <li><b>Features</b> (required + optional)</li>
+  <li><b>Team</b> (who works on it)</li>
+  <li><b>Platform</b> (Apple II, DOS, Win95, Mobile, Cloud…)</li>
+  <li><b>Marketing channels</b> (post-ship)</li>
+</ul>
+<p>Every project has <b>three phases</b>:</p>
+<ol>
+  <li><b>Design</b> (short) — set the scope, pick features</li>
+  <li><b>Development</b> (long) — team grinds away; quality accumulates per week</li>
+  <li><b>Polish</b> (short) — reduces bugs, adds final polish</li>
+</ol>
+<p>Each phase's quality is driven by your team's stats times project-type weights:</p>
+<ul>
+  <li><b>Games:</b> Design 50%, Tech 30%, Polish 20%</li>
+  <li><b>Business Tools:</b> Tech 45%, Design 25%, Polish 30%</li>
+  <li><b>SaaS:</b> Tech 40%, Design 25%, Polish 35%</li>
+</ul>
+
+<h2>📝 Contracts (The Steady Paycheck)</h2>
+<p>Clients offer you fixed-scope work for fixed pay. No launch sales, no critic scores — just <b>deliver on time</b> and collect. Safe, but boring. Balance own-IP risk against contract reliability.</p>
+
+<h1>🎯 CHAPTER 5: QUALITY & CRITIC SCORES</h1>
+<p>When you ship an own-IP project, a <b>critic score</b> (1–100) is computed from:</p>
+<ul>
+  <li>Per-axis quality normalized via square-root curve (prevents runaway scores with big teams)</li>
+  <li>Weighted by project-type preferences</li>
+  <li><b>Optional features</b> give a tiered bonus (3, 2, 1, 0.5, 0.5…)</li>
+  <li><b>Bugs</b> subtract up to 30 points</li>
+  <li>±5 random luck</li>
+</ul>
+<h3>Critic Score Tiers:</h3>
+<ul>
+  <li><b>50–65</b> — Solo / under-staffed / wrong-type shop</li>
+  <li><b>65–80</b> — Solid team, right genre</li>
+  <li><b>80–92</b> — Specialist studio, matched type, research, polish</li>
+  <li><b>93–98</b> — Elite ship, every lever aligned + lucky roll</li>
+  <li><b>95+</b> — <b>10× sales multiplier jackpot!</b> 🎰</li>
+  <li><b>98+</b> — <b>25× sales multiplier megajackpot!</b> 💰💰💰</li>
+</ul>
+<div class="t-guide-tip">🎯 <b>MANUAL TIP:</b> 99–100 is unreachable (bugs always floor the score somewhere). Don't bankrupt yourself chasing the perfect ship!</div>
+
+<h1>👥 CHAPTER 6: HIRING & YOUR TEAM</h1>
+
+<h2>The Talent Market</h2>
+<p>Recruiters post candidates to your <b>Talent Market</b>. Each candidate has:</p>
+<ul>
+  <li><b>Tier</b> (Intern → Junior → Mid → Senior → Staff → Principal → Tech Lead → CTO)</li>
+  <li><b>Education</b> (Self-taught, CC, Bachelor's, Master's, PhD — biases hidden stats!)</li>
+  <li><b>Specialty</b> (affects stat bias)</li>
+  <li><b>Visible trait</b> (pre-interview) + <b>hidden trait</b> (reveal after interview)</li>
+  <li><b>Personality</b> (Humble, Fair, Premium, Diva — salary expectation)</li>
+</ul>
+
+<h2>The Interview Dance</h2>
+<ol>
+  <li><b>Interview</b> for a fee → reveals hidden stats, trait, personality</li>
+  <li><b>Negotiate</b> (soft −10% or hard −20% salary) → 25–50% chance they walk</li>
+  <li><b>Hire</b> them → they join your team</li>
+</ol>
+
+<h2>Stat Ranges per Tier</h2>
+<table>
+  <tr><th>Tier</th><th>Range</th><th>Cap</th><th>Base Salary</th></tr>
+  <tr><td>Intern</td><td>10–30</td><td>30</td><td>$25K</td></tr>
+  <tr><td>Junior Dev</td><td>20–40</td><td>40</td><td>$45K</td></tr>
+  <tr><td>Mid-Level</td><td>30–60</td><td>60</td><td>$70K</td></tr>
+  <tr><td>Senior</td><td>50–70</td><td>70</td><td>$120K</td></tr>
+  <tr><td>Staff</td><td>60–80</td><td>80</td><td>$200K</td></tr>
+  <tr><td>Principal</td><td>70–90</td><td>90</td><td>$350K</td></tr>
+  <tr><td>Tech Lead</td><td>80–100</td><td>100</td><td>$500K</td></tr>
+  <tr><td>CTO</td><td>90–100</td><td>100</td><td>$800K</td></tr>
+</table>
+<p>Specialty bias can push the <b>primary axis above the cap by 10</b>.</p>
+
+<h2>Payroll</h2>
+<ul>
+  <li><b>Biweekly</b> deduction (every 2 weeks)</li>
+  <li>Based on sum of all salaries × (2 / 48)</li>
+  <li><b>Lean Operator</b> founder trait: −15% payroll</li>
+  <li><b>Recruiter</b> adds to payroll (but posts better candidates)</li>
+</ul>
+
+<h1>📈 CHAPTER 7: THE PROMOTION SYSTEM</h1>
+<p>Employees accrue <b>XP</b> weekly: <b>+2 XP/wk</b> if on a project team, <b>+1 XP/wk</b> on the bench.</p>
+<p>When they hit <b>48 × (tier + 1) XP</b>, they open an <b>Outside Offer</b> on the Talent Market. You get three buttons:</p>
+<table>
+  <tr><th>Button</th><th>Salary</th><th>Morale</th><th>Tier</th><th>Cooldown</th></tr>
+  <tr><td><b>Match</b></td><td>Their ask</td><td>+70</td><td>Bumped</td><td>—</td></tr>
+  <tr><td><b>⚡ Over-Promote</b></td><td>+20% over their ask</td><td>+85</td><td>Bumped + random +10 stat</td><td>—</td></tr>
+  <tr><td><b>Decline</b></td><td>Unchanged</td><td>−10</td><td>Unchanged</td><td><b>12 weeks</b> before re-ask</td></tr>
+</table>
+<p>Ignoring the offer until it expires = automatic decline with morale penalty.</p>
+<div class="t-guide-tip">📈 <b>MANUAL TIP:</b> Tier-3+ employees with morale under 50 are prime targets for <b>rival poaching</b>. Keep morale high!</div>
+
+<h1>😊 CHAPTER 8: MORALE — THE INVISIBLE STAT</h1>
+<p>Morale (0–100) quietly shapes output:</p>
+<ul>
+  <li><b>&lt; 25</b> — Quit risk! Output × 0.5</li>
+  <li><b>&lt; 40</b> — Discontent. Output × 0.8</li>
+  <li><b>40–84</b> — Normal. Output × 1.0</li>
+  <li><b>≥ 85</b> — Flow state! Output × 1.15</li>
+</ul>
+<p>Morale naturally drifts toward <b>70</b> each week (10% of the gap). Events that move it:</p>
+<ul>
+  <li><b>Crunching</b> a project: −3/wk per worker</li>
+  <li><b>Toxic</b> teammate on team: −0.5/wk per Toxic</li>
+  <li><b>Workaholic</b> founder on team: −1/wk per non-founder</li>
+  <li><b>Ship a hit</b> (critic ≥ 80): team morale bump</li>
+  <li><b>Ship a flop</b> (critic &lt; 40): morale drain</li>
+  <li><b>Nihilist</b> founder trait: morale capped at 65 for everyone (!)</li>
+</ul>
+
+<h1>🔬 CHAPTER 9: RESEARCH</h1>
+<p>Research unlocks <b>era-appropriate technology</b> — from 2D sprites (1980) to LLMs (2022). Each node has:</p>
+<ul>
+  <li><b>RP cost</b> (30–500 Research Points)</li>
+  <li><b>Cash cost</b> (RP × $100)</li>
+  <li><b>Era gate</b> (can't research CRDT in 1985)</li>
+  <li><b>Category:</b> Tech / Efficiency / Platform / Business</li>
+</ul>
+<p>Only <b>one engineer at a time</b> can research. RP earned per week = engineer's <b>Tech stat × 0.12</b>. A 60-Tech engineer earns 7.2 RP/wk; a 100-Tech Tech Lead earns 12/wk.</p>
+<div class="t-guide-tip">🏆 <b>PIONEER RACE:</b> First studio to complete a research node becomes its <b>Pioneer</b> (+25% sales on relevant projects). Second becomes <b>Fast-Follower</b> (+10%). Miss both windows and you pay a <b>−25% penalty</b>.</div>
+<h3>Off-Project Cost</h3>
+<p>Your researcher <b>cannot</b> contribute to project development simultaneously. This is the strategic tension: do you dedicate your best engineer to research (future) or shipping (now)?</p>
+
+<h1>⚠️ CHAPTER 10: MULTIPLE CHOICE EVENTS</h1>
+<p>Every 3–4 weeks during development, a <b>decision event</b> fires:</p>
+<div style="padding:10px 14px;background:#161b22;border-left:3px solid #79c0ff;margin:8px 0;border-radius:0 4px 4px 0;">
+  <i>"How should we handle save slots?"</i>
+  <ul style="margin-top:6px;">
+    <li>Single save file <i>(bland)</i> — +3 polish</li>
+    <li>Multiple named slots — +7 polish, +1 design</li>
+    <li><b>Sophisticated save slots + metadata</b> — +10 polish, +3 design, +4 tech, +2 bugs <i>(requires Tech ≥ 50)</i></li>
+    <li>Cloud sync <i>(requires year ≥ 2008, Tech ≥ 70)</i></li>
+  </ul>
+</div>
+<p>Over <b>111 questions</b> across all project types. Your founder's stats <b>unlock more interesting options</b> — gates are 50, 60, 70, or 80 on the 10–100 scale. Trait-gated options exist too (Pragmatic +25% chance of extra option).</p>
+<div class="t-guide-tip">⚠️ <b>MANUAL TIP:</b> Decisions only fire on <b>own-IP projects</b>. Contracts are fixed-scope — no decisions, by design.</div>
+
+<h1>🏢 CHAPTER 11: RIVALS — THE OTHER STUDIOS</h1>
+<p>Six AI-controlled rival studios compete for the market — <b>EA</b>, <b>Microsoft</b>, <b>Google</b>, <b>Adobe</b>, <b>Apple</b>, and more (era-appropriate names). Each rival has:</p>
+<ul>
+  <li><b>Focus</b> (game / business / web / mobile / saas / ai)</li>
+  <li><b>Era alignment</b> (some peak in the 90s, others in the 2020s)</li>
+  <li><b>Cash, fame, hiring aggression</b></li>
+</ul>
+<p>Rivals will:</p>
+<ul>
+  <li><b>Poach your staff</b> (tier-3+ with low morale) — you get a Match/Exceed/Decline modal</li>
+  <li><b>Go bankrupt</b> (releases their employees into your talent pool!)</li>
+  <li><b>Steal research pioneer slots</b> if you dawdle</li>
+  <li><b>Compete for contracts and market heat</b></li>
+</ul>
+
+<h1>💰 CHAPTER 12: FINANCE & RUNWAY</h1>
+<p>The <b>Finance Panel</b> shows:</p>
+<ul>
+  <li><b>Current cash</b></li>
+  <li><b>Weekly burn</b> (payroll + recruiter + office)</li>
+  <li><b>Runway</b> in months — critical!</li>
+</ul>
+<div class="t-guide-tip">💰 <b>MANUAL TIP:</b> Runway under 3 months = DANGER ZONE. Ship something fast, cut headcount, or raise money!</div>
+<h2>Raising Capital</h2>
+<p>Three rounds available:</p>
+<ul>
+  <li><b>Seed</b> ($1.5M for ~15% equity, early-game)</li>
+  <li><b>Series A</b> ($15M for ~22% equity, mid-game)</li>
+  <li><b>IPO</b> ($152M net for ~20% public float, late-game)</li>
+</ul>
+
+<h1>🎓 CHAPTER 13: THE SCHOOL (ROGUELITE META)</h1>
+<p>When a run ends (bankruptcy, retirement, megacorp buyout, or win), your <b>classmate's fate</b> is recorded in the Alumni Hall, and you earn <b>Endowment</b> based on achievements. Spend it on four departments:</p>
+<h3>📚 Academics</h3>
+<ul>
+  <li>Foundational Curriculum — pre-unlocks 3 early research nodes</li>
+  <li>Visiting Professor (+50 to one axis) × 3</li>
+  <li>Faculty Chair — pre-unlocks 3 more nodes</li>
+  <li>LLM Research Documentation</li>
+</ul>
+<h3>🏛️ Facilities</h3>
+<p>Server Room, Lab Upgrade, etc.</p>
+<h3>🤝 Alumni Network</h3>
+<p>Old classmates return as potential hires (+20 stats, +30% salary)</p>
+<h3>🏫 School Life</h3>
+<p>Client reputation boosts, starting-cash increments, starting-fame boosts</p>
+<p>Your next classmate inherits ALL of these. Over many runs, your school evolves from a dusty classroom into a world-class institute!</p>
+
+<h1>🏆 CHAPTER 14: WIN CONDITIONS</h1>
+<p>Five paths to victory:</p>
+<ol>
+  <li><b>$1 Billion cash</b> in the bank</li>
+  <li><b>Ship a 98+ critic score</b> project</li>
+  <li><b>Acquire 3+ subsidiaries</b></li>
+  <li><b>IPO at a $1B+ valuation</b></li>
+  <li><b>Become a Megacorp</b> (buyout by a rival at $500M+)</li>
+</ol>
+<p>Each win unlocks a <b>Famous Alumnus</b> card and permanent school bonuses.</p>
+
+<h1>⌨️ CHAPTER 15: KEYBOARD SHORTCUTS</h1>
+<table>
+  <tr><th>Key</th><th>Action</th></tr>
+  <tr><td><b>SPACE</b></td><td>Pause / unpause</td></tr>
+  <tr><td><b>0</b></td><td>Pause</td></tr>
+  <tr><td><b>1 / 2 / 3 / 4</b></td><td>Speed 1× / 2× / 4× / 8×</td></tr>
+  <tr><td><b>ESC</b></td><td>Close modal</td></tr>
+  <tr><td><b>CTRL+SHIFT+D</b></td><td>🐛 Debug panel (developer mode!)</td></tr>
+</table>
+
+<h1>🐛 CHAPTER 16: THE HALL OF SECRETS (DEBUG MODE)</h1>
+<p>Press <b>Ctrl+Shift+D</b> to reveal the <b>Debug Panel</b> — or open your browser console and type <code>dbg.help()</code>. Inside you'll find:</p>
+<ul>
+  <li><code>dbg.maxStats()</code> — Ascend to the pinnacle of developer prowess!</li>
+  <li><code>dbg.addCash(1e9)</code> — Summon forth a billion dollars!</li>
+  <li><code>dbg.advanceWeeks(48)</code> — Skip an entire year!</li>
+  <li><code>dbg.completeAllResearch()</code> — Instantly master every technology!</li>
+  <li><code>dbg.hireSquad(5, 3)</code> — Summon five senior engineers!</li>
+  <li><b>"Jumpstart"</b> button — $5M + max stats + early research, all at once!</li>
+</ul>
+<div class="t-guide-whisper">🤫 <b>MANUAL WHISPER:</b> Debug mode disables achievements... or does it? Only the developers know for sure. 😉</div>
+
+<h1>🎭 CHAPTER 17: STRATEGY & TIPS</h1>
+<h2>⭐ For Beginners</h2>
+<ol>
+  <li>Start with <b>Scenario 1</b> (First Studio). Read the intro modal!</li>
+  <li>Hire <b>1–2 Juniors</b> before starting your first project.</li>
+  <li>Pick a <b>Small</b> scope for your first own-IP. Don't go Large in 1980!</li>
+  <li>Take <b>contracts</b> between own-IP projects to smooth cash flow.</li>
+  <li>Watch your <b>runway</b> — aim for 6+ months buffer.</li>
+</ol>
+<h2>🎯 For Intermediate Players</h2>
+<ol>
+  <li>Match your <b>founder specialty</b> to your project types.</li>
+  <li>Recruit at least <b>one Mentor</b> on your team — junior stat growth!</li>
+  <li>Research <b>before</b> you need the tech, not after.</li>
+  <li>Don't over-hire! Payroll scales fast.</li>
+</ol>
+<h2>🔥 For Masters</h2>
+<ol>
+  <li>Stack <b>Team Player</b> traits for team-wide multipliers.</li>
+  <li>Time your ship dates to <b>launch windows</b> (avoid holiday collisions).</li>
+  <li>Use <b>Negotiator</b> hires to exert leverage on salary negotiations.</li>
+  <li>Pioneer the <b>big nodes</b> (TCP/IP, Mobile OS, LLMs) — the +25% compounds.</li>
+  <li>Chase <b>Nihilist</b> founder traits in bottom-extreme rank runs for a unique challenge.</li>
+</ol>
+
+<h1>🎨 CREDITS</h1>
+<p><b>Design &amp; Code:</b> <i>You, the player, and the 38 JavaScript modules of src/js/</i><br>
+<b>Playtesting:</b> <i>Thousands of simulated classmates</i><br>
+<b>Special Thanks:</b> <i>Coffee ☕, keyboards ⌨️, and the 1980s</i></p>
+
+<div class="t-guide-epilepsy">
+  <b>⚠ EPILEPSY WARNING:</b> Extended play sessions may cause symptoms including: loss of sleep, obsessive spreadsheet usage, muttering about "critic scores" during family dinners, and a newfound appreciation for TCP/IP. Consult your physician if these symptoms persist beyond your third IPO.
+</div>
+
+<div style="text-align:center; margin:20px 0 8px; color:#f0883e; font-weight:700; font-size:0.95rem;">🎮 NOW CLOSE THIS WINDOW AND BEGIN YOUR EMPIRE! 🎮</div>
+<div style="text-align:center; color:#8b949e; font-style:italic; font-size:0.8rem;">"In a world of ones and zeros, only the passionate survive."</div>
+`;
+
+    const close = () => document.getElementById('_t_guide_modal')?.remove();
+    const ov = h('div', { className: 't-modal-ov', id: '_t_guide_modal',
+                          onclick: (e) => { if (e.target === ov) close(); } },
+      h('div', { className: 't-modal', style: { maxWidth: '760px' } },
+        h('h2', { style: { margin: '0 0 8px', display:'flex', justifyContent:'space-between', alignItems:'center' } },
+          h('span', null, '📖 Player\u2019s Guide'),
+          h('span', { style: { fontSize: '0.7rem', color: '#8b949e', fontWeight: 400 } },
+            'v' + (typeof GAME_VERSION !== 'undefined' ? GAME_VERSION : '?'))
+        ),
+        body,
+        h('div', { className: 't-modal-actions', style: { justifyContent: 'flex-end', marginTop: '12px' } },
+          h('button', { className: 't-btn', onclick: close }, 'Close')
+        )
+      )
+    );
+    document.body.appendChild(ov);
   }
 
   // ---------- Finance modal ----------
