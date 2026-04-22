@@ -2644,7 +2644,7 @@ function t(k){return T[lang]?.[k]??T.en[k]??k}
 function ta(k,fb){return T[lang]?.[k]??fb}
 
 // ========== CONFIG ==========
-const GAME_VERSION = '11.0';
+const GAME_VERSION = '11.2';
 
 // v7.5: Engineer types — coder is the original; others unlock by year (every 2 years from 1985).
 // Each type has its own resource, list of individuals, and ship threshold.
@@ -3208,8 +3208,12 @@ function updateThermo() {
 //   v3 = roguelite layer — adds S.school persistent meta-state that
 //        survives across runs (bankruptcies spawn a new classmate instead
 //        of ending the game; see DESIGN_ROGUELITE.md for the full model).
+//   v4 = 10x stat rescale (1-10 axis stats → 10-100). All stored stats,
+//        mentor-growth pools and derived multipliers in-save get bulk 10x'd
+//        at load time; the rest of the codebase has matching data + formula
+//        updates so output/tick parity is preserved.
 // Migrations live in SCHEMA_MIGRATIONS below.
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const MIN_COMPATIBLE_SCHEMA = 1; // v1 saves flow through SCHEMA_MIGRATIONS[1] (wipe)
 
 // Default structure for the roguelite S.school container — the persistent
@@ -3587,6 +3591,61 @@ const SCHEMA_MIGRATIONS = {
     console.info('[schema] v2 tycoon save detected. Upgrading to v3 with empty S.school.');
     if (!d.school) d.school = defaultSchool();
     d.v = 3;
+    return d;
+  },
+  // v3 → v4: 10x stat rescale. All stored axis stats move from the old
+  // 1-10 range to the new 10-100 range so the finer-grained employee /
+  // founder / classmate stats match the rest of the codebase (MC gates,
+  // dev tick multipliers, mentor growth, etc.) which were rescaled in
+  // the same commit. Multiplying every stored stat by 10 is exactly
+  // right — formula multipliers were divided by 10 so per-tick outputs
+  // stay numerically identical. Idempotency relies on d.v < 4 gating.
+  3: function migrateStatScale10x(d) {
+    console.info('[schema] v3 save detected. Applying 10x stat rescale (→ v4).');
+    const AXES = ['tech','design','polish','speed'];
+    const scaleStats = (obj) => {
+      if (!obj || typeof obj !== 'object') return;
+      for (const k of AXES) {
+        if (typeof obj[k] === 'number') obj[k] = Math.round(obj[k] * 10);
+      }
+    };
+    // Founder stats
+    if (d.founder && d.founder.stats) scaleStats(d.founder.stats);
+    // Every employee
+    if (Array.isArray(d.employees)) {
+      for (const e of d.employees) {
+        if (e && e.stats) scaleStats(e.stats);
+        if (e && e.hiddenStats) scaleStats(e.hiddenStats);
+        // Mentor growth pool was 0-1 float; threshold is now 10 (was 1).
+        if (e && e.mentorGrowth) scaleStats(e.mentorGrowth);
+      }
+    }
+    // Pending hiring queue (candidates not yet hired)
+    if (d.hiring) {
+      const queues = [d.hiring.queue, d.hiring.outsideOffers, d.hiring.referrals];
+      for (const q of queues) {
+        if (!Array.isArray(q)) continue;
+        for (const c of q) {
+          if (!c) continue;
+          if (c.stats) scaleStats(c.stats);
+          if (c.hiddenStats) scaleStats(c.hiddenStats);
+        }
+      }
+    }
+    // School class roster — persistent alumni pool. Only quality axes
+    // (tech / design / polish) are stored per classmate; no speed.
+    if (d.school && Array.isArray(d.school.classRoster)) {
+      for (const c of d.school.classRoster) {
+        if (c && c.stats) scaleStats(c.stats);
+      }
+    }
+    // Alumni hall (historical snapshot cards)
+    if (d.school && Array.isArray(d.school.alumniHall)) {
+      for (const a of d.school.alumniHall) {
+        if (a && a.stats) scaleStats(a.stats);
+      }
+    }
+    d.v = 4;
     return d;
   },
 };
@@ -8092,10 +8151,12 @@ let _clockValidated = false;
       open = true;
       panel = document.createElement('div');
       panel.id = 'dbgPanel';
-      panel.style.cssText = 'position:fixed;bottom:60px;right:12px;z-index:9999;background:#1a1a2e;color:#e0e0e0;border:1px solid #444;border-radius:8px;padding:12px;font:12px monospace;width:260px;box-shadow:0 4px 20px rgba(0,0,0,.6)';
+      // v11.2: panel now scrolls internally and has a max height — tycoon
+      // section adds several rows that would otherwise push past the viewport.
+      panel.style.cssText = 'position:fixed;bottom:60px;right:12px;z-index:9999;background:#1a1a2e;color:#e0e0e0;border:1px solid #444;border-radius:8px;padding:12px;font:12px monospace;width:280px;max-height:85vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.6)';
       const title = document.createElement('div');
       title.style.cssText = 'font-weight:700;margin-bottom:8px;color:#f0883e;font-size:13px';
-      title.textContent = '\u{1F41B} Debug Panel';
+      title.textContent = '\u{1F41B} Debug Panel \u00b7 v' + (typeof GAME_VERSION !== 'undefined' ? GAME_VERSION : '?');
       panel.appendChild(title);
 
       // Year dropdown (v10: uses RELEASE_YEARS instead of linear slider)
@@ -8308,6 +8369,207 @@ let _clockValidated = false;
       });
       panel.appendChild(spdRow);
 
+      // ---------- Tycoon section (v11.2) ----------
+      // Only render once a tycoon career has started — otherwise none of the
+      // tycoon state (founder, cash, research) exists and the buttons are
+      // meaningless. The clicker-era controls above still render either way.
+      if (S.careerStarted && typeof window.tycoonTime !== 'undefined') {
+        const tyHeader = document.createElement('div');
+        tyHeader.style.cssText = 'margin:12px -4px 6px;padding:4px 8px;background:#2a1e3a;color:#c084fc;font-weight:700;font-size:11px;border-radius:4px;letter-spacing:.5px';
+        tyHeader.textContent = '\u{1F3AE} TYCOON';
+        panel.appendChild(tyHeader);
+
+        // Live status line: year-week, cash, morale
+        const statusLine = document.createElement('div');
+        statusLine.style.cssText = 'margin-bottom:6px;font-size:10.5px;color:#a5b4fc';
+        const fmtMoney = v => v >= 1e9 ? (v/1e9).toFixed(1)+'B' : v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : String(v|0);
+        const paintStatus = () => {
+          const y = S.calendar?.year || '?';
+          const w = S.calendar?.week || 1;
+          const cash = fmtMoney(S.cash || 0);
+          const team = (S.employees?.length || 0) + (S.founder ? 1 : 0);
+          statusLine.textContent = y + '-W' + w + ' \u00b7 $' + cash + ' \u00b7 Team: ' + team;
+        };
+        paintStatus();
+        panel.appendChild(statusLine);
+
+        // +Cash row
+        const cashRow = document.createElement('div');
+        cashRow.style.cssText = 'display:flex;gap:4px;margin-top:4px';
+        [['+$10K', 1e4], ['+$1M', 1e6], ['+$100M', 1e8]].forEach(([label, n]) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText = 'flex:1;padding:4px;background:#2a2a44;color:#7ee787;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
+          b.addEventListener('click', () => {
+            S.cash = (S.cash || 0) + n;
+            markDirty();
+            paintStatus();
+            if (typeof toast === 'function') toast('\u{1F4B0} +$' + fmtMoney(n));
+          });
+          cashRow.appendChild(b);
+        });
+        panel.appendChild(cashRow);
+
+        // Founder stats: Max All + Per-axis +10
+        const statsLabel = document.createElement('div');
+        statsLabel.style.cssText = 'margin-top:8px;font-size:11px;color:#c084fc;font-weight:700';
+        statsLabel.textContent = '\u{1F9E0} Founder Stats (10-100)';
+        panel.appendChild(statsLabel);
+        if (S.founder && S.founder.stats) {
+          const statsPreview = document.createElement('div');
+          statsPreview.style.cssText = 'font-size:10px;color:#888;margin-top:2px';
+          const paintStats = () => {
+            const s = S.founder.stats;
+            statsPreview.textContent = 'T' + (s.tech|0) + ' D' + (s.design|0) + ' P' + (s.polish|0) + ' S' + (s.speed|0);
+          };
+          paintStats();
+          panel.appendChild(statsPreview);
+
+          const maxBtn = document.createElement('button');
+          maxBtn.textContent = 'Max All \u2192 100';
+          maxBtn.style.cssText = 'width:100%;padding:4px;background:#2a2a44;color:#c084fc;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer;margin-top:4px;font-weight:700';
+          maxBtn.addEventListener('click', () => {
+            for (const k of ['tech','design','polish','speed']) S.founder.stats[k] = 100;
+            markDirty();
+            paintStats();
+            if (typeof toast === 'function') toast('\u{1F9E0} Founder maxed');
+          });
+          panel.appendChild(maxBtn);
+
+          const axisRow = document.createElement('div');
+          axisRow.style.cssText = 'display:flex;gap:4px;margin-top:4px';
+          [['+T', 'tech'], ['+D', 'design'], ['+P', 'polish'], ['+S', 'speed']].forEach(([label, axis]) => {
+            const b = document.createElement('button');
+            b.textContent = label + '10';
+            b.style.cssText = 'flex:1;padding:4px;background:#2a2a44;color:#c084fc;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
+            b.addEventListener('click', () => {
+              S.founder.stats[axis] = Math.min(100, (S.founder.stats[axis] || 0) + 10);
+              markDirty();
+              paintStats();
+            });
+            axisRow.appendChild(b);
+          });
+          panel.appendChild(axisRow);
+        } else {
+          const noFounder = document.createElement('div');
+          noFounder.style.cssText = 'font-size:10px;color:#888;margin-top:2px';
+          noFounder.textContent = '(no founder)';
+          panel.appendChild(noFounder);
+        }
+
+        // Research: +RP / Complete All
+        const rpLabel = document.createElement('div');
+        rpLabel.style.cssText = 'margin-top:8px;font-size:11px;color:#38bdf8;font-weight:700';
+        rpLabel.textContent = '\u{1F52C} Research';
+        panel.appendChild(rpLabel);
+        const rpRow = document.createElement('div');
+        rpRow.style.cssText = 'display:flex;gap:4px;margin-top:4px';
+        [['+50 RP', 50], ['+500 RP', 500], ['Finish', -1]].forEach(([label, n]) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText = 'flex:1;padding:4px;background:#2a2a44;color:#38bdf8;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
+          b.addEventListener('click', () => {
+            const ip = S.research?.inProgress;
+            if (!ip) { if (typeof toast === 'function') toast('\u{1F52C} No research in progress'); return; }
+            if (n === -1) {
+              window.tycoonResearch?.complete?.(ip.nodeId);
+              if (typeof toast === 'function') toast('\u{1F52C} Research complete');
+            } else {
+              ip.rpEarned = (ip.rpEarned || 0) + n;
+              markDirty();
+              if (typeof toast === 'function') toast('\u{1F52C} +' + n + ' RP');
+            }
+          });
+          rpRow.appendChild(b);
+        });
+        panel.appendChild(rpRow);
+        const completeAllBtn = document.createElement('button');
+        completeAllBtn.textContent = 'Complete ALL Research';
+        completeAllBtn.style.cssText = 'width:100%;padding:4px;background:#2a2a44;color:#38bdf8;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer;margin-top:4px';
+        completeAllBtn.addEventListener('click', () => {
+          if (!window.tycoonResearch) return;
+          if (!S.research) S.research = { completed: [], inProgress: null };
+          let added = 0;
+          for (const n of window.tycoonResearch.NODES) {
+            if (!S.research.completed.includes(n.id)) { S.research.completed.push(n.id); added++; }
+          }
+          markDirty();
+          if (typeof toast === 'function') toast('\u{1F52C} +' + added + ' research nodes');
+        });
+        panel.appendChild(completeAllBtn);
+
+        // Hire squad row
+        const hireLabel = document.createElement('div');
+        hireLabel.style.cssText = 'margin-top:8px;font-size:11px;color:#fbbf24;font-weight:700';
+        hireLabel.textContent = '\u{1F465} Hire Squad';
+        panel.appendChild(hireLabel);
+        const hireRow = document.createElement('div');
+        hireRow.style.cssText = 'display:flex;gap:4px;margin-top:4px';
+        [[ '+1', 1 ], [ '+3', 3 ], [ '+5 Sr', 5 ]].forEach(([label, count], i) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText = 'flex:1;padding:4px;background:#2a2a44;color:#fbbf24;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
+          b.addEventListener('click', () => {
+            if (!window.tycoonEmployees) return;
+            const opts = (i === 2) ? { tier: 3 } : {};  // +5 Sr = tier-3 seniors
+            let added = 0;
+            for (let k = 0; k < count; k++) {
+              const c = window.tycoonEmployees.generateCandidate(opts);
+              c.interviewed = true;
+              c.stats = c.hiddenStats;
+              c.traits = [c.visibleTrait, c.hiddenTrait].filter(Boolean);
+              c.personality = c.hiddenPersonality;
+              window.tycoonEmployees.hire(c);
+              added++;
+            }
+            paintStatus();
+            if (typeof toast === 'function') toast('\u{1F465} Hired ' + added);
+          });
+          hireRow.appendChild(b);
+        });
+        panel.appendChild(hireRow);
+
+        // Advance weeks
+        const weekLabel = document.createElement('div');
+        weekLabel.style.cssText = 'margin-top:8px;font-size:11px;color:#f0883e;font-weight:700';
+        weekLabel.textContent = '\u{23E9} Advance Time';
+        panel.appendChild(weekLabel);
+        const weekRow = document.createElement('div');
+        weekRow.style.cssText = 'display:flex;gap:4px;margin-top:4px';
+        [[ '+1 wk', 1 ], [ '+4 wks', 4 ], [ '+12 wks', 12 ], [ '+48 (1y)', 48 ]].forEach(([label, n]) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText = 'flex:1;padding:4px;background:#2a2a44;color:#f0883e;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
+          b.addEventListener('click', () => {
+            for (let k = 0; k < n; k++) window.tycoonTime.step();
+            paintStatus();
+            if (typeof toast === 'function') toast('\u{23E9} +' + n + ' week(s)');
+          });
+          weekRow.appendChild(b);
+        });
+        panel.appendChild(weekRow);
+
+        // Quality-of-life: "I'm stuck" — give a solid funding boost + maxed
+        // stats + basic research so the tester can skip straight to the
+        // content they want to exercise.
+        const yoloBtn = document.createElement('button');
+        yoloBtn.textContent = '\u{1F680} Jumpstart (Cash + Stats + Research)';
+        yoloBtn.style.cssText = 'width:100%;padding:6px;background:#2a1e3a;color:#fbbf24;border:1px solid #555;border-radius:4px;font-size:10px;cursor:pointer;margin-top:10px;font-weight:700';
+        yoloBtn.addEventListener('click', () => {
+          S.cash = Math.max(S.cash || 0, 5e6);
+          if (S.founder?.stats) for (const k of ['tech','design','polish','speed']) S.founder.stats[k] = 100;
+          if (window.tycoonResearch && S.research) {
+            for (const n of window.tycoonResearch.NODES.slice(0, 10)) {
+              if (!S.research.completed.includes(n.id)) S.research.completed.push(n.id);
+            }
+          }
+          markDirty();
+          paintStatus();
+          if (typeof toast === 'function') toast('\u{1F680} Jumpstarted');
+        });
+        panel.appendChild(yoloBtn);
+      }
+
       // Close button
       const closeBtn = document.createElement('div');
       closeBtn.textContent = '\u00d7';
@@ -8323,8 +8585,17 @@ let _clockValidated = false;
 // Developer helpers exposed on window.dbg — call from browser DevTools console.
 // Example: dbg.help(), dbg.state(), dbg.jumpYear(2000), dbg.ship().
 // Separate from the Ctrl+Shift+D UI debug panel — that's for visual testing.
+//
+// v11.2: refreshed for the tycoon/roguelite game. Stats are on the 10-100
+// scale; numerous new commands for cash, research, employees, calendar and
+// founder tuning. Clicker-era commands still work when called from a clicker
+// save, but the tycoon path is the primary focus now.
 (function(){
   function cmd(fn, desc) { fn.__desc = desc; return fn; }
+
+  // ---------- tycoon helpers (no-op when tycoon modules aren't loaded) ----------
+  const hasTycoon = () => typeof window.tycoonTime !== 'undefined';
+  const AXES = ['tech','design','polish','speed'];
 
   const dbg = {
     help: cmd(() => {
@@ -8338,24 +8609,52 @@ let _clockValidated = false;
       return entries.length + ' commands. Call any of them from console.';
     }, 'Show this help'),
 
+    // ---------- State / schema ----------
     state: cmd(() => {
-      return {
+      const base = {
         schema: typeof SCHEMA_VERSION !== 'undefined' ? SCHEMA_VERSION : null,
         gameVersion: typeof GAME_VERSION !== 'undefined' ? GAME_VERSION : null,
+        saveVersion: S.v,
+        saveKey: KEY,
+        slot: KEY.replace('gdc_save_', ''),
+        achievements: (S.ach?.length || 0) + '/' + (typeof ACHIEVEMENTS !== 'undefined' ? ACHIEVEMENTS.length : '?'),
+      };
+      // Tycoon-era state (populated once career starts)
+      if (S.careerStarted) {
+        base.tycoon = {
+          calendar: S.calendar,
+          week: (S.calendar?.year || 0) + '-W' + (S.calendar?.week || 0),
+          speed: S.speed, paused: S.paused,
+          cash: S.cash, revenue: S.tRevenue, expenses: S.tExpenses,
+          fame: S.fame, tFame: S.tFame,
+          employees: (S.employees?.length || 0) + (S.founder ? ' + founder' : ''),
+          projectsActive: S.projects?.active?.length || 0,
+          projectsShipped: S.projects?.shipped?.length || 0,
+          researchDone: (S.research?.completed?.length || 0),
+          researchInProg: S.research?.inProgress?.nodeId || null,
+        };
+        if (S.founder) {
+          base.founder = {
+            name: S.founder.name,
+            specialty: S.founder.specialty,
+            tier: S.founder.tierName,
+            stats: S.founder.stats,
+            morale: S.founder.morale,
+            traits: S.founder.mechanicalTraits || S.founder.traits,
+          };
+        }
+      }
+      // Clicker-era state
+      base.clicker = {
         year: typeof currentYear === 'function' ? currentYear() : null,
         shipped: S.shipped,
-        fame: S.fame, tFame: S.tFame,
         loc: S.loc, tLoc: S.tLoc,
-        engineers: {
-          coders: S.coders?.length || 0,
-          byType: Object.fromEntries(Object.entries(S.engineers || {}).map(([k, v]) => [k, v.list?.length || 0]))
-        },
+        coders: S.coders?.length || 0,
+        byType: Object.fromEntries(Object.entries(S.engineers || {}).map(([k, v]) => [k, v.list?.length || 0])),
         unlockedTypes: S.unlockedTypes,
-        achievements: S.ach?.length + '/' + ACHIEVEMENTS.length,
-        saveKey: KEY,
-        slot: KEY.replace('gdc_save_', '')
       };
-    }, 'Dump current game state summary'),
+      return base;
+    }, 'Dump current game state summary (tycoon + clicker)'),
 
     schema: cmd(() => ({
       current: SCHEMA_VERSION,
@@ -8364,6 +8663,159 @@ let _clockValidated = false;
       migrationsRegistered: Object.keys(SCHEMA_MIGRATIONS).map(v => 'v' + v + ' → v' + (+v + 1))
     }), 'Show save schema versioning info'),
 
+    // ---------- Cash / Fame (tycoon) ----------
+    setCash: cmd((n) => {
+      if (typeof n !== 'number') return 'Usage: dbg.setCash(1000000)';
+      if (typeof S.cash !== 'undefined') { S.cash = n; if (typeof markDirty === 'function') markDirty(); return 'cash = $' + n.toLocaleString(); }
+      return 'No cash field in this build (clicker era uses LoC — try dbg.setLoc instead)';
+    }, 'Set cash. Example: dbg.setCash(1e6)'),
+
+    addCash: cmd((n) => {
+      if (typeof n !== 'number') return 'Usage: dbg.addCash(100000)';
+      S.cash = (S.cash || 0) + n;
+      if (typeof markDirty === 'function') markDirty();
+      return 'cash += $' + n.toLocaleString() + ' → $' + S.cash.toLocaleString();
+    }, 'Add cash. Example: dbg.addCash(1e5)'),
+
+    setFame: cmd((n) => {
+      S.fame = n; S.tFame = Math.max(S.tFame, n);
+      if (typeof markDirty === 'function') markDirty();
+      return 'fame = ' + n;
+    }, 'Set fame. Example: dbg.setFame(100)'),
+
+    // ---------- Founder stats (v11.2: 10-100 scale) ----------
+    founder: cmd(() => {
+      if (!S.founder) return 'No founder yet — start a career first.';
+      return {
+        name: S.founder.name,
+        specialty: S.founder.specialty,
+        tier: S.founder.tier + ' (' + S.founder.tierName + ')',
+        stats: S.founder.stats,
+        morale: S.founder.morale,
+        age: S.founder.age,
+        traits: S.founder.mechanicalTraits || S.founder.traits,
+        passions: S.founder.passions,
+      };
+    }, 'Dump founder info'),
+
+    setStat: cmd((axis, val) => {
+      if (!S.founder || !S.founder.stats) return 'No founder.';
+      if (!AXES.includes(axis)) return 'axis must be one of: ' + AXES.join(', ');
+      if (typeof val !== 'number' || val < 0 || val > 200) return 'val must be 0-200 (10-100 is typical)';
+      S.founder.stats[axis] = val;
+      if (typeof markDirty === 'function') markDirty();
+      return S.founder.name + '.stats.' + axis + ' = ' + val;
+    }, 'Set a founder stat. Example: dbg.setStat("tech", 90)'),
+
+    maxStats: cmd(() => {
+      if (!S.founder || !S.founder.stats) return 'No founder.';
+      for (const k of AXES) S.founder.stats[k] = 100;
+      if (typeof markDirty === 'function') markDirty();
+      return 'All founder stats = 100 (v11.2 max)';
+    }, 'Max out all four founder stats to 100'),
+
+    bumpStats: cmd((n) => {
+      if (!S.founder || !S.founder.stats) return 'No founder.';
+      n = typeof n === 'number' ? n : 10;
+      for (const k of AXES) S.founder.stats[k] = Math.max(1, Math.min(100, (S.founder.stats[k] || 0) + n));
+      if (typeof markDirty === 'function') markDirty();
+      return 'All founder stats +' + n + ' → ' + JSON.stringify(S.founder.stats);
+    }, 'Bump every founder stat by n (default 10). Example: dbg.bumpStats(20)'),
+
+    setMorale: cmd((n) => {
+      if (!S.founder) return 'No founder.';
+      n = Math.max(0, Math.min(100, typeof n === 'number' ? n : 70));
+      S.founder.morale = n;
+      if (Array.isArray(S.employees)) for (const e of S.employees) e.morale = n;
+      if (typeof markDirty === 'function') markDirty();
+      return 'Morale set to ' + n + ' on founder + ' + (S.employees?.length || 0) + ' employees';
+    }, 'Set morale on whole team. Example: dbg.setMorale(85)'),
+
+    // ---------- Employees ----------
+    employees: cmd(() => {
+      const list = S.employees || [];
+      if (!list.length) return 'No employees hired.';
+      return list.map(e => ({
+        name: e.name, specialty: e.specialty, tier: e.tierName,
+        stats: e.stats, salary: '$' + (e.salary || 0).toLocaleString(),
+        morale: e.morale, traits: e.traits, exp: e.exp, assigned: e.assignedProjectId,
+      }));
+    }, 'List all employees with stats + salaries'),
+
+    hireSquad: cmd((n, tier) => {
+      if (!window.tycoonEmployees) return 'tycoonEmployees not loaded.';
+      n = typeof n === 'number' ? n : 3;
+      const hired = [];
+      for (let i = 0; i < n; i++) {
+        const opts = typeof tier === 'number' ? { tier } : {};
+        const c = window.tycoonEmployees.generateCandidate(opts);
+        c.interviewed = true;
+        c.stats = c.hiddenStats;
+        c.traits = [c.visibleTrait, c.hiddenTrait].filter(Boolean);
+        c.personality = c.hiddenPersonality;
+        const e = window.tycoonEmployees.hire(c);
+        hired.push(e.name + ' (' + e.tierName + ', ' + e.specialty + ')');
+      }
+      return 'Hired ' + hired.length + ': ' + hired.join(', ');
+    }, 'Hire N random candidates. Example: dbg.hireSquad(5, 3) = 5 Seniors'),
+
+    fireAll: cmd(() => {
+      const n = (S.employees || []).length;
+      S.employees = [];
+      if (typeof markDirty === 'function') markDirty();
+      return 'Fired ' + n + ' employees';
+    }, 'Fire every employee (founder stays)'),
+
+    // ---------- Research ----------
+    addRP: cmd((n) => {
+      n = typeof n === 'number' ? n : 100;
+      const ip = S.research?.inProgress;
+      if (!ip) return 'No research in progress. Start one first from the Research panel.';
+      ip.rpEarned = (ip.rpEarned || 0) + n;
+      if (typeof markDirty === 'function') markDirty();
+      return 'Current research +' + n + ' RP → ' + ip.rpEarned.toFixed(1);
+    }, 'Add RP to current research. Example: dbg.addRP(500)'),
+
+    completeResearch: cmd((id) => {
+      if (!window.tycoonResearch) return 'tycoonResearch not loaded.';
+      if (!id) {
+        // List available node IDs
+        return 'Usage: dbg.completeResearch("n_2d_sprites"). IDs: ' +
+          window.tycoonResearch.NODES.slice(0, 8).map(n => n.id).join(', ') + ', …';
+      }
+      const node = window.tycoonResearch.NODE_BY_ID[id];
+      if (!node) return 'Unknown node id: ' + id;
+      window.tycoonResearch.complete(id);
+      return 'Completed: ' + node.name;
+    }, 'Complete a specific research node by id'),
+
+    completeAllResearch: cmd(() => {
+      if (!window.tycoonResearch) return 'tycoonResearch not loaded.';
+      if (!S.research) S.research = { completed: [], inProgress: null };
+      let added = 0;
+      for (const n of window.tycoonResearch.NODES) {
+        if (!S.research.completed.includes(n.id)) { S.research.completed.push(n.id); added++; }
+      }
+      if (typeof markDirty === 'function') markDirty();
+      return 'Completed all research (+' + added + ' nodes)';
+    }, 'Instantly complete every research node'),
+
+    // ---------- Time / calendar ----------
+    advanceWeeks: cmd((n) => {
+      if (!window.tycoonTime) return 'tycoonTime not loaded.';
+      n = typeof n === 'number' ? n : 1;
+      for (let i = 0; i < n; i++) window.tycoonTime.step();
+      return 'Advanced ' + n + ' week(s) → ' + (S.calendar?.year) + '-W' + (S.calendar?.week);
+    }, 'Advance the tycoon calendar by N weeks. Example: dbg.advanceWeeks(12)'),
+
+    setYear: cmd((year) => {
+      if (!S.calendar) return 'No calendar (start a career first).';
+      S.calendar.year = Math.max(1980, year | 0);
+      if (typeof markDirty === 'function') markDirty();
+      return 'Calendar year set to ' + S.calendar.year;
+    }, 'Set the tycoon calendar year. Example: dbg.setYear(2000)'),
+
+    // Legacy clicker-era year jump — still works when playing a clicker save.
     jumpYear: cmd((targetYear) => {
       if (typeof RELEASE_YEARS === 'undefined') { console.warn('RELEASE_YEARS not defined'); return; }
       const targetShipped = RELEASE_YEARS.findIndex(y => y >= targetYear);
@@ -8396,29 +8848,17 @@ let _clockValidated = false;
         renderTypeTabs(); renderResourceBar(); renderShipPanel();
       }
       return 'Jumped to year ' + currentYear() + ' (shipped ' + S.shipped + ')';
-    }, 'Jump to year. Example: dbg.jumpYear(2000)'),
+    }, 'Clicker-era year jump. Example: dbg.jumpYear(2000)'),
 
-    setCash: cmd((n) => {
-      // Clicker-era: no explicit cash, use LoC as proxy. In tycoon rework, will set S.cash.
-      if (typeof S.cash !== 'undefined') { S.cash = n; markDirty(); return 'cash = ' + n; }
-      return 'No cash field in this build (clicker era uses LoC — try dbg.setLoc instead)';
-    }, 'Set cash. Tycoon-era. Example: dbg.setCash(1000000)'),
-
+    // ---------- Clicker-era (legacy — still functional) ----------
     setLoc: cmd((n) => {
       S.loc = n; S.tLoc = Math.max(S.tLoc, n);
-      markDirty();
+      if (typeof markDirty === 'function') markDirty();
       return 'loc = ' + n;
     }, 'Set lines of code. Clicker-era. Example: dbg.setLoc(1e9)'),
 
-    setFame: cmd((n) => {
-      S.fame = n; S.tFame = Math.max(S.tFame, n);
-      markDirty();
-      return 'fame = ' + n;
-    }, 'Set fame. Example: dbg.setFame(100)'),
-
     ship: cmd(() => {
       if (typeof canShip === 'function' && !canShip()) {
-        // Force-enable by maxing resources
         if (Array.isArray(S.unlockedTypes)) {
           for (const type of S.unlockedTypes) {
             const need = engShipAt(type) + 1;
@@ -8433,25 +8873,24 @@ let _clockValidated = false;
       isShipping = false;
       ship();
       return 'Shipped. Now at year ' + currentYear() + ' (total: ' + S.shipped + ')';
-    }, 'Force-ship the next release'),
+    }, 'Force-ship the next clicker release'),
 
     unlockAllAch: cmd(() => {
       if (!Array.isArray(S.ach)) S.ach = [];
       for (const a of ACHIEVEMENTS) if (!S.ach.includes(a.id)) S.ach.push(a.id);
-      markDirty();
+      if (typeof markDirty === 'function') markDirty();
       return 'Unlocked ' + S.ach.length + '/' + ACHIEVEMENTS.length + ' achievements';
     }, 'Unlock every achievement'),
 
     revealAll: cmd(() => {
-      // Unlock every engineer type regardless of year
       if (typeof ENG_TYPES !== 'undefined') {
         S.unlockedTypes = ENG_TYPES.map(e => e.key);
       }
-      markDirty();
+      if (typeof markDirty === 'function') markDirty();
       if (typeof renderTypeTabs === 'function') renderTypeTabs();
       if (typeof renderShipPanel === 'function') renderShipPanel();
       return 'All engineer types unlocked';
-    }, 'Unlock all engineer types'),
+    }, 'Unlock all engineer types (clicker-era)'),
 
     forceEvent: cmd((name) => {
       if (typeof EVENTS === 'undefined') return 'EVENTS not defined';
@@ -8461,6 +8900,7 @@ let _clockValidated = false;
       return 'triggerEvent() not available in this build';
     }, 'Trigger named event. Example: dbg.forceEvent("Spaghetti Code")'),
 
+    // ---------- Save I/O ----------
     wipe: cmd(() => {
       if (!confirm('Wipe current save slot (' + KEY + ')? This cannot be undone.')) return 'cancelled';
       localStorage.removeItem(KEY);
@@ -8487,13 +8927,16 @@ let _clockValidated = false;
     }, 'Import save from JSON string'),
 
     speed: cmd((mult) => {
-      // Clicker era: no game speed concept. In tycoon, will set tick rate.
+      if (hasTycoon() && typeof mult === 'number') {
+        window.tycoonTime.setSpeed(mult);
+        return 'Tycoon speed = ' + mult + '×';
+      }
       if (typeof window.__speedMult !== 'undefined') {
         window.__speedMult = mult;
-        return 'speed = ' + mult + '×';
+        return 'Clicker speed = ' + mult + '×';
       }
-      return 'No speed control in this build (tycoon-era feature)';
-    }, 'Set game speed multiplier. Tycoon-era.'),
+      return 'No speed control available';
+    }, 'Set game speed (tycoon: 0/1/2/4/8; clicker: any multiplier)'),
   };
 
   // Expose on window + print a one-time greeting
@@ -9037,7 +9480,7 @@ let _clockValidated = false;
   // schedule. Founder + assigned employees both count equally.
   function avgTeamSpeed(proj) {
     const contributors = getContributorsFor(proj);
-    if (!contributors.length) return 5;
+    if (!contributors.length) return 50; // v11.2: 10-100 stat scale (was 5)
     let total = 0;
     for (const c of contributors) total += (c.stats?.speed || 0);
     return total / contributors.length;
@@ -9045,8 +9488,9 @@ let _clockValidated = false;
   function applySpeedToDuration(proj, baseWeeks) {
     if (!baseWeeks) return baseWeeks;
     const avg = avgTeamSpeed(proj);
-    // 1 - 0.04 × (avg - 5), clamped to [0.7, 1.3] — 30% fastest, 30% slowest
-    let mul = Math.max(0.7, Math.min(1.3, 1 - (avg - 5) * 0.04));
+    // v11.2: baseline 50, factor 0.004 (was 5 / 0.04 on the old 1-10 scale).
+    // 1 - 0.004 × (avg - 50), clamped to [0.7, 1.3] — 30% fastest, 30% slowest
+    let mul = Math.max(0.7, Math.min(1.3, 1 - (avg - 50) * 0.004));
     // v11.1: Serial Founder trait — first project ships 30% faster. Applies
     // on top of Speed compression. Checked against shipped count, so this
     // only fires when no ships have landed yet in the current run.
@@ -9249,9 +9693,10 @@ let _clockValidated = false;
       // Per-contributor trait multiplier (Lone Wolf, Veteran)
       const traitMul = computeContributorTraitMultiplier(c, contributors, proj);
 
-      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchTech   * devSpeedMult * fOut * fAxT);
-      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchDesign * devSpeedMult * fOut * fAxD);
-      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchPolish * devSpeedMult * fOut * fAxP);
+      // v11.2: stats are 10-100 now; multipliers divided by 10 so effective output/tick is unchanged.
+      proj.quality.tech    += (es.tech    * w.tech    * 0.08 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchTech   * devSpeedMult * fOut * fAxT);
+      proj.quality.design  += (es.design  * w.design  * 0.08 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchDesign * devSpeedMult * fOut * fAxD);
+      proj.quality.polish  += (es.polish  * w.polish  * 0.06 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchPolish * devSpeedMult * fOut * fAxP);
       proj.bugs += (bugRisk * 0.3 * perProjMul);
       if (proj.crunching) {
         c.morale = Math.max(0, (c.morale || 70) - 3);
@@ -9302,8 +9747,9 @@ let _clockValidated = false;
       const fPerf = c.isFounder ? perfMul : 1.0;
       const traitMul = computeContributorTraitMultiplier(c, contributors, proj);
 
-      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * perProjMul * fOut * traitMul));
-      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * perProjMul * teamTraitMul * traitMul * fOut * fAxP * fPerf);
+      // v11.2: stats are 10-100 now; polish multipliers divided by 10 so effective output is unchanged.
+      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.06 * crunchMul * mm * perProjMul * fOut * traitMul));
+      proj.quality.polish += (es.polish * 0.04 * crunchMul * mm * perProjMul * teamTraitMul * traitMul * fOut * fAxP * fPerf);
     }
 
     // Workaholic morale drain applies in polish phase too.
@@ -9349,8 +9795,9 @@ let _clockValidated = false;
 
   // Mentor growth — called once per week from tycoonEmployees weekly tick.
   // For each project with a Mentor on the team, every junior (tier ≤ 2)
-  // teammate gains 0.1 of growth in a random stat. When a stat's growth
-  // pool crosses 1.0, the stat increments by 1 (capped at tier statCap + 1).
+  // teammate gains 1.0 of growth in a random stat. When a stat's growth
+  // pool crosses 10, the stat increments by 10 (capped at tier statCap + 10).
+  // v11.2: pool accrual, threshold, cap-headroom and step all 10x for 10-100 scale.
   function applyMentorGrowth() {
     if (!S.projects?.active) return;
     const TIERS = window.TYCOON_TIERS || [];
@@ -9367,12 +9814,12 @@ let _clockValidated = false;
         // Pick a random axis per mentor per week
         for (let i = 0; i < mentors; i++) {
           const axis = ['tech','design','polish','speed'][Math.floor(Math.random() * 4)];
-          c.mentorGrowth[axis] = (c.mentorGrowth[axis] || 0) + 0.1;
-          if (c.mentorGrowth[axis] >= 1) {
-            const cap = (TIERS[c.tier]?.statCap || 10) + 1;
-            c.stats[axis] = Math.min(cap, (c.stats[axis] || 0) + 1);
-            c.mentorGrowth[axis] -= 1;
-            if (typeof log === 'function') log('\uD83C\uDF93 Mentor growth: ' + c.name + ' +1 ' + axis);
+          c.mentorGrowth[axis] = (c.mentorGrowth[axis] || 0) + 1.0;
+          if (c.mentorGrowth[axis] >= 10) {
+            const cap = (TIERS[c.tier]?.statCap || 100) + 10;
+            c.stats[axis] = Math.min(cap, (c.stats[axis] || 0) + 10);
+            c.mentorGrowth[axis] -= 10;
+            if (typeof log === 'function') log('\uD83C\uDF93 Mentor growth: ' + c.name + ' +10 ' + axis);
           }
         }
       }
@@ -9938,18 +10385,19 @@ let _clockValidated = false;
       specialty: specialty || 'coder',
       tier: 1, // Junior
       exp: 0,
-      stats: { design: 4, tech: 4, speed: 4, polish: 3 },
+      // v11.2: stats scaled 10x (10-100 range).
+      stats: { design: 40, tech: 40, speed: 40, polish: 30 },
       morale: 70,
       age: 25,
       retireAge: 65,
       traits: trait ? [trait] : [],
       isFounder: true
     };
-    // Founder trait modifiers (Phase 1: simple +2 to primary stat)
-    if (trait === 'Perfectionist') S.founder.stats.polish += 2;
-    else if (trait === 'Sprinter')  S.founder.stats.speed  += 2;
-    else if (trait === 'Methodical') S.founder.stats.tech  += 2;
-    else if (trait === 'Creative')  S.founder.stats.design += 2;
+    // Founder trait modifiers (Phase 1: simple +20 to primary stat — 10x for 10-100 scale)
+    if (trait === 'Perfectionist') S.founder.stats.polish += 20;
+    else if (trait === 'Sprinter')  S.founder.stats.speed  += 20;
+    else if (trait === 'Methodical') S.founder.stats.tech  += 20;
+    else if (trait === 'Creative')  S.founder.stats.design += 20;
     // v3 roguelite: attach passions + mechanical + narrative traits.
     // Default to rank 50 (bottom of class) per Q1b — first run starts
     // at the bottom. Phase 6 will replace this with class-roster picker.
@@ -9988,8 +10436,8 @@ let _clockValidated = false;
       answers: [
         { text: 'Password codes (1980s-style; cheap)', effects: { design:-5, polish:-2, tech:-2 } },
         { text: 'Cassette / floppy save file',          effects: { polish:+5, tech:+2 } },
-        { text: 'Sophisticated save slots + metadata',  effects: { polish:+10, design:+3, tech:+4, bugs:+2 }, gate: { statMin: { tech: 5 } } },
-        { text: 'Cloud sync across devices',            effects: { polish:+14, tech:+12, bugs:+4 }, gate: { eraMin: 2008, statMin: { tech: 7 } } },
+        { text: 'Sophisticated save slots + metadata',  effects: { polish:+10, design:+3, tech:+4, bugs:+2 }, gate: { statMin: { tech: 50 } } },
+        { text: 'Cloud sync across devices',            effects: { polish:+14, tech:+12, bugs:+4 }, gate: { eraMin: 2008, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -9999,7 +10447,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Silent — let gameplay speak',          effects: { design:-5, polish:+3 } },
         { text: 'Chiptune (era-authentic)',             effects: { design:+8, polish:+5 } },
-        { text: 'Synthesized orchestral (ambitious)',   effects: { design:+14, polish:+2, bugs:+3 }, gate: { statMin: { design: 5 } } },
+        { text: 'Synthesized orchestral (ambitious)',   effects: { design:+14, polish:+2, bugs:+3 }, gate: { statMin: { design: 50 } } },
         { text: 'Licensed band soundtrack',             effects: { design:+18, polish:+6 }, gate: { eraMin: 1994, traitRequired: 'Networker' } },
       ]
     },
@@ -10010,8 +10458,8 @@ let _clockValidated = false;
       answers: [
         { text: 'Shared keyboard / same machine',       effects: { design:+5, tech:-2 } },
         { text: 'Serial cable / null modem',            effects: { design:+10, tech:+8, bugs:+2 } },
-        { text: 'Dialup / BBS lobby system',            effects: { design:+15, tech:+12, bugs:+5, polish:-3 }, gate: { statMin: { tech: 6 } } },
-        { text: 'Dedicated master-server matchmaking',  effects: { design:+18, tech:+16, bugs:+6, polish:+4 }, gate: { eraMin: 2000, statMin: { tech: 8 } } },
+        { text: 'Dialup / BBS lobby system',            effects: { design:+15, tech:+12, bugs:+5, polish:-3 }, gate: { statMin: { tech: 60 } } },
+        { text: 'Dedicated master-server matchmaking',  effects: { design:+18, tech:+16, bugs:+6, polish:+4 }, gate: { eraMin: 2000, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -10021,7 +10469,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Nintendo-hard — reward mastery',       effects: { design:+8, polish:-2 } },
         { text: 'Gradual ramp — welcoming',             effects: { design:+6, polish:+4 } },
-        { text: 'Adaptive — tracks player skill',       effects: { design:+12, tech:+6, bugs:+3 }, gate: { statMin: { tech: 5 } } },
+        { text: 'Adaptive — tracks player skill',       effects: { design:+12, tech:+6, bugs:+3 }, gate: { statMin: { tech: 50 } } },
         { text: 'Player-selectable difficulty',         effects: { design:+9, polish:+7, bugs:+2 } },
       ]
     },
@@ -10032,8 +10480,8 @@ let _clockValidated = false;
       answers: [
         { text: 'Hardcoded layouts (fast, rigid)',      effects: { tech:+5, polish:+3 } },
         { text: 'Template system with variables',       effects: { tech:+10, design:+6 } },
-        { text: 'Full scripting engine for users',      effects: { tech:+15, design:+10, bugs:+5 }, gate: { statMin: { tech: 7 } } },
-        { text: 'Drag-and-drop pivot builder',          effects: { tech:+12, design:+14, polish:+6, bugs:+3 }, gate: { eraMin: 2005, statMin: { design: 5 } } },
+        { text: 'Full scripting engine for users',      effects: { tech:+15, design:+10, bugs:+5 }, gate: { statMin: { tech: 70 } } },
+        { text: 'Drag-and-drop pivot builder',          effects: { tech:+12, design:+14, polish:+6, bugs:+3 }, gate: { eraMin: 2005, statMin: { design: 50 } } },
       ]
     },
     // ----- More feature-triggered (game) -----
@@ -10052,7 +10500,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Fixed stats — skill is the player',            effects: { design:+5, polish:+4 } },
         { text: 'XP + levels with skill trees',                 effects: { design:+11, tech:+5, bugs:+2 } },
-        { text: 'Open attribute system — any build',            effects: { design:+15, tech:+8, bugs:+4 }, gate: { statMin: { design: 6 } } },
+        { text: 'Open attribute system — any build',            effects: { design:+15, tech:+8, bugs:+4 }, gate: { statMin: { design: 60 } } },
       ]
     },
     {
@@ -10060,8 +10508,8 @@ let _clockValidated = false;
       text: 'Level design philosophy?',
       answers: [
         { text: 'Handcrafted linear levels',                    effects: { design:+10, polish:+6, tech:-1 } },
-        { text: 'Open world — one massive map',                 effects: { design:+14, tech:+10, polish:-3, bugs:+5 }, gate: { statMin: { design: 6 } } },
-        { text: 'Procedurally generated',                       effects: { design:+7, tech:+14, bugs:+6, polish:-2 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Open world — one massive map',                 effects: { design:+14, tech:+10, polish:-3, bugs:+5 }, gate: { statMin: { design: 60 } } },
+        { text: 'Procedurally generated',                       effects: { design:+7, tech:+14, bugs:+6, polish:-2 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10079,7 +10527,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Stock library samples',                        effects: { polish:+3, design:-2 } },
         { text: 'Record custom foley in-office',                effects: { polish:+9, design:+4 } },
-        { text: 'Hire a professional sound designer',           effects: { polish:+14, design:+8, bugs:-1 }, gate: { statMin: { polish: 6 } } },
+        { text: 'Hire a professional sound designer',           effects: { polish:+14, design:+8, bugs:-1 }, gate: { statMin: { polish: 60 } } },
       ]
     },
     // ----- Feature-triggered (business) -----
@@ -10089,7 +10537,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Dot-matrix monospace dump',                    effects: { polish:-3, tech:+1 } },
         { text: 'Laser-printer WYSIWYG layouts',                effects: { polish:+10, tech:+6 }, gate: { eraMin: 1985 } },
-        { text: 'PDF export with fonts embedded',               effects: { polish:+14, tech:+10 }, gate: { eraMin: 1994, statMin: { tech: 5 } } },
+        { text: 'PDF export with fonts embedded',               effects: { polish:+14, tech:+10 }, gate: { eraMin: 1994, statMin: { tech: 50 } } },
       ]
     },
     {
@@ -10098,7 +10546,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Keystroke recorder only',                      effects: { tech:+3, polish:+4 } },
         { text: 'BASIC-style macro dialect',                    effects: { tech:+10, design:+5, bugs:+2 } },
-        { text: 'Embed a real scripting runtime',               effects: { tech:+16, design:+8, bugs:+6 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Embed a real scripting runtime',               effects: { tech:+16, design:+8, bugs:+6 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10107,7 +10555,7 @@ let _clockValidated = false;
       answers: [
         { text: 'All-or-nothing admin flag',                    effects: { tech:+2, polish:+2, bugs:-1 } },
         { text: 'Role-based access control',                    effects: { tech:+10, design:+6, polish:+4 } },
-        { text: 'Attribute-based, policy-as-code',              effects: { tech:+15, design:+8, bugs:+4 }, gate: { eraMin: 2012, statMin: { tech: 7 } } },
+        { text: 'Attribute-based, policy-as-code',              effects: { tech:+15, design:+8, bugs:+4 }, gate: { eraMin: 2012, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10116,7 +10564,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Only who logged in',                           effects: { tech:+2, polish:+1 } },
         { text: 'Every mutation with before/after',             effects: { tech:+9, polish:+6, bugs:+1 } },
-        { text: 'Tamper-evident hash chain',                    effects: { tech:+14, design:+5, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 7 } } },
+        { text: 'Tamper-evident hash chain',                    effects: { tech:+14, design:+5, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10125,7 +10573,7 @@ let _clockValidated = false;
       answers: [
         { text: 'CSV only — keep it simple',                    effects: { tech:+3, polish:+4 } },
         { text: 'CSV + Excel + tab-delimited',                  effects: { tech:+8, polish:+7, bugs:+1 } },
-        { text: 'Parse anything — even user-uploaded PDFs',     effects: { tech:+14, polish:+8, bugs:+6 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Parse anything — even user-uploaded PDFs',     effects: { tech:+14, polish:+8, bugs:+6 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     // ----- Feature-triggered (web/mobile/saas) -----
@@ -10135,7 +10583,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Username + password',                          effects: { tech:+4, polish:+3 } },
         { text: 'Email magic link',                             effects: { tech:+8, design:+5, polish:+4 }, gate: { eraMin: 2010 } },
-        { text: 'Passkeys / WebAuthn',                          effects: { tech:+14, polish:+10, design:+6 }, gate: { eraMin: 2019, statMin: { tech: 6 } } },
+        { text: 'Passkeys / WebAuthn',                          effects: { tech:+14, polish:+10, design:+6 }, gate: { eraMin: 2019, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10144,7 +10592,7 @@ let _clockValidated = false;
       answers: [
         { text: 'SOAP / XML-RPC',                               effects: { tech:+5, polish:-2, bugs:+1 }, gate: { eraMax: 2005 } },
         { text: 'REST with JSON',                               effects: { tech:+10, design:+6, polish:+4 }, gate: { eraMin: 2005 } },
-        { text: 'GraphQL with typed schema',                    effects: { tech:+14, design:+9, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 6 } } },
+        { text: 'GraphQL with typed schema',                    effects: { tech:+14, design:+9, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10153,7 +10601,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Hit counter on the homepage',                  effects: { tech:+2, polish:+1 }, gate: { eraMax: 2002 } },
         { text: 'Google Analytics — free + easy',               effects: { tech:+6, design:+5, polish:+3 }, gate: { eraMin: 2005 } },
-        { text: 'Self-hosted event pipeline',                   effects: { tech:+12, design:+7, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 6 } } },
+        { text: 'Self-hosted event pipeline',                   effects: { tech:+12, design:+7, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10180,7 +10628,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Online-only — simpler',                        effects: { tech:+3, polish:+2 } },
         { text: 'Cache read-only data locally',                 effects: { tech:+9, polish:+7, bugs:+2 } },
-        { text: 'Full offline-first CRDT sync',                 effects: { tech:+16, design:+8, polish:+6, bugs:+6 }, gate: { eraMin: 2018, statMin: { tech: 7 } } },
+        { text: 'Full offline-first CRDT sync',                 effects: { tech:+16, design:+8, polish:+6, bugs:+6 }, gate: { eraMin: 2018, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10189,7 +10637,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Empty dashboard — users figure it out',        effects: { tech:+2, polish:-4 } },
         { text: 'Interactive walkthrough tooltips',             effects: { design:+8, polish:+8, bugs:+1 } },
-        { text: 'Sample project preloaded in account',          effects: { design:+12, polish:+10, tech:+4 }, gate: { statMin: { design: 5 } } },
+        { text: 'Sample project preloaded in account',          effects: { design:+12, polish:+10, tech:+4 }, gate: { statMin: { design: 50 } } },
       ]
     },
     {
@@ -10198,7 +10646,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Skip — friction for small teams',              effects: { tech:+2, polish:+1 } },
         { text: 'OAuth with Google + Microsoft',                effects: { tech:+9, design:+5 }, gate: { eraMin: 2012 } },
-        { text: 'Full SAML + SCIM provisioning',                effects: { tech:+15, polish:+7, bugs:+4 }, gate: { eraMin: 2015, statMin: { tech: 7 } } },
+        { text: 'Full SAML + SCIM provisioning',                effects: { tech:+15, polish:+7, bugs:+4 }, gate: { eraMin: 2015, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10216,7 +10664,7 @@ let _clockValidated = false;
       answers: [
         { text: 'sendmail on the app server',                   effects: { tech:+2, bugs:+3, polish:-1 }, gate: { eraMax: 2010 } },
         { text: 'SMTP provider (Mandrill / SendGrid)',          effects: { tech:+8, polish:+5 }, gate: { eraMin: 2010 } },
-        { text: 'Full lifecycle platform with templates',       effects: { tech:+11, design:+8, polish:+7 }, gate: { eraMin: 2015, statMin: { tech: 5 } } },
+        { text: 'Full lifecycle platform with templates',       effects: { tech:+11, design:+8, polish:+7 }, gate: { eraMin: 2015, statMin: { tech: 50 } } },
       ]
     },
     {
@@ -10225,7 +10673,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Accept cheques by mail',                       effects: { tech:-2, polish:-3 }, gate: { eraMax: 1998 } },
         { text: 'Drop in Stripe checkout',                      effects: { tech:+9, polish:+8, design:+5 }, gate: { eraMin: 2011 } },
-        { text: 'Custom PCI-compliant tokenization',            effects: { tech:+15, polish:+6, bugs:+6 }, gate: { statMin: { tech: 8 } } },
+        { text: 'Custom PCI-compliant tokenization',            effects: { tech:+15, polish:+6, bugs:+6 }, gate: { statMin: { tech: 80 } } },
       ]
     },
     {
@@ -10234,7 +10682,7 @@ let _clockValidated = false;
       answers: [
         { text: 'SQL LIKE queries — good enough',               effects: { tech:+3, polish:-1 } },
         { text: 'Full-text index (Lucene/Postgres)',            effects: { tech:+10, polish:+7 } },
-        { text: 'Elasticsearch / vector search',                effects: { tech:+15, polish:+10, bugs:+4 }, gate: { eraMin: 2014, statMin: { tech: 7 } } },
+        { text: 'Elasticsearch / vector search',                effects: { tech:+15, polish:+10, bugs:+4 }, gate: { eraMin: 2014, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10243,7 +10691,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Just share-links to copy',                     effects: { polish:+4, design:+2 } },
         { text: 'Comments + likes + follow graph',              effects: { design:+10, tech:+8, polish:+4, bugs:+3 } },
-        { text: 'Full in-app messaging + feed',                 effects: { design:+14, tech:+14, polish:+3, bugs:+6 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Full in-app messaging + feed',                 effects: { design:+14, tech:+14, polish:+3, bugs:+6 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10261,7 +10709,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Top-down / isometric',                         effects: { design:+6, tech:+3, polish:+4 } },
         { text: 'Third-person behind the back',                 effects: { design:+11, tech:+8, bugs:+3 } },
-        { text: 'First-person — full immersion',                effects: { design:+14, tech:+10, polish:-2, bugs:+5 }, gate: { statMin: { tech: 6 } } },
+        { text: 'First-person — full immersion',                effects: { design:+14, tech:+10, polish:-2, bugs:+5 }, gate: { statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10270,7 +10718,7 @@ let _clockValidated = false;
       answers: [
         { text: 'F1 opens a static HTML page',                  effects: { tech:+1, polish:-2 } },
         { text: 'Context tooltips on hover',                    effects: { design:+6, polish:+8, tech:+3 } },
-        { text: 'Searchable help center + videos',              effects: { design:+10, polish:+12, tech:+4 }, gate: { statMin: { polish: 5 } } },
+        { text: 'Searchable help center + videos',              effects: { design:+10, polish:+12, tech:+4 }, gate: { statMin: { polish: 50 } } },
       ]
     },
     {
@@ -10279,7 +10727,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Blank slate — user-driven',                    effects: { polish:-2, tech:+1 } },
         { text: 'Five handcrafted starters',                    effects: { design:+8, polish:+7 } },
-        { text: 'Crowdsourced template marketplace',            effects: { design:+12, tech:+8, bugs:+3 }, gate: { eraMin: 2010, statMin: { design: 6 } } },
+        { text: 'Crowdsourced template marketplace',            effects: { design:+12, tech:+8, bugs:+3 }, gate: { eraMin: 2010, statMin: { design: 60 } } },
       ]
     },
     {
@@ -10288,7 +10736,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Single-user only',                             effects: { polish:+2, tech:+1 } },
         { text: 'Shared docs with permissions',                 effects: { design:+9, tech:+8 } },
-        { text: 'Realtime CRDT coediting (Google-docs)',        effects: { design:+14, tech:+15, polish:+6, bugs:+5 }, gate: { eraMin: 2015, statMin: { tech: 8 } } },
+        { text: 'Realtime CRDT coediting (Google-docs)',        effects: { design:+14, tech:+15, polish:+6, bugs:+5 }, gate: { eraMin: 2015, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -10297,7 +10745,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Shared DB, tenant_id column',                  effects: { tech:+6, polish:+3, bugs:+2 } },
         { text: 'Schema-per-tenant',                            effects: { tech:+10, polish:+5, bugs:+3 } },
-        { text: 'Container-per-tenant (fort knox)',             effects: { tech:+15, polish:+7, bugs:+5 }, gate: { statMin: { tech: 8 } } },
+        { text: 'Container-per-tenant (fort knox)',             effects: { tech:+15, polish:+7, bugs:+5 }, gate: { statMin: { tech: 80 } } },
       ]
     },
     {
@@ -10325,7 +10773,7 @@ let _clockValidated = false;
       answers: [
         { text: 'CPU inference — cheap at launch',              effects: { tech:+4, polish:-2 } },
         { text: 'GPU cluster in one region',                    effects: { tech:+10, polish:+5, bugs:+3 }, gate: { eraMin: 2015 } },
-        { text: 'Edge inference + model distillation',          effects: { tech:+16, polish:+10, bugs:+4 }, gate: { eraMin: 2020, statMin: { tech: 8 } } },
+        { text: 'Edge inference + model distillation',          effects: { tech:+16, polish:+10, bugs:+4 }, gate: { eraMin: 2020, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -10334,7 +10782,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Base model + clever prompts',                  effects: { tech:+6, polish:+5, design:+3 } },
         { text: 'LoRA adapters per customer',                   effects: { tech:+11, design:+6, bugs:+3 }, gate: { eraMin: 2022 } },
-        { text: 'Full fine-tune + RLHF',                        effects: { tech:+18, design:+10, bugs:+6 }, gate: { eraMin: 2022, statMin: { tech: 8 } } },
+        { text: 'Full fine-tune + RLHF',                        effects: { tech:+18, design:+10, bugs:+6 }, gate: { eraMin: 2022, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -10343,7 +10791,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Nothing — user problem',                       effects: { tech:+2, polish:-5, morale:-5 } },
         { text: 'Keyword blocklist',                            effects: { tech:+4, polish:+3 } },
-        { text: 'Classifier + human review pipeline',           effects: { tech:+12, design:+8, polish:+10 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Classifier + human review pipeline',           effects: { tech:+12, design:+8, polish:+10 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10352,7 +10800,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Text only — focus',                            effects: { tech:+4, polish:+4 } },
         { text: 'Text + image (vision)',                        effects: { tech:+10, design:+8, bugs:+3 }, gate: { eraMin: 2022 } },
-        { text: 'Text + image + audio + video',                 effects: { tech:+16, design:+12, polish:-2, bugs:+6 }, gate: { eraMin: 2023, statMin: { tech: 8 } } },
+        { text: 'Text + image + audio + video',                 effects: { tech:+16, design:+12, polish:-2, bugs:+6 }, gate: { eraMin: 2023, statMin: { tech: 80 } } },
       ]
     },
 
@@ -10364,8 +10812,8 @@ let _clockValidated = false;
       answers: [
         { text: 'Text / ASCII only',                    effects: { design:-5, tech:-3, polish:+3 } },
         { text: 'Simple 2D sprites',                    effects: { design:+6, polish:+3 } },
-        { text: 'Detailed pixel art',                   effects: { design:+14, polish:+8, bugs:+2 }, gate: { statMin: { design: 5 } } },
-        { text: 'Full 3D with lighting',                effects: { design:+17, tech:+12, polish:+5, bugs:+5 }, gate: { eraMin: 1996, statMin: { tech: 6 } } },
+        { text: 'Detailed pixel art',                   effects: { design:+14, polish:+8, bugs:+2 }, gate: { statMin: { design: 50 } } },
+        { text: 'Full 3D with lighting',                effects: { design:+17, tech:+12, polish:+5, bugs:+5 }, gate: { eraMin: 1996, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10374,7 +10822,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Menu-driven (F-keys)',                 effects: { design:+3, polish:+3, tech:-2 } },
         { text: 'Ribbon-style toolbar',                 effects: { design:+8, polish:+6 }, gate: { eraMin: 2007 } },
-        { text: 'Full mouse-driven WYSIWYG',            effects: { design:+12, tech:+8, polish:+4, bugs:+4 }, gate: { statMin: { tech: 5 } } },
+        { text: 'Full mouse-driven WYSIWYG',            effects: { design:+12, tech:+8, polish:+4, bugs:+4 }, gate: { statMin: { tech: 50 } } },
         { text: 'Command palette (VS Code-style)',      effects: { design:+11, tech:+6, polish:+9 }, gate: { eraMin: 2018, traitRequired: 'Eccentric' } },
       ]
     },
@@ -10394,8 +10842,8 @@ let _clockValidated = false;
       answers: [
         { text: 'Play it a lot ourselves',              effects: { polish:+3, bugs:-2 } },
         { text: 'Friends and family beta',              effects: { polish:+7, design:+3, bugs:-5 } },
-        { text: 'Formal QA pass with checklist',        effects: { polish:+12, bugs:-10 }, gate: { statMin: { polish: 5 } } },
-        { text: 'Automated test suite + CI',            effects: { tech:+10, polish:+8, bugs:-12 }, gate: { eraMin: 2010, statMin: { tech: 6 } } },
+        { text: 'Formal QA pass with checklist',        effects: { polish:+12, bugs:-10 }, gate: { statMin: { polish: 50 } } },
+        { text: 'Automated test suite + CI',            effects: { tech:+10, polish:+8, bugs:-12 }, gate: { eraMin: 2010, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10433,7 +10881,7 @@ let _clockValidated = false;
       answers: [
         { text: 'No bosses — it\u2019s a vibe game',            effects: { design:+4, polish:+2 } },
         { text: 'Pattern-memorization bosses',                  effects: { design:+10, polish:+6, bugs:+2 } },
-        { text: 'Emergent boss behaviors from ecosystem',       effects: { design:+16, tech:+10, bugs:+5 }, gate: { statMin: { design: 7 } } },
+        { text: 'Emergent boss behaviors from ecosystem',       effects: { design:+16, tech:+10, bugs:+5 }, gate: { statMin: { design: 70 } } },
       ]
     },
     {
@@ -10442,7 +10890,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Patrol patterns on fixed paths',               effects: { tech:+4, design:+3 } },
         { text: 'Finite-state machines with alertness',         effects: { tech:+10, design:+7, bugs:+2 } },
-        { text: 'Utility-based AI with behavior trees',         effects: { tech:+15, design:+10, bugs:+4 }, gate: { statMin: { tech: 6 } } },
+        { text: 'Utility-based AI with behavior trees',         effects: { tech:+15, design:+10, bugs:+4 }, gate: { statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10451,7 +10899,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Text only — player reads',                     effects: { polish:-1, tech:+1 } },
         { text: 'Programmer-voiced placeholders shipped',       effects: { polish:-3, design:-2, morale:-3 } },
-        { text: 'Full voiced cast with SAG talent',             effects: { polish:+13, design:+9 }, gate: { eraMin: 1995, statMin: { polish: 5 } } },
+        { text: 'Full voiced cast with SAG talent',             effects: { polish:+13, design:+9 }, gate: { eraMin: 1995, statMin: { polish: 50 } } },
       ]
     },
     {
@@ -10460,7 +10908,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Text-only with portraits',                     effects: { polish:+2, design:+2 } },
         { text: 'Pre-rendered CG',                              effects: { polish:+11, design:+7 }, gate: { eraMin: 1993 } },
-        { text: 'In-engine scripted with mocap',                effects: { polish:+14, tech:+10, bugs:+4 }, gate: { eraMin: 2000, statMin: { tech: 6 } } },
+        { text: 'In-engine scripted with mocap',                effects: { polish:+14, tech:+10, bugs:+4 }, gate: { eraMin: 2000, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10469,7 +10917,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Instant game over — respect the player\u2019s time', effects: { design:+5, polish:-1 } },
         { text: 'Checkpoints every 5 minutes',                  effects: { design:+8, polish:+7 } },
-        { text: 'Roguelike permadeath + meta progression',      effects: { design:+14, tech:+6, bugs:+3 }, gate: { statMin: { design: 6 } } },
+        { text: 'Roguelike permadeath + meta progression',      effects: { design:+14, tech:+6, bugs:+3 }, gate: { statMin: { design: 60 } } },
       ]
     },
     {
@@ -10496,7 +10944,7 @@ let _clockValidated = false;
       answers: [
         { text: 'English only',                                 effects: { tech:+2, polish:+1 } },
         { text: 'Five major European languages',                effects: { tech:+6, design:+5, polish:+4 } },
-        { text: 'Full 30+ language support with RTL',           effects: { tech:+14, design:+8, polish:+7, bugs:+4 }, gate: { statMin: { polish: 6 } } },
+        { text: 'Full 30+ language support with RTL',           effects: { tech:+14, design:+8, polish:+7, bugs:+4 }, gate: { statMin: { polish: 60 } } },
       ]
     },
     {
@@ -10514,7 +10962,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Closed — no mods',                             effects: { tech:+2, polish:+1 } },
         { text: 'File-format documentation',                    effects: { tech:+6, design:+4 } },
-        { text: 'Official mod SDK + Workshop integration',      effects: { tech:+12, design:+11, bugs:+3 }, gate: { eraMin: 2005, statMin: { tech: 6 } } },
+        { text: 'Official mod SDK + Workshop integration',      effects: { tech:+12, design:+11, bugs:+3 }, gate: { eraMin: 2005, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10523,7 +10971,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Photorealistic push',                          effects: { design:+10, tech:+8, bugs:+3 }, gate: { eraMin: 2004 } },
         { text: 'Bold stylized — ages well',                    effects: { design:+14, polish:+8 } },
-        { text: 'Hand-drawn 2D animation',                      effects: { design:+12, polish:+12 }, gate: { statMin: { design: 6 } } },
+        { text: 'Hand-drawn 2D animation',                      effects: { design:+12, polish:+12 }, gate: { statMin: { design: 60 } } },
       ]
     },
     {
@@ -10541,7 +10989,7 @@ let _clockValidated = false;
       answers: [
         { text: 'No physics — tile-based movement',             effects: { tech:+3, polish:+4 } },
         { text: 'License Havok / existing engine',              effects: { tech:+10, polish:+6 }, gate: { eraMin: 2000 } },
-        { text: 'Roll our own with verlet integration',         effects: { tech:+15, bugs:+6, polish:-1 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Roll our own with verlet integration',         effects: { tech:+15, bugs:+6, polish:-1 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     // --- Business 'any' ---
@@ -10560,7 +11008,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Single-user, local files',                     effects: { tech:+3, polish:+4 } },
         { text: 'LAN file-sharing with record locks',           effects: { tech:+10, bugs:+3 } },
-        { text: 'Client-server with a daemon',                  effects: { tech:+15, polish:+6, bugs:+5 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Client-server with a daemon',                  effects: { tech:+15, polish:+6, bugs:+5 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10569,7 +11017,7 @@ let _clockValidated = false;
       answers: [
         { text: 'User\u2019s problem',                          effects: { tech:+1 } },
         { text: 'Daily copy to a separate file',                effects: { tech:+5, polish:+5 } },
-        { text: 'Full versioned history with undo',             effects: { tech:+12, design:+7, bugs:+4 }, gate: { statMin: { tech: 6 } } },
+        { text: 'Full versioned history with undo',             effects: { tech:+12, design:+7, bugs:+4 }, gate: { statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10578,7 +11026,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Flat files with indexes',                      effects: { tech:+4, polish:+1, bugs:+2 } },
         { text: 'Embedded SQL (SQLite-style)',                  effects: { tech:+9, polish:+6 }, gate: { eraMin: 1998 } },
-        { text: 'Full client-server (Oracle / Postgres)',       effects: { tech:+14, polish:+5, bugs:+3 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Full client-server (Oracle / Postgres)',       effects: { tech:+14, polish:+5, bugs:+3 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10615,7 +11063,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Classic server-rendered pages',                effects: { tech:+6, polish:+3 } },
         { text: 'Client-rendered SPA',                          effects: { tech:+9, design:+5, polish:-2, bugs:+2 }, gate: { eraMin: 2013 } },
-        { text: 'Isomorphic SSR with hydration',                effects: { tech:+14, design:+9, polish:+6, bugs:+4 }, gate: { eraMin: 2016, statMin: { tech: 7 } } },
+        { text: 'Isomorphic SSR with hydration',                effects: { tech:+14, design:+9, polish:+6, bugs:+4 }, gate: { eraMin: 2016, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10624,7 +11072,7 @@ let _clockValidated = false;
       answers: [
         { text: 'One server, one region',                       effects: { tech:+3, polish:+1 } },
         { text: 'CloudFront / Cloudflare CDN',                  effects: { tech:+9, polish:+8 }, gate: { eraMin: 2009 } },
-        { text: 'Edge workers with per-POP compute',            effects: { tech:+14, polish:+10, bugs:+3 }, gate: { eraMin: 2018, statMin: { tech: 7 } } },
+        { text: 'Edge workers with per-POP compute',            effects: { tech:+14, polish:+10, bugs:+3 }, gate: { eraMin: 2018, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10642,7 +11090,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Community self-polices',                       effects: { tech:+2, morale:+3 } },
         { text: 'Flagging queue with small moderator team',     effects: { tech:+6, design:+5, polish:+4 } },
-        { text: 'ML classifier + human escalation tiers',       effects: { tech:+13, design:+9, polish:+5 }, gate: { eraMin: 2015, statMin: { tech: 7 } } },
+        { text: 'ML classifier + human escalation tiers',       effects: { tech:+13, design:+9, polish:+5 }, gate: { eraMin: 2015, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10651,7 +11099,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Ship and measure with analytics',              effects: { tech:+3, polish:+2 } },
         { text: 'Feature flags with a/b toggles',               effects: { tech:+9, design:+5, polish:+4 }, gate: { eraMin: 2013 } },
-        { text: 'Full stat-sig platform with guardrail metrics', effects: { tech:+13, polish:+6 }, gate: { eraMin: 2018, statMin: { tech: 7 } } },
+        { text: 'Full stat-sig platform with guardrail metrics', effects: { tech:+13, polish:+6 }, gate: { eraMin: 2018, statMin: { tech: 70 } } },
       ]
     },
     // --- Mobile 'any' ---
@@ -10670,7 +11118,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Ship everything upfront',                      effects: { polish:+3, bugs:-1 } },
         { text: 'Download assets on demand',                    effects: { tech:+9, polish:+6, bugs:+3 } },
-        { text: 'Streaming on-demand resources',                effects: { tech:+13, design:+6, polish:+8 }, gate: { eraMin: 2018, statMin: { tech: 7 } } },
+        { text: 'Streaming on-demand resources',                effects: { tech:+13, design:+6, polish:+8 }, gate: { eraMin: 2018, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10679,7 +11127,7 @@ let _clockValidated = false;
       answers: [
         { text: 'None',                                         effects: { polish:-1, tech:+1 } },
         { text: 'Basic buzz on notifications',                  effects: { polish:+4, design:+2 } },
-        { text: 'Nuanced haptic vocabulary (iPhone Taptic)',    effects: { polish:+11, design:+9 }, gate: { eraMin: 2015, statMin: { polish: 6 } } },
+        { text: 'Nuanced haptic vocabulary (iPhone Taptic)',    effects: { polish:+11, design:+9 }, gate: { eraMin: 2015, statMin: { polish: 60 } } },
       ]
     },
     {
@@ -10688,7 +11136,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Light only — simpler',                         effects: { polish:+1, design:-2 } },
         { text: 'Manual toggle in settings',                    effects: { design:+7, polish:+7 }, gate: { eraMin: 2017 } },
-        { text: 'Follow system preference + per-screen tweaks', effects: { design:+11, polish:+11 }, gate: { eraMin: 2019, statMin: { design: 5 } } },
+        { text: 'Follow system preference + per-screen tweaks', effects: { design:+11, polish:+11 }, gate: { eraMin: 2019, statMin: { design: 50 } } },
       ]
     },
     {
@@ -10697,7 +11145,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Collect everything — it\u2019s fuel',          effects: { tech:+5, morale:-5, polish:-3 } },
         { text: 'Industry-standard retention',                  effects: { tech:+4, polish:+3 } },
-        { text: 'Zero-knowledge architecture',                  effects: { tech:+14, polish:+10, bugs:+4 }, gate: { eraMin: 2018, statMin: { tech: 7 } } },
+        { text: 'Zero-knowledge architecture',                  effects: { tech:+14, polish:+10, bugs:+4 }, gate: { eraMin: 2018, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10734,7 +11182,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Email only',                                   effects: { tech:+1, polish:+2 } },
         { text: 'Intercom-style live chat',                     effects: { design:+8, polish:+9 }, gate: { eraMin: 2013 } },
-        { text: 'Full ticketing + SLA dashboards',              effects: { tech:+12, polish:+7, bugs:+2 }, gate: { statMin: { tech: 6 } } },
+        { text: 'Full ticketing + SLA dashboards',              effects: { tech:+12, polish:+7, bugs:+2 }, gate: { statMin: { tech: 60 } } },
       ]
     },
     {
@@ -10743,7 +11191,7 @@ let _clockValidated = false;
       answers: [
         { text: 'None — focus on core',                         effects: { tech:+2, polish:+4 } },
         { text: 'Webhooks + public API docs',                   effects: { tech:+9, design:+6, polish:+3 } },
-        { text: 'Full marketplace with third-party apps',       effects: { tech:+14, design:+11, bugs:+5 }, gate: { eraMin: 2015, statMin: { tech: 7 } } },
+        { text: 'Full marketplace with third-party apps',       effects: { tech:+14, design:+11, bugs:+5 }, gate: { eraMin: 2015, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10762,7 +11210,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Small models — cheap, fast',                   effects: { tech:+8, polish:+6 } },
         { text: 'Mid-size balanced',                            effects: { tech:+11, design:+6, polish:+4 } },
-        { text: 'Frontier-scale — best quality at any cost',    effects: { tech:+15, design:+10, bugs:+4, morale:-2 }, gate: { eraMin: 2022, statMin: { tech: 8 } } },
+        { text: 'Frontier-scale — best quality at any cost',    effects: { tech:+15, design:+10, bugs:+4, morale:-2 }, gate: { eraMin: 2022, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -10771,7 +11219,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Licensed datasets only',                       effects: { tech:+5, polish:+8, morale:+3 } },
         { text: 'Scrape the web — fair use',                    effects: { tech:+10, design:+5, morale:-2 } },
-        { text: 'User data with opt-in',                        effects: { tech:+12, design:+8, polish:+6 }, gate: { statMin: { tech: 7 } } },
+        { text: 'User data with opt-in',                        effects: { tech:+12, design:+8, polish:+6 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10780,7 +11228,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Disclaimer in footer',                         effects: { tech:+2, polish:-3 } },
         { text: 'Retrieval-augmented generation',               effects: { tech:+12, design:+6, polish:+7, bugs:+2 }, gate: { eraMin: 2022 } },
-        { text: 'Confidence score + refusal behavior',          effects: { tech:+14, design:+9, polish:+8 }, gate: { eraMin: 2023, statMin: { tech: 7 } } },
+        { text: 'Confidence score + refusal behavior',          effects: { tech:+14, design:+9, polish:+8 }, gate: { eraMin: 2023, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10789,7 +11237,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Vibe-check by the team',                       effects: { tech:+3, polish:-2, bugs:+3 } },
         { text: 'Golden test set with regression',              effects: { tech:+10, polish:+7, bugs:-3 } },
-        { text: 'Automated eval harness + LLM-as-judge',        effects: { tech:+15, design:+6, polish:+8 }, gate: { eraMin: 2023, statMin: { tech: 7 } } },
+        { text: 'Automated eval harness + LLM-as-judge',        effects: { tech:+15, design:+6, polish:+8 }, gate: { eraMin: 2023, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10835,7 +11283,7 @@ let _clockValidated = false;
       answers: [
         { text: 'None — pentest after launch',                  effects: { tech:+2, bugs:+4 } },
         { text: 'Checklist-based self-assessment',              effects: { tech:+7, polish:+5, bugs:-2 } },
-        { text: 'Third-party audit + bug bounty',               effects: { tech:+14, polish:+8, bugs:-6 }, gate: { eraMin: 2010, statMin: { tech: 7 } } },
+        { text: 'Third-party audit + bug bounty',               effects: { tech:+14, polish:+8, bugs:-6 }, gate: { eraMin: 2010, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10844,7 +11292,7 @@ let _clockValidated = false;
       answers: [
         { text: 'printf() to stderr',                           effects: { tech:+3, bugs:+3 } },
         { text: 'Structured logs shipped to a log server',      effects: { tech:+9, polish:+5, bugs:-2 } },
-        { text: 'OpenTelemetry + distributed tracing',          effects: { tech:+14, polish:+7, bugs:-4 }, gate: { eraMin: 2019, statMin: { tech: 7 } } },
+        { text: 'OpenTelemetry + distributed tracing',          effects: { tech:+14, polish:+7, bugs:-4 }, gate: { eraMin: 2019, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10880,7 +11328,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Comic Sans for now',                           effects: { polish:-5, design:-3, morale:+3 }, gate: { traitRequired: 'Contrarian' } },
         { text: 'Commission a logo + color palette',            effects: { design:+8, polish:+7 } },
-        { text: 'Full design system with motion rules',         effects: { design:+14, polish:+12 }, gate: { statMin: { design: 7 } } },
+        { text: 'Full design system with motion rules',         effects: { design:+14, polish:+12 }, gate: { statMin: { design: 70 } } },
       ]
     },
     {
@@ -10889,7 +11337,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Start fresh — no migration',                   effects: { tech:+3, morale:-3 } },
         { text: 'One-shot import tool',                         effects: { tech:+8, design:+5, bugs:+3 } },
-        { text: 'Dual-write + gradual cutover',                 effects: { tech:+13, polish:+6, bugs:+4 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Dual-write + gradual cutover',                 effects: { tech:+13, polish:+6, bugs:+4 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10907,7 +11355,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Big annual release',                           effects: { polish:+5, design:+3 } },
         { text: 'Quarterly features + monthly patches',         effects: { tech:+8, polish:+6, bugs:-2 } },
-        { text: 'Continuous deployment to production',          effects: { tech:+12, polish:+5, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 7 } } },
+        { text: 'Continuous deployment to production',          effects: { tech:+12, polish:+5, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -10934,7 +11382,7 @@ let _clockValidated = false;
       answers: [
         { text: 'None — our vision leads',                      effects: { design:+3, morale:-2 } },
         { text: 'In-app feedback widget',                       effects: { design:+7, polish:+6 } },
-        { text: 'Monthly user research interviews',             effects: { design:+13, polish:+9 }, gate: { statMin: { design: 6 } } },
+        { text: 'Monthly user research interviews',             effects: { design:+13, polish:+9 }, gate: { statMin: { design: 60 } } },
       ]
     },
     {
@@ -10961,7 +11409,7 @@ let _clockValidated = false;
       answers: [
         { text: 'Best effort — no SLA',                         effects: { tech:+3, polish:+1 } },
         { text: '99.9% with status page',                       effects: { tech:+10, polish:+7, bugs:+1 } },
-        { text: '99.99% multi-region active-active',            effects: { tech:+16, polish:+9, bugs:+6 }, gate: { eraMin: 2015, statMin: { tech: 8 } } },
+        { text: '99.99% multi-region active-active',            effects: { tech:+16, polish:+9, bugs:+6 }, gate: { eraMin: 2015, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -12375,7 +12823,8 @@ let _clockValidated = false;
       S.founder?.stats?.tech || 0,
       ...((S.employees || []).map(e => e.stats?.tech || 0))
     );
-    const bestRpPerWeek = bestTech * 1.2;
+    // v11.2: matches rpPerWeek formula in 21-tycoon-research.js (0.12 ÷ 10x stat scale).
+    const bestRpPerWeek = bestTech * 0.12;
 
     // Pioneer / Fast-Follower rollup — surfaces the current sales multiplier
     // the player has earned (or lost) from racing rivals on research.
@@ -12494,7 +12943,8 @@ let _clockValidated = false;
         S.founder?.stats?.tech || 0,
         ...((S.employees || []).map(e => e.stats?.tech || 0))
       );
-      const rpPerWeek = bestTech * 1.2;
+      // v11.2: matches research rpPerWeek formula (0.12 for 10-100 stat scale).
+      const rpPerWeek = bestTech * 0.12;
       if (rpPerWeek > 0) {
         const wks = Math.ceil(node.rpCost / rpPerWeek);
         etaHint = ' · ~' + wks + ' week' + (wks === 1 ? '' : 's') + ' at best Tech';
@@ -12504,7 +12954,7 @@ let _clockValidated = false;
         ? S.founder
         : (S.employees || []).find(e => e.id === ip.engineerId);
       const tech = eng?.stats?.tech || 0;
-      const rpPerWeek = tech * 1.2;
+      const rpPerWeek = tech * 0.12;
       if (rpPerWeek > 0) {
         const remaining = Math.max(0, node.rpCost - ip.rpEarned);
         const wks = Math.ceil(remaining / rpPerWeek);
@@ -12704,7 +13154,8 @@ let _clockValidated = false;
 
     const TIERS = window.TYCOON_TIERS || [];
     const tierDef = TIERS[emp.tier] || {};
-    const statCap = tierDef.statCap || 10;
+    // v11.2: default cap is now 100 (was 10) to match the 10-100 stat scale.
+    const statCap = tierDef.statCap || 100;
 
     // Which project is this person on right now?
     const assignedProj = (S.projects?.active || []).find(p =>
@@ -15949,36 +16400,37 @@ let _clockValidated = false;
   };
 
   // ---------- Specialty stat bias ----------
-  // v11.1: returns { tech, design, polish, speed } deltas applied to base
-  // stats so the rolled candidate visually specializes. Primary axis +2;
-  // the other two quality axes each -1. Speed is untouched (it governs
+  // v11.2: returns { tech, design, polish, speed } deltas applied to base
+  // stats so the rolled candidate visually specializes. Primary axis +20;
+  // the other two quality axes each -10. Speed is untouched (it governs
   // phase duration, not specialty). Net change to statSum = 0 so salary
   // calcs stay balanced.
   function specialtyStatBias(specialty) {
     const bias = { tech:0, design:0, polish:0, speed:0 };
     const primary = SPECIALTY_AXIS_LOCAL[specialty] || 'tech';
-    bias[primary] = 2;
+    bias[primary] = 20;
     for (const k of ['tech','design','polish']) {
-      if (k !== primary) bias[k] = -1;
+      if (k !== primary) bias[k] = -10;
     }
     return bias;
   }
 
   // ---------- Edu stat bias (secret, applied at interview reveal) ----------
-  // Returns { tech, design, polish, speed } deltas to add to base stats
+  // Returns { tech, design, polish, speed } deltas to add to base stats.
+  // v11.2: values scaled 10x to match the 10-100 stat range.
   function eduStatBias(edu, specialty) {
     const bias = { tech:0, design:0, polish:0, speed:0 };
     // Bachelor's (edu 2) is neutral
-    if (edu === 4) { // PhD: +1.5 avg to primary, -0.5 speed
+    if (edu === 4) { // PhD: +15 avg to primary, -5 speed
       const primary = isDesignSpecialty(specialty) ? 'design' : 'tech';
-      bias[primary] += 1.5;
-      bias.speed -= 0.5;
-    } else if (edu === 3) { // Master's: +1 to primary
+      bias[primary] += 15;
+      bias.speed -= 5;
+    } else if (edu === 3) { // Master's: +10 to primary
       const primary = isDesignSpecialty(specialty) ? 'design' : 'tech';
-      bias[primary] += 1;
-    } else if (edu === 1) { // CC: -0.5 avg but +0.5 polish
-      bias.tech -= 0.5;
-      bias.polish += 0.5;
+      bias[primary] += 10;
+    } else if (edu === 1) { // CC: -5 tech but +5 polish
+      bias.tech -= 5;
+      bias.polish += 5;
     } else if (edu === 0) { // Self-taught: high variance (applied in generator)
       // Handled via randomVariance below
     }
@@ -15989,17 +16441,18 @@ let _clockValidated = false;
 
   // ---------- Trait catalog (Phase 2 subset) ----------
   // Full 20-trait catalog is in DESIGN_V2.md. Phase 2 uses ~10.
+  // v11.2: stat effects scaled 10x to match the 10-100 stat range.
   const TRAITS = {
-    'Perfectionist': { hint:'+2 Polish, -1 Speed', effect: { polish:+2, speed:-1 } },
-    'Sprinter':      { hint:'+2 Speed, -1 Polish', effect: { speed:+2, polish:-1 } },
-    'Methodical':    { hint:'+2 Tech, -1 Speed', effect: { tech:+2, speed:-1 } },
-    'Creative':      { hint:'+2 Design, unlocks innovation', effect: { design:+2 } },
-    'Mentor':        { hint:'+0.1/wk growth to juniors on team', effect: {} },
+    'Perfectionist': { hint:'+20 Polish, -10 Speed', effect: { polish:+20, speed:-10 } },
+    'Sprinter':      { hint:'+20 Speed, -10 Polish', effect: { speed:+20, polish:-10 } },
+    'Methodical':    { hint:'+20 Tech, -10 Speed', effect: { tech:+20, speed:-10 } },
+    'Creative':      { hint:'+20 Design, unlocks innovation', effect: { design:+20 } },
+    'Mentor':        { hint:'+1/wk growth to juniors on team', effect: {} },
     'Toxic':         { hint:'-0.5 morale/wk to every teammate on the same project', effect: {}, tag:'teamMoraleDrain' },
     'Team Player':   { hint:'+10% team synergy', effect: {} },
     'Veteran':       { hint:'+15% quality on sequels', effect: {} },
     'Negotiator':    { hint:'Asks for raises 2× as often; +0.1× salary', effect: {} },
-    'Lone Wolf':     { hint:'-5% synergy, +2 to solo work', effect: {} },
+    'Lone Wolf':     { hint:'-5% synergy, +20 to solo work', effect: {} },
   };
   const TRAIT_KEYS = Object.keys(TRAITS);
   window.TYCOON_TRAITS = TRAITS;
@@ -16007,15 +16460,18 @@ let _clockValidated = false;
   // ---------- Tier definitions ----------
   // Mirror of v1's 8 tiers but simplified for tycoon use.
   // statRange: hire-time stat range for each tier; statCap: max any stat reaches without promotion
+  // v11.2: stats scale 10x (10-100 per axis instead of 1-10) for finer
+  // granularity. All consumers (MC gates, school boosts, dev/polish formulas)
+  // were rescaled simultaneously so effective output/cost stays balanced.
   const TIERS = [
-    { idx:0, name:'Intern',             statRange:[1,3], statCap:3, baseSalary: 25000 },
-    { idx:1, name:'Junior Dev',         statRange:[2,4], statCap:4, baseSalary: 45000 },
-    { idx:2, name:'Mid-Level Dev',      statRange:[3,6], statCap:6, baseSalary: 70000 },
-    { idx:3, name:'Senior Dev',         statRange:[5,7], statCap:7, baseSalary: 120000 },
-    { idx:4, name:'Staff Engineer',     statRange:[6,8], statCap:8, baseSalary: 200000 },
-    { idx:5, name:'Principal Engineer', statRange:[7,9], statCap:9, baseSalary: 350000 },
-    { idx:6, name:'Tech Lead',          statRange:[8,10],statCap:10,baseSalary: 500000 },
-    { idx:7, name:'CTO',                statRange:[9,10],statCap:10,baseSalary: 800000 },
+    { idx:0, name:'Intern',             statRange:[10,30],  statCap:30,  baseSalary: 25000 },
+    { idx:1, name:'Junior Dev',         statRange:[20,40],  statCap:40,  baseSalary: 45000 },
+    { idx:2, name:'Mid-Level Dev',      statRange:[30,60],  statCap:60,  baseSalary: 70000 },
+    { idx:3, name:'Senior Dev',         statRange:[50,70],  statCap:70,  baseSalary: 120000 },
+    { idx:4, name:'Staff Engineer',     statRange:[60,80],  statCap:80,  baseSalary: 200000 },
+    { idx:5, name:'Principal Engineer', statRange:[70,90],  statCap:90,  baseSalary: 350000 },
+    { idx:6, name:'Tech Lead',          statRange:[80,100], statCap:100, baseSalary: 500000 },
+    { idx:7, name:'CTO',                statRange:[90,100], statCap:100, baseSalary: 800000 },
   ];
   window.TYCOON_TIERS = TIERS;
 
@@ -16088,24 +16544,24 @@ let _clockValidated = false;
     const baseStat = () => randInRange(lo, hi);
     const stats = { design: baseStat(), tech: baseStat(), speed: baseStat(), polish: baseStat() };
     // v11.1: specialty bias baked into base stats (replaces the old 1.5×/0.5×
-    // runtime multiplier in developOneWeek). Primary axis +2, other two
-    // quality axes -1 each. Primary may exceed statCap by 1 to reward
-    // specialization.
+    // runtime multiplier in developOneWeek). Primary axis +20, other two
+    // quality axes -10 each. Primary may exceed statCap by 10 to reward
+    // specialization. (v11.2: all numbers 10x for the 10-100 scale.)
     const sBias = specialtyStatBias(specialty);
     const primary = SPECIALTY_AXIS_LOCAL[specialty] || 'tech';
     for (const k of ['design','tech','polish','speed']) {
-      const cap = (k === primary) ? tierDef.statCap + 1 : tierDef.statCap;
+      const cap = (k === primary) ? tierDef.statCap + 10 : tierDef.statCap;
       stats[k] = Math.max(1, Math.min(cap, Math.round(stats[k] + (sBias[k] || 0))));
     }
     const bias = eduStatBias(edu, specialty);
     for (const k of ['design','tech','polish','speed']) {
-      const cap = (k === primary) ? tierDef.statCap + 1 : tierDef.statCap;
+      const cap = (k === primary) ? tierDef.statCap + 10 : tierDef.statCap;
       stats[k] = Math.max(1, Math.min(cap, Math.round(stats[k] + (bias[k] || 0))));
     }
-    // Self-taught high variance: random extreme in one stat
+    // Self-taught high variance: random extreme in one stat (v11.2: ±20 on 10-100 scale)
     if (edu === 0 && Math.random() < 0.3) {
       const k = randPick(['design','tech','polish','speed']);
-      stats[k] = Math.max(1, Math.min(tierDef.statCap, stats[k] + randInRange(-2, 2)));
+      stats[k] = Math.max(1, Math.min(tierDef.statCap, stats[k] + randInRange(-20, 20)));
     }
 
     // Traits: one visible pre-interview, one hidden until interview
@@ -16121,7 +16577,8 @@ let _clockValidated = false;
 
     // Base salary ask: tier base × stat modifier × personality × era inflation
     const statSum = stats.design + stats.tech + stats.speed + stats.polish;
-    const statMod = 1 + Math.max(0, (statSum - 20)) * 0.05; // each point above 20 = +5%
+    // v11.2: threshold / factor scaled 10x (stats now 10-100); each point above 200 = +0.5%
+    const statMod = 1 + Math.max(0, (statSum - 200)) * 0.005;
     const era = (S.calendar?.year || 1980);
     const inflation = Math.pow(1.03, era - 1980);
     const askingSalary = Math.round(tierDef.baseSalary * statMod * personalityMult * inflation);
@@ -16649,11 +17106,12 @@ let _clockValidated = false;
     c.fromAlumnus = alum.name;
     c.alumnusRank = alum.rank;
     c.alumnusFate = alum.fate;
-    // +2 stats across the board (seasoned pro) and +30% salary ask
+    // +20 stats across the board (seasoned pro) and +30% salary ask.
+    // v11.2: bumps / cap headroom / default cap 10x'd for the 10-100 stat scale.
     const TIERS = window.TYCOON_TIERS || [];
-    const cap = (TIERS[4]?.statCap || 8) + 1;
+    const cap = (TIERS[4]?.statCap || 80) + 10;
     for (const k of ['tech','design','polish','speed']) {
-      c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 2);
+      c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 20);
     }
     c.askingSalary = Math.round(c.askingSalary * 1.30);
     S.hiring.queue.push(c);
@@ -16796,20 +17254,21 @@ let _clockValidated = false;
     if (!emp) { removeOfferById(offerId); return { ok: false, error: 'Employee no longer on staff' }; }
     emp.salary = Math.round(offer.newSalary * 1.20);
     emp.morale = Math.max(emp.morale || 0, 85);
-    // Small stat boost — pick a random stat, +1 up to tier cap (uses NEW tier if promoting)
+    // Small stat boost — pick a random stat, +10 up to tier cap (uses NEW tier if promoting).
+    // v11.2: delta and default cap 10x'd to match the 10-100 stat scale.
     const TIERS = window.TYCOON_TIERS || [];
     if (offer.isPromotionRequest) {
       emp.tier = offer.newTier;
       emp.tierName = offer.newTierName || TIERS[offer.newTier]?.name || emp.tierName;
       emp.exp = 0;
     }
-    const cap = TIERS[emp.tier]?.statCap || 10;
+    const cap = TIERS[emp.tier]?.statCap || 100;
     const k = ['design','tech','polish','speed'][Math.floor(Math.random() * 4)];
-    if (emp.stats) emp.stats[k] = Math.min(cap, (emp.stats[k] || 0) + 1);
+    if (emp.stats) emp.stats[k] = Math.min(cap, (emp.stats[k] || 0) + 10);
     if (offer.isPromotionRequest) {
-      if (typeof log === 'function') log('\u2B06\uFE0F Over-promoted: ' + emp.name + ' \u2192 ' + emp.tierName + ' ($' + (emp.salary/1000).toFixed(0) + 'K, +' + k + ')');
+      if (typeof log === 'function') log('\u2B06\uFE0F Over-promoted: ' + emp.name + ' \u2192 ' + emp.tierName + ' ($' + (emp.salary/1000).toFixed(0) + 'K, +10 ' + k + ')');
     } else {
-      if (typeof log === 'function') log('\u{1F386} Exceeded ' + offer.rivalName + '\u2019s offer — ' + emp.name + ' feels valued at $' + (emp.salary/1000).toFixed(0) + 'K (+' + k + ')');
+      if (typeof log === 'function') log('\u{1F386} Exceeded ' + offer.rivalName + '\u2019s offer — ' + emp.name + ' feels valued at $' + (emp.salary/1000).toFixed(0) + 'K (+10 ' + k + ')');
     }
     removeOfferById(offerId);
     document.dispatchEvent(new CustomEvent('tycoon:offer-exceeded', { detail: { offer, employee: emp } }));
@@ -16910,11 +17369,12 @@ let _clockValidated = false;
       const pool = specPool[focus] || ['coder','frontend','backend'];
       const specialty = pool[Math.floor(Math.random() * pool.length)];
       const c = window.tycoonEmployees.generateCandidate({ tier, specialty });
-      // Bump each stat by 1 (clamped to tier cap + 1 for consistency)
+      // Bump each stat by 10 (clamped to tier cap + 10 for consistency).
+      // v11.2: delta / cap-headroom / default cap 10x'd for the 10-100 scale.
       const TIERS = window.TYCOON_TIERS || [];
-      const cap = (TIERS[tier]?.statCap || 10) + 1;
+      const cap = (TIERS[tier]?.statCap || 100) + 10;
       for (const k of ['design','tech','polish','speed']) {
-        c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 1);
+        c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 10);
       }
       c.askingSalary = Math.round(c.askingSalary * 1.20);
       c.fairId = ++S.hiring.fairIndex;
@@ -17952,8 +18412,10 @@ let _clockValidated = false;
     if (!node) { S.research.inProgress = null; return; }
     const eng = findEngineerOrFounder(ip.engineerId);
     if (!eng) { S.research.inProgress = null; return; }
-    // RP/week = engineer's Tech stat × some multiplier
-    const rpPerWeek = (eng.stats?.tech || 3) * 1.2;
+    // RP/week = engineer's Tech stat × some multiplier.
+    // v11.2: tech stat now on 10-100 scale (was 1-10); multiplier ÷ 10
+    // so the per-week RP output stays numerically identical per researcher.
+    const rpPerWeek = (eng.stats?.tech || 30) * 0.12;
     ip.rpEarned += rpPerWeek;
     if (ip.rpEarned >= node.rpCost) {
       completeResearch(ip.nodeId);
@@ -20703,8 +21165,8 @@ let _clockValidated = false;
           S.founder.tier = 2;
           S.founder.tierName = 'Mid-Level Dev';
           S.founder.exp = 3;
-          S.founder.stats.design += 1;
-          S.founder.stats.tech += 1;
+          S.founder.stats.design += 10;
+          S.founder.stats.tech += 10;
           S.founder.age = 28;
         }
         // Small Fame boost from reputation
@@ -20734,9 +21196,9 @@ let _clockValidated = false;
           S.founder.tier = 4;
           S.founder.tierName = 'Staff Engineer';
           S.founder.exp = 12;
-          S.founder.stats.design += 2;
-          S.founder.stats.tech += 3;
-          S.founder.stats.polish += 1;
+          S.founder.stats.design += 20;
+          S.founder.stats.tech += 30;
+          S.founder.stats.polish += 10;
           S.founder.age = 38;
         }
         // Starting team of 3 engineers
@@ -20787,9 +21249,9 @@ let _clockValidated = false;
           S.founder.tier = 5;
           S.founder.tierName = 'Principal Engineer';
           S.founder.exp = 25;
-          S.founder.stats.design += 3;
-          S.founder.stats.tech += 4;
-          S.founder.stats.polish += 2;
+          S.founder.stats.design += 30;
+          S.founder.stats.tech += 40;
+          S.founder.stats.polish += 20;
           S.founder.age = 48;
         }
         // Larger starting team (6 engineers, mix of specialties)
@@ -21411,14 +21873,15 @@ let _clockValidated = false;
 
   // Stat sum by band. Individual axis stats distributed around this sum,
   // with the high-passion axis getting more weight (see rollStats).
+  // v11.2: all sums 10x to match the 10-100 stat range.
   function statSumForBand(band) {
     switch (band) {
-      case 'top_extreme':    return 50 + Math.floor(Math.random() * 6);   // 50-55
-      case 'top_normal':     return 45 + Math.floor(Math.random() * 5);   // 45-49
-      case 'middle':         return 40 + Math.floor(Math.random() * 5);   // 40-44
-      case 'bottom_normal':  return 35 + Math.floor(Math.random() * 5);   // 35-39
-      case 'bottom_extreme': return 30 + Math.floor(Math.random() * 6);   // 30-35
-      default: return 42;
+      case 'top_extreme':    return 500 + Math.floor(Math.random() * 60);  // 500-559
+      case 'top_normal':     return 450 + Math.floor(Math.random() * 50);  // 450-499
+      case 'middle':         return 400 + Math.floor(Math.random() * 50);  // 400-449
+      case 'bottom_normal':  return 350 + Math.floor(Math.random() * 50);  // 350-399
+      case 'bottom_extreme': return 300 + Math.floor(Math.random() * 60);  // 300-359
+      default: return 420;
     }
   }
 
@@ -21503,15 +21966,16 @@ let _clockValidated = false;
     };
     const weights = AXES.map(weightFor);
     const total = weights.reduce((a, b) => a + b, 0);
-    // Distribute statSum proportionally, then nudge with ±2 jitter.
+    // Distribute statSum proportionally, then nudge with ±20 jitter.
+    // v11.2: jitter and floor scaled 10x to match the 10-100 stat range.
     const stats = {};
     let assigned = 0;
     AXES.forEach((axis, i) => {
       if (i === AXES.length - 1) {
-        stats[axis] = Math.max(5, statSum - assigned);
+        stats[axis] = Math.max(50, statSum - assigned);
       } else {
-        const v = Math.round((weights[i] / total) * statSum + (Math.random() * 4 - 2));
-        stats[axis] = Math.max(5, v);
+        const v = Math.round((weights[i] / total) * statSum + (Math.random() * 40 - 20));
+        stats[axis] = Math.max(50, v);
         assigned += stats[axis];
       }
     });
@@ -22252,14 +22716,14 @@ let _clockValidated = false;
           desc: 'Pre-unlocks three tier-1 research nodes for every future classmate.',
           effect: { kind: 'documentResearch', nodeIds: ['n_2d_sprites', 'n_text_parser', 'n_sound_chip'] } },
         { id: 'a_prof_tech', name: 'Hire Visiting Professor — Tech', cost: 2500,
-          desc: '+5 tech to every future classmate at enrollment.',
-          effect: { kind: 'statBoost', axis: 'tech', amount: 5 } },
+          desc: '+50 tech to every future classmate at enrollment.',
+          effect: { kind: 'statBoost', axis: 'tech', amount: 50 } },
         { id: 'a_prof_design', name: 'Hire Visiting Professor — Design', cost: 2500,
-          desc: '+5 design to every future classmate at enrollment.',
-          effect: { kind: 'statBoost', axis: 'design', amount: 5 } },
+          desc: '+50 design to every future classmate at enrollment.',
+          effect: { kind: 'statBoost', axis: 'design', amount: 50 } },
         { id: 'a_prof_polish', name: 'Hire Visiting Professor — Polish', cost: 2500,
-          desc: '+5 polish to every future classmate at enrollment.',
-          effect: { kind: 'statBoost', axis: 'polish', amount: 5 } },
+          desc: '+50 polish to every future classmate at enrollment.',
+          effect: { kind: 'statBoost', axis: 'polish', amount: 50 } },
         { id: 'a_faculty_chair', name: 'Endow Faculty Chair', cost: 10000,
           desc: 'Pre-unlocks three more early research nodes (on top of Foundational).',
           prereqs: ['a_prof_tech', 'a_prof_design', 'a_prof_polish'],
@@ -22771,10 +23235,11 @@ let _clockValidated = false;
       specialty,                 // auto-picked from passions
       tier: 1, tierName: 'Junior Dev', exp: 0,
       stats: {
-        tech:   classmate.stats.tech   || 10,
-        design: classmate.stats.design || 10,
-        polish: classmate.stats.polish || 10,
-        speed:  4,
+        // v11.2: fallbacks and speed scaled 10x (10-100 range).
+        tech:   classmate.stats.tech   || 100,
+        design: classmate.stats.design || 100,
+        polish: classmate.stats.polish || 100,
+        speed:  40,
       },
       morale: 70,
       age: classmate.age,
