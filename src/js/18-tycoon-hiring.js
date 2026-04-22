@@ -256,11 +256,12 @@
     c.fromAlumnus = alum.name;
     c.alumnusRank = alum.rank;
     c.alumnusFate = alum.fate;
-    // +2 stats across the board (seasoned pro) and +30% salary ask
+    // +20 stats across the board (seasoned pro) and +30% salary ask.
+    // v11.2: bumps / cap headroom / default cap 10x'd for the 10-100 stat scale.
     const TIERS = window.TYCOON_TIERS || [];
-    const cap = (TIERS[4]?.statCap || 8) + 1;
+    const cap = (TIERS[4]?.statCap || 80) + 10;
     for (const k of ['tech','design','polish','speed']) {
-      c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 2);
+      c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 20);
     }
     c.askingSalary = Math.round(c.askingSalary * 1.30);
     S.hiring.queue.push(c);
@@ -403,20 +404,21 @@
     if (!emp) { removeOfferById(offerId); return { ok: false, error: 'Employee no longer on staff' }; }
     emp.salary = Math.round(offer.newSalary * 1.20);
     emp.morale = Math.max(emp.morale || 0, 85);
-    // Small stat boost — pick a random stat, +1 up to tier cap (uses NEW tier if promoting)
+    // Small stat boost — pick a random stat, +10 up to tier cap (uses NEW tier if promoting).
+    // v11.2: delta and default cap 10x'd to match the 10-100 stat scale.
     const TIERS = window.TYCOON_TIERS || [];
     if (offer.isPromotionRequest) {
       emp.tier = offer.newTier;
       emp.tierName = offer.newTierName || TIERS[offer.newTier]?.name || emp.tierName;
       emp.exp = 0;
     }
-    const cap = TIERS[emp.tier]?.statCap || 10;
+    const cap = TIERS[emp.tier]?.statCap || 100;
     const k = ['design','tech','polish','speed'][Math.floor(Math.random() * 4)];
-    if (emp.stats) emp.stats[k] = Math.min(cap, (emp.stats[k] || 0) + 1);
+    if (emp.stats) emp.stats[k] = Math.min(cap, (emp.stats[k] || 0) + 10);
     if (offer.isPromotionRequest) {
-      if (typeof log === 'function') log('\u2B06\uFE0F Over-promoted: ' + emp.name + ' \u2192 ' + emp.tierName + ' ($' + (emp.salary/1000).toFixed(0) + 'K, +' + k + ')');
+      if (typeof log === 'function') log('\u2B06\uFE0F Over-promoted: ' + emp.name + ' \u2192 ' + emp.tierName + ' ($' + (emp.salary/1000).toFixed(0) + 'K, +10 ' + k + ')');
     } else {
-      if (typeof log === 'function') log('\u{1F386} Exceeded ' + offer.rivalName + '\u2019s offer — ' + emp.name + ' feels valued at $' + (emp.salary/1000).toFixed(0) + 'K (+' + k + ')');
+      if (typeof log === 'function') log('\u{1F386} Exceeded ' + offer.rivalName + '\u2019s offer — ' + emp.name + ' feels valued at $' + (emp.salary/1000).toFixed(0) + 'K (+10 ' + k + ')');
     }
     removeOfferById(offerId);
     document.dispatchEvent(new CustomEvent('tycoon:offer-exceeded', { detail: { offer, employee: emp } }));
@@ -517,11 +519,12 @@
       const pool = specPool[focus] || ['coder','frontend','backend'];
       const specialty = pool[Math.floor(Math.random() * pool.length)];
       const c = window.tycoonEmployees.generateCandidate({ tier, specialty });
-      // Bump each stat by 1 (clamped to tier cap + 1 for consistency)
+      // Bump each stat by 10 (clamped to tier cap + 10 for consistency).
+      // v11.2: delta / cap-headroom / default cap 10x'd for the 10-100 scale.
       const TIERS = window.TYCOON_TIERS || [];
-      const cap = (TIERS[tier]?.statCap || 10) + 1;
+      const cap = (TIERS[tier]?.statCap || 100) + 10;
       for (const k of ['design','tech','polish','speed']) {
-        c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 1);
+        c.hiddenStats[k] = Math.min(cap, (c.hiddenStats[k] || 0) + 10);
       }
       c.askingSalary = Math.round(c.askingSalary * 1.20);
       c.fairId = ++S.hiring.fairIndex;

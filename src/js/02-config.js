@@ -1,5 +1,5 @@
 // ========== CONFIG ==========
-const GAME_VERSION = '11.0';
+const GAME_VERSION = '11.2';
 
 // v7.5: Engineer types — coder is the original; others unlock by year (every 2 years from 1985).
 // Each type has its own resource, list of individuals, and ship threshold.

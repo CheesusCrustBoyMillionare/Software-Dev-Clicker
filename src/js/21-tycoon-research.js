@@ -203,8 +203,10 @@
     if (!node) { S.research.inProgress = null; return; }
     const eng = findEngineerOrFounder(ip.engineerId);
     if (!eng) { S.research.inProgress = null; return; }
-    // RP/week = engineer's Tech stat × some multiplier
-    const rpPerWeek = (eng.stats?.tech || 3) * 1.2;
+    // RP/week = engineer's Tech stat × some multiplier.
+    // v11.2: tech stat now on 10-100 scale (was 1-10); multiplier ÷ 10
+    // so the per-week RP output stays numerically identical per researcher.
+    const rpPerWeek = (eng.stats?.tech || 30) * 0.12;
     ip.rpEarned += rpPerWeek;
     if (ip.rpEarned >= node.rpCost) {
       completeResearch(ip.nodeId);

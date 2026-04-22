@@ -5,8 +5,12 @@
 //   v3 = roguelite layer — adds S.school persistent meta-state that
 //        survives across runs (bankruptcies spawn a new classmate instead
 //        of ending the game; see DESIGN_ROGUELITE.md for the full model).
+//   v4 = 10x stat rescale (1-10 axis stats → 10-100). All stored stats,
+//        mentor-growth pools and derived multipliers in-save get bulk 10x'd
+//        at load time; the rest of the codebase has matching data + formula
+//        updates so output/tick parity is preserved.
 // Migrations live in SCHEMA_MIGRATIONS below.
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const MIN_COMPATIBLE_SCHEMA = 1; // v1 saves flow through SCHEMA_MIGRATIONS[1] (wipe)
 
 // Default structure for the roguelite S.school container — the persistent
@@ -384,6 +388,61 @@ const SCHEMA_MIGRATIONS = {
     console.info('[schema] v2 tycoon save detected. Upgrading to v3 with empty S.school.');
     if (!d.school) d.school = defaultSchool();
     d.v = 3;
+    return d;
+  },
+  // v3 → v4: 10x stat rescale. All stored axis stats move from the old
+  // 1-10 range to the new 10-100 range so the finer-grained employee /
+  // founder / classmate stats match the rest of the codebase (MC gates,
+  // dev tick multipliers, mentor growth, etc.) which were rescaled in
+  // the same commit. Multiplying every stored stat by 10 is exactly
+  // right — formula multipliers were divided by 10 so per-tick outputs
+  // stay numerically identical. Idempotency relies on d.v < 4 gating.
+  3: function migrateStatScale10x(d) {
+    console.info('[schema] v3 save detected. Applying 10x stat rescale (→ v4).');
+    const AXES = ['tech','design','polish','speed'];
+    const scaleStats = (obj) => {
+      if (!obj || typeof obj !== 'object') return;
+      for (const k of AXES) {
+        if (typeof obj[k] === 'number') obj[k] = Math.round(obj[k] * 10);
+      }
+    };
+    // Founder stats
+    if (d.founder && d.founder.stats) scaleStats(d.founder.stats);
+    // Every employee
+    if (Array.isArray(d.employees)) {
+      for (const e of d.employees) {
+        if (e && e.stats) scaleStats(e.stats);
+        if (e && e.hiddenStats) scaleStats(e.hiddenStats);
+        // Mentor growth pool was 0-1 float; threshold is now 10 (was 1).
+        if (e && e.mentorGrowth) scaleStats(e.mentorGrowth);
+      }
+    }
+    // Pending hiring queue (candidates not yet hired)
+    if (d.hiring) {
+      const queues = [d.hiring.queue, d.hiring.outsideOffers, d.hiring.referrals];
+      for (const q of queues) {
+        if (!Array.isArray(q)) continue;
+        for (const c of q) {
+          if (!c) continue;
+          if (c.stats) scaleStats(c.stats);
+          if (c.hiddenStats) scaleStats(c.hiddenStats);
+        }
+      }
+    }
+    // School class roster — persistent alumni pool. Only quality axes
+    // (tech / design / polish) are stored per classmate; no speed.
+    if (d.school && Array.isArray(d.school.classRoster)) {
+      for (const c of d.school.classRoster) {
+        if (c && c.stats) scaleStats(c.stats);
+      }
+    }
+    // Alumni hall (historical snapshot cards)
+    if (d.school && Array.isArray(d.school.alumniHall)) {
+      for (const a of d.school.alumniHall) {
+        if (a && a.stats) scaleStats(a.stats);
+      }
+    }
+    d.v = 4;
     return d;
   },
 };

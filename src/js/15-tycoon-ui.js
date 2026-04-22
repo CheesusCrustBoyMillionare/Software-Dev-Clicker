@@ -1200,7 +1200,8 @@
       S.founder?.stats?.tech || 0,
       ...((S.employees || []).map(e => e.stats?.tech || 0))
     );
-    const bestRpPerWeek = bestTech * 1.2;
+    // v11.2: matches rpPerWeek formula in 21-tycoon-research.js (0.12 ÷ 10x stat scale).
+    const bestRpPerWeek = bestTech * 0.12;
 
     // Pioneer / Fast-Follower rollup — surfaces the current sales multiplier
     // the player has earned (or lost) from racing rivals on research.
@@ -1319,7 +1320,8 @@
         S.founder?.stats?.tech || 0,
         ...((S.employees || []).map(e => e.stats?.tech || 0))
       );
-      const rpPerWeek = bestTech * 1.2;
+      // v11.2: matches research rpPerWeek formula (0.12 for 10-100 stat scale).
+      const rpPerWeek = bestTech * 0.12;
       if (rpPerWeek > 0) {
         const wks = Math.ceil(node.rpCost / rpPerWeek);
         etaHint = ' · ~' + wks + ' week' + (wks === 1 ? '' : 's') + ' at best Tech';
@@ -1329,7 +1331,7 @@
         ? S.founder
         : (S.employees || []).find(e => e.id === ip.engineerId);
       const tech = eng?.stats?.tech || 0;
-      const rpPerWeek = tech * 1.2;
+      const rpPerWeek = tech * 0.12;
       if (rpPerWeek > 0) {
         const remaining = Math.max(0, node.rpCost - ip.rpEarned);
         const wks = Math.ceil(remaining / rpPerWeek);
@@ -1529,7 +1531,8 @@
 
     const TIERS = window.TYCOON_TIERS || [];
     const tierDef = TIERS[emp.tier] || {};
-    const statCap = tierDef.statCap || 10;
+    // v11.2: default cap is now 100 (was 10) to match the 10-100 stat scale.
+    const statCap = tierDef.statCap || 100;
 
     // Which project is this person on right now?
     const assignedProj = (S.projects?.active || []).find(p =>

@@ -45,8 +45,8 @@
           S.founder.tier = 2;
           S.founder.tierName = 'Mid-Level Dev';
           S.founder.exp = 3;
-          S.founder.stats.design += 1;
-          S.founder.stats.tech += 1;
+          S.founder.stats.design += 10;
+          S.founder.stats.tech += 10;
           S.founder.age = 28;
         }
         // Small Fame boost from reputation
@@ -76,9 +76,9 @@
           S.founder.tier = 4;
           S.founder.tierName = 'Staff Engineer';
           S.founder.exp = 12;
-          S.founder.stats.design += 2;
-          S.founder.stats.tech += 3;
-          S.founder.stats.polish += 1;
+          S.founder.stats.design += 20;
+          S.founder.stats.tech += 30;
+          S.founder.stats.polish += 10;
           S.founder.age = 38;
         }
         // Starting team of 3 engineers
@@ -129,9 +129,9 @@
           S.founder.tier = 5;
           S.founder.tierName = 'Principal Engineer';
           S.founder.exp = 25;
-          S.founder.stats.design += 3;
-          S.founder.stats.tech += 4;
-          S.founder.stats.polish += 2;
+          S.founder.stats.design += 30;
+          S.founder.stats.tech += 40;
+          S.founder.stats.polish += 20;
           S.founder.age = 48;
         }
         // Larger starting team (6 engineers, mix of specialties)

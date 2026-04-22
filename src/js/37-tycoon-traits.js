@@ -191,14 +191,15 @@
 
   // Stat sum by band. Individual axis stats distributed around this sum,
   // with the high-passion axis getting more weight (see rollStats).
+  // v11.2: all sums 10x to match the 10-100 stat range.
   function statSumForBand(band) {
     switch (band) {
-      case 'top_extreme':    return 50 + Math.floor(Math.random() * 6);   // 50-55
-      case 'top_normal':     return 45 + Math.floor(Math.random() * 5);   // 45-49
-      case 'middle':         return 40 + Math.floor(Math.random() * 5);   // 40-44
-      case 'bottom_normal':  return 35 + Math.floor(Math.random() * 5);   // 35-39
-      case 'bottom_extreme': return 30 + Math.floor(Math.random() * 6);   // 30-35
-      default: return 42;
+      case 'top_extreme':    return 500 + Math.floor(Math.random() * 60);  // 500-559
+      case 'top_normal':     return 450 + Math.floor(Math.random() * 50);  // 450-499
+      case 'middle':         return 400 + Math.floor(Math.random() * 50);  // 400-449
+      case 'bottom_normal':  return 350 + Math.floor(Math.random() * 50);  // 350-399
+      case 'bottom_extreme': return 300 + Math.floor(Math.random() * 60);  // 300-359
+      default: return 420;
     }
   }
 
@@ -283,15 +284,16 @@
     };
     const weights = AXES.map(weightFor);
     const total = weights.reduce((a, b) => a + b, 0);
-    // Distribute statSum proportionally, then nudge with ±2 jitter.
+    // Distribute statSum proportionally, then nudge with ±20 jitter.
+    // v11.2: jitter and floor scaled 10x to match the 10-100 stat range.
     const stats = {};
     let assigned = 0;
     AXES.forEach((axis, i) => {
       if (i === AXES.length - 1) {
-        stats[axis] = Math.max(5, statSum - assigned);
+        stats[axis] = Math.max(50, statSum - assigned);
       } else {
-        const v = Math.round((weights[i] / total) * statSum + (Math.random() * 4 - 2));
-        stats[axis] = Math.max(5, v);
+        const v = Math.round((weights[i] / total) * statSum + (Math.random() * 40 - 20));
+        stats[axis] = Math.max(50, v);
         assigned += stats[axis];
       }
     });

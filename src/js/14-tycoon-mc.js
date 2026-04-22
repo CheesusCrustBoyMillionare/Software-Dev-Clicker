@@ -18,8 +18,8 @@
       answers: [
         { text: 'Password codes (1980s-style; cheap)', effects: { design:-5, polish:-2, tech:-2 } },
         { text: 'Cassette / floppy save file',          effects: { polish:+5, tech:+2 } },
-        { text: 'Sophisticated save slots + metadata',  effects: { polish:+10, design:+3, tech:+4, bugs:+2 }, gate: { statMin: { tech: 5 } } },
-        { text: 'Cloud sync across devices',            effects: { polish:+14, tech:+12, bugs:+4 }, gate: { eraMin: 2008, statMin: { tech: 7 } } },
+        { text: 'Sophisticated save slots + metadata',  effects: { polish:+10, design:+3, tech:+4, bugs:+2 }, gate: { statMin: { tech: 50 } } },
+        { text: 'Cloud sync across devices',            effects: { polish:+14, tech:+12, bugs:+4 }, gate: { eraMin: 2008, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -29,7 +29,7 @@
       answers: [
         { text: 'Silent — let gameplay speak',          effects: { design:-5, polish:+3 } },
         { text: 'Chiptune (era-authentic)',             effects: { design:+8, polish:+5 } },
-        { text: 'Synthesized orchestral (ambitious)',   effects: { design:+14, polish:+2, bugs:+3 }, gate: { statMin: { design: 5 } } },
+        { text: 'Synthesized orchestral (ambitious)',   effects: { design:+14, polish:+2, bugs:+3 }, gate: { statMin: { design: 50 } } },
         { text: 'Licensed band soundtrack',             effects: { design:+18, polish:+6 }, gate: { eraMin: 1994, traitRequired: 'Networker' } },
       ]
     },
@@ -40,8 +40,8 @@
       answers: [
         { text: 'Shared keyboard / same machine',       effects: { design:+5, tech:-2 } },
         { text: 'Serial cable / null modem',            effects: { design:+10, tech:+8, bugs:+2 } },
-        { text: 'Dialup / BBS lobby system',            effects: { design:+15, tech:+12, bugs:+5, polish:-3 }, gate: { statMin: { tech: 6 } } },
-        { text: 'Dedicated master-server matchmaking',  effects: { design:+18, tech:+16, bugs:+6, polish:+4 }, gate: { eraMin: 2000, statMin: { tech: 8 } } },
+        { text: 'Dialup / BBS lobby system',            effects: { design:+15, tech:+12, bugs:+5, polish:-3 }, gate: { statMin: { tech: 60 } } },
+        { text: 'Dedicated master-server matchmaking',  effects: { design:+18, tech:+16, bugs:+6, polish:+4 }, gate: { eraMin: 2000, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -51,7 +51,7 @@
       answers: [
         { text: 'Nintendo-hard — reward mastery',       effects: { design:+8, polish:-2 } },
         { text: 'Gradual ramp — welcoming',             effects: { design:+6, polish:+4 } },
-        { text: 'Adaptive — tracks player skill',       effects: { design:+12, tech:+6, bugs:+3 }, gate: { statMin: { tech: 5 } } },
+        { text: 'Adaptive — tracks player skill',       effects: { design:+12, tech:+6, bugs:+3 }, gate: { statMin: { tech: 50 } } },
         { text: 'Player-selectable difficulty',         effects: { design:+9, polish:+7, bugs:+2 } },
       ]
     },
@@ -62,8 +62,8 @@
       answers: [
         { text: 'Hardcoded layouts (fast, rigid)',      effects: { tech:+5, polish:+3 } },
         { text: 'Template system with variables',       effects: { tech:+10, design:+6 } },
-        { text: 'Full scripting engine for users',      effects: { tech:+15, design:+10, bugs:+5 }, gate: { statMin: { tech: 7 } } },
-        { text: 'Drag-and-drop pivot builder',          effects: { tech:+12, design:+14, polish:+6, bugs:+3 }, gate: { eraMin: 2005, statMin: { design: 5 } } },
+        { text: 'Full scripting engine for users',      effects: { tech:+15, design:+10, bugs:+5 }, gate: { statMin: { tech: 70 } } },
+        { text: 'Drag-and-drop pivot builder',          effects: { tech:+12, design:+14, polish:+6, bugs:+3 }, gate: { eraMin: 2005, statMin: { design: 50 } } },
       ]
     },
     // ----- More feature-triggered (game) -----
@@ -82,7 +82,7 @@
       answers: [
         { text: 'Fixed stats — skill is the player',            effects: { design:+5, polish:+4 } },
         { text: 'XP + levels with skill trees',                 effects: { design:+11, tech:+5, bugs:+2 } },
-        { text: 'Open attribute system — any build',            effects: { design:+15, tech:+8, bugs:+4 }, gate: { statMin: { design: 6 } } },
+        { text: 'Open attribute system — any build',            effects: { design:+15, tech:+8, bugs:+4 }, gate: { statMin: { design: 60 } } },
       ]
     },
     {
@@ -90,8 +90,8 @@
       text: 'Level design philosophy?',
       answers: [
         { text: 'Handcrafted linear levels',                    effects: { design:+10, polish:+6, tech:-1 } },
-        { text: 'Open world — one massive map',                 effects: { design:+14, tech:+10, polish:-3, bugs:+5 }, gate: { statMin: { design: 6 } } },
-        { text: 'Procedurally generated',                       effects: { design:+7, tech:+14, bugs:+6, polish:-2 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Open world — one massive map',                 effects: { design:+14, tech:+10, polish:-3, bugs:+5 }, gate: { statMin: { design: 60 } } },
+        { text: 'Procedurally generated',                       effects: { design:+7, tech:+14, bugs:+6, polish:-2 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -109,7 +109,7 @@
       answers: [
         { text: 'Stock library samples',                        effects: { polish:+3, design:-2 } },
         { text: 'Record custom foley in-office',                effects: { polish:+9, design:+4 } },
-        { text: 'Hire a professional sound designer',           effects: { polish:+14, design:+8, bugs:-1 }, gate: { statMin: { polish: 6 } } },
+        { text: 'Hire a professional sound designer',           effects: { polish:+14, design:+8, bugs:-1 }, gate: { statMin: { polish: 60 } } },
       ]
     },
     // ----- Feature-triggered (business) -----
@@ -119,7 +119,7 @@
       answers: [
         { text: 'Dot-matrix monospace dump',                    effects: { polish:-3, tech:+1 } },
         { text: 'Laser-printer WYSIWYG layouts',                effects: { polish:+10, tech:+6 }, gate: { eraMin: 1985 } },
-        { text: 'PDF export with fonts embedded',               effects: { polish:+14, tech:+10 }, gate: { eraMin: 1994, statMin: { tech: 5 } } },
+        { text: 'PDF export with fonts embedded',               effects: { polish:+14, tech:+10 }, gate: { eraMin: 1994, statMin: { tech: 50 } } },
       ]
     },
     {
@@ -128,7 +128,7 @@
       answers: [
         { text: 'Keystroke recorder only',                      effects: { tech:+3, polish:+4 } },
         { text: 'BASIC-style macro dialect',                    effects: { tech:+10, design:+5, bugs:+2 } },
-        { text: 'Embed a real scripting runtime',               effects: { tech:+16, design:+8, bugs:+6 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Embed a real scripting runtime',               effects: { tech:+16, design:+8, bugs:+6 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -137,7 +137,7 @@
       answers: [
         { text: 'All-or-nothing admin flag',                    effects: { tech:+2, polish:+2, bugs:-1 } },
         { text: 'Role-based access control',                    effects: { tech:+10, design:+6, polish:+4 } },
-        { text: 'Attribute-based, policy-as-code',              effects: { tech:+15, design:+8, bugs:+4 }, gate: { eraMin: 2012, statMin: { tech: 7 } } },
+        { text: 'Attribute-based, policy-as-code',              effects: { tech:+15, design:+8, bugs:+4 }, gate: { eraMin: 2012, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -146,7 +146,7 @@
       answers: [
         { text: 'Only who logged in',                           effects: { tech:+2, polish:+1 } },
         { text: 'Every mutation with before/after',             effects: { tech:+9, polish:+6, bugs:+1 } },
-        { text: 'Tamper-evident hash chain',                    effects: { tech:+14, design:+5, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 7 } } },
+        { text: 'Tamper-evident hash chain',                    effects: { tech:+14, design:+5, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -155,7 +155,7 @@
       answers: [
         { text: 'CSV only — keep it simple',                    effects: { tech:+3, polish:+4 } },
         { text: 'CSV + Excel + tab-delimited',                  effects: { tech:+8, polish:+7, bugs:+1 } },
-        { text: 'Parse anything — even user-uploaded PDFs',     effects: { tech:+14, polish:+8, bugs:+6 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Parse anything — even user-uploaded PDFs',     effects: { tech:+14, polish:+8, bugs:+6 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     // ----- Feature-triggered (web/mobile/saas) -----
@@ -165,7 +165,7 @@
       answers: [
         { text: 'Username + password',                          effects: { tech:+4, polish:+3 } },
         { text: 'Email magic link',                             effects: { tech:+8, design:+5, polish:+4 }, gate: { eraMin: 2010 } },
-        { text: 'Passkeys / WebAuthn',                          effects: { tech:+14, polish:+10, design:+6 }, gate: { eraMin: 2019, statMin: { tech: 6 } } },
+        { text: 'Passkeys / WebAuthn',                          effects: { tech:+14, polish:+10, design:+6 }, gate: { eraMin: 2019, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -174,7 +174,7 @@
       answers: [
         { text: 'SOAP / XML-RPC',                               effects: { tech:+5, polish:-2, bugs:+1 }, gate: { eraMax: 2005 } },
         { text: 'REST with JSON',                               effects: { tech:+10, design:+6, polish:+4 }, gate: { eraMin: 2005 } },
-        { text: 'GraphQL with typed schema',                    effects: { tech:+14, design:+9, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 6 } } },
+        { text: 'GraphQL with typed schema',                    effects: { tech:+14, design:+9, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -183,7 +183,7 @@
       answers: [
         { text: 'Hit counter on the homepage',                  effects: { tech:+2, polish:+1 }, gate: { eraMax: 2002 } },
         { text: 'Google Analytics — free + easy',               effects: { tech:+6, design:+5, polish:+3 }, gate: { eraMin: 2005 } },
-        { text: 'Self-hosted event pipeline',                   effects: { tech:+12, design:+7, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 6 } } },
+        { text: 'Self-hosted event pipeline',                   effects: { tech:+12, design:+7, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -210,7 +210,7 @@
       answers: [
         { text: 'Online-only — simpler',                        effects: { tech:+3, polish:+2 } },
         { text: 'Cache read-only data locally',                 effects: { tech:+9, polish:+7, bugs:+2 } },
-        { text: 'Full offline-first CRDT sync',                 effects: { tech:+16, design:+8, polish:+6, bugs:+6 }, gate: { eraMin: 2018, statMin: { tech: 7 } } },
+        { text: 'Full offline-first CRDT sync',                 effects: { tech:+16, design:+8, polish:+6, bugs:+6 }, gate: { eraMin: 2018, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -219,7 +219,7 @@
       answers: [
         { text: 'Empty dashboard — users figure it out',        effects: { tech:+2, polish:-4 } },
         { text: 'Interactive walkthrough tooltips',             effects: { design:+8, polish:+8, bugs:+1 } },
-        { text: 'Sample project preloaded in account',          effects: { design:+12, polish:+10, tech:+4 }, gate: { statMin: { design: 5 } } },
+        { text: 'Sample project preloaded in account',          effects: { design:+12, polish:+10, tech:+4 }, gate: { statMin: { design: 50 } } },
       ]
     },
     {
@@ -228,7 +228,7 @@
       answers: [
         { text: 'Skip — friction for small teams',              effects: { tech:+2, polish:+1 } },
         { text: 'OAuth with Google + Microsoft',                effects: { tech:+9, design:+5 }, gate: { eraMin: 2012 } },
-        { text: 'Full SAML + SCIM provisioning',                effects: { tech:+15, polish:+7, bugs:+4 }, gate: { eraMin: 2015, statMin: { tech: 7 } } },
+        { text: 'Full SAML + SCIM provisioning',                effects: { tech:+15, polish:+7, bugs:+4 }, gate: { eraMin: 2015, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -246,7 +246,7 @@
       answers: [
         { text: 'sendmail on the app server',                   effects: { tech:+2, bugs:+3, polish:-1 }, gate: { eraMax: 2010 } },
         { text: 'SMTP provider (Mandrill / SendGrid)',          effects: { tech:+8, polish:+5 }, gate: { eraMin: 2010 } },
-        { text: 'Full lifecycle platform with templates',       effects: { tech:+11, design:+8, polish:+7 }, gate: { eraMin: 2015, statMin: { tech: 5 } } },
+        { text: 'Full lifecycle platform with templates',       effects: { tech:+11, design:+8, polish:+7 }, gate: { eraMin: 2015, statMin: { tech: 50 } } },
       ]
     },
     {
@@ -255,7 +255,7 @@
       answers: [
         { text: 'Accept cheques by mail',                       effects: { tech:-2, polish:-3 }, gate: { eraMax: 1998 } },
         { text: 'Drop in Stripe checkout',                      effects: { tech:+9, polish:+8, design:+5 }, gate: { eraMin: 2011 } },
-        { text: 'Custom PCI-compliant tokenization',            effects: { tech:+15, polish:+6, bugs:+6 }, gate: { statMin: { tech: 8 } } },
+        { text: 'Custom PCI-compliant tokenization',            effects: { tech:+15, polish:+6, bugs:+6 }, gate: { statMin: { tech: 80 } } },
       ]
     },
     {
@@ -264,7 +264,7 @@
       answers: [
         { text: 'SQL LIKE queries — good enough',               effects: { tech:+3, polish:-1 } },
         { text: 'Full-text index (Lucene/Postgres)',            effects: { tech:+10, polish:+7 } },
-        { text: 'Elasticsearch / vector search',                effects: { tech:+15, polish:+10, bugs:+4 }, gate: { eraMin: 2014, statMin: { tech: 7 } } },
+        { text: 'Elasticsearch / vector search',                effects: { tech:+15, polish:+10, bugs:+4 }, gate: { eraMin: 2014, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -273,7 +273,7 @@
       answers: [
         { text: 'Just share-links to copy',                     effects: { polish:+4, design:+2 } },
         { text: 'Comments + likes + follow graph',              effects: { design:+10, tech:+8, polish:+4, bugs:+3 } },
-        { text: 'Full in-app messaging + feed',                 effects: { design:+14, tech:+14, polish:+3, bugs:+6 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Full in-app messaging + feed',                 effects: { design:+14, tech:+14, polish:+3, bugs:+6 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -291,7 +291,7 @@
       answers: [
         { text: 'Top-down / isometric',                         effects: { design:+6, tech:+3, polish:+4 } },
         { text: 'Third-person behind the back',                 effects: { design:+11, tech:+8, bugs:+3 } },
-        { text: 'First-person — full immersion',                effects: { design:+14, tech:+10, polish:-2, bugs:+5 }, gate: { statMin: { tech: 6 } } },
+        { text: 'First-person — full immersion',                effects: { design:+14, tech:+10, polish:-2, bugs:+5 }, gate: { statMin: { tech: 60 } } },
       ]
     },
     {
@@ -300,7 +300,7 @@
       answers: [
         { text: 'F1 opens a static HTML page',                  effects: { tech:+1, polish:-2 } },
         { text: 'Context tooltips on hover',                    effects: { design:+6, polish:+8, tech:+3 } },
-        { text: 'Searchable help center + videos',              effects: { design:+10, polish:+12, tech:+4 }, gate: { statMin: { polish: 5 } } },
+        { text: 'Searchable help center + videos',              effects: { design:+10, polish:+12, tech:+4 }, gate: { statMin: { polish: 50 } } },
       ]
     },
     {
@@ -309,7 +309,7 @@
       answers: [
         { text: 'Blank slate — user-driven',                    effects: { polish:-2, tech:+1 } },
         { text: 'Five handcrafted starters',                    effects: { design:+8, polish:+7 } },
-        { text: 'Crowdsourced template marketplace',            effects: { design:+12, tech:+8, bugs:+3 }, gate: { eraMin: 2010, statMin: { design: 6 } } },
+        { text: 'Crowdsourced template marketplace',            effects: { design:+12, tech:+8, bugs:+3 }, gate: { eraMin: 2010, statMin: { design: 60 } } },
       ]
     },
     {
@@ -318,7 +318,7 @@
       answers: [
         { text: 'Single-user only',                             effects: { polish:+2, tech:+1 } },
         { text: 'Shared docs with permissions',                 effects: { design:+9, tech:+8 } },
-        { text: 'Realtime CRDT coediting (Google-docs)',        effects: { design:+14, tech:+15, polish:+6, bugs:+5 }, gate: { eraMin: 2015, statMin: { tech: 8 } } },
+        { text: 'Realtime CRDT coediting (Google-docs)',        effects: { design:+14, tech:+15, polish:+6, bugs:+5 }, gate: { eraMin: 2015, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -327,7 +327,7 @@
       answers: [
         { text: 'Shared DB, tenant_id column',                  effects: { tech:+6, polish:+3, bugs:+2 } },
         { text: 'Schema-per-tenant',                            effects: { tech:+10, polish:+5, bugs:+3 } },
-        { text: 'Container-per-tenant (fort knox)',             effects: { tech:+15, polish:+7, bugs:+5 }, gate: { statMin: { tech: 8 } } },
+        { text: 'Container-per-tenant (fort knox)',             effects: { tech:+15, polish:+7, bugs:+5 }, gate: { statMin: { tech: 80 } } },
       ]
     },
     {
@@ -355,7 +355,7 @@
       answers: [
         { text: 'CPU inference — cheap at launch',              effects: { tech:+4, polish:-2 } },
         { text: 'GPU cluster in one region',                    effects: { tech:+10, polish:+5, bugs:+3 }, gate: { eraMin: 2015 } },
-        { text: 'Edge inference + model distillation',          effects: { tech:+16, polish:+10, bugs:+4 }, gate: { eraMin: 2020, statMin: { tech: 8 } } },
+        { text: 'Edge inference + model distillation',          effects: { tech:+16, polish:+10, bugs:+4 }, gate: { eraMin: 2020, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -364,7 +364,7 @@
       answers: [
         { text: 'Base model + clever prompts',                  effects: { tech:+6, polish:+5, design:+3 } },
         { text: 'LoRA adapters per customer',                   effects: { tech:+11, design:+6, bugs:+3 }, gate: { eraMin: 2022 } },
-        { text: 'Full fine-tune + RLHF',                        effects: { tech:+18, design:+10, bugs:+6 }, gate: { eraMin: 2022, statMin: { tech: 8 } } },
+        { text: 'Full fine-tune + RLHF',                        effects: { tech:+18, design:+10, bugs:+6 }, gate: { eraMin: 2022, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -373,7 +373,7 @@
       answers: [
         { text: 'Nothing — user problem',                       effects: { tech:+2, polish:-5, morale:-5 } },
         { text: 'Keyword blocklist',                            effects: { tech:+4, polish:+3 } },
-        { text: 'Classifier + human review pipeline',           effects: { tech:+12, design:+8, polish:+10 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Classifier + human review pipeline',           effects: { tech:+12, design:+8, polish:+10 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -382,7 +382,7 @@
       answers: [
         { text: 'Text only — focus',                            effects: { tech:+4, polish:+4 } },
         { text: 'Text + image (vision)',                        effects: { tech:+10, design:+8, bugs:+3 }, gate: { eraMin: 2022 } },
-        { text: 'Text + image + audio + video',                 effects: { tech:+16, design:+12, polish:-2, bugs:+6 }, gate: { eraMin: 2023, statMin: { tech: 8 } } },
+        { text: 'Text + image + audio + video',                 effects: { tech:+16, design:+12, polish:-2, bugs:+6 }, gate: { eraMin: 2023, statMin: { tech: 80 } } },
       ]
     },
 
@@ -394,8 +394,8 @@
       answers: [
         { text: 'Text / ASCII only',                    effects: { design:-5, tech:-3, polish:+3 } },
         { text: 'Simple 2D sprites',                    effects: { design:+6, polish:+3 } },
-        { text: 'Detailed pixel art',                   effects: { design:+14, polish:+8, bugs:+2 }, gate: { statMin: { design: 5 } } },
-        { text: 'Full 3D with lighting',                effects: { design:+17, tech:+12, polish:+5, bugs:+5 }, gate: { eraMin: 1996, statMin: { tech: 6 } } },
+        { text: 'Detailed pixel art',                   effects: { design:+14, polish:+8, bugs:+2 }, gate: { statMin: { design: 50 } } },
+        { text: 'Full 3D with lighting',                effects: { design:+17, tech:+12, polish:+5, bugs:+5 }, gate: { eraMin: 1996, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -404,7 +404,7 @@
       answers: [
         { text: 'Menu-driven (F-keys)',                 effects: { design:+3, polish:+3, tech:-2 } },
         { text: 'Ribbon-style toolbar',                 effects: { design:+8, polish:+6 }, gate: { eraMin: 2007 } },
-        { text: 'Full mouse-driven WYSIWYG',            effects: { design:+12, tech:+8, polish:+4, bugs:+4 }, gate: { statMin: { tech: 5 } } },
+        { text: 'Full mouse-driven WYSIWYG',            effects: { design:+12, tech:+8, polish:+4, bugs:+4 }, gate: { statMin: { tech: 50 } } },
         { text: 'Command palette (VS Code-style)',      effects: { design:+11, tech:+6, polish:+9 }, gate: { eraMin: 2018, traitRequired: 'Eccentric' } },
       ]
     },
@@ -424,8 +424,8 @@
       answers: [
         { text: 'Play it a lot ourselves',              effects: { polish:+3, bugs:-2 } },
         { text: 'Friends and family beta',              effects: { polish:+7, design:+3, bugs:-5 } },
-        { text: 'Formal QA pass with checklist',        effects: { polish:+12, bugs:-10 }, gate: { statMin: { polish: 5 } } },
-        { text: 'Automated test suite + CI',            effects: { tech:+10, polish:+8, bugs:-12 }, gate: { eraMin: 2010, statMin: { tech: 6 } } },
+        { text: 'Formal QA pass with checklist',        effects: { polish:+12, bugs:-10 }, gate: { statMin: { polish: 50 } } },
+        { text: 'Automated test suite + CI',            effects: { tech:+10, polish:+8, bugs:-12 }, gate: { eraMin: 2010, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -463,7 +463,7 @@
       answers: [
         { text: 'No bosses — it\u2019s a vibe game',            effects: { design:+4, polish:+2 } },
         { text: 'Pattern-memorization bosses',                  effects: { design:+10, polish:+6, bugs:+2 } },
-        { text: 'Emergent boss behaviors from ecosystem',       effects: { design:+16, tech:+10, bugs:+5 }, gate: { statMin: { design: 7 } } },
+        { text: 'Emergent boss behaviors from ecosystem',       effects: { design:+16, tech:+10, bugs:+5 }, gate: { statMin: { design: 70 } } },
       ]
     },
     {
@@ -472,7 +472,7 @@
       answers: [
         { text: 'Patrol patterns on fixed paths',               effects: { tech:+4, design:+3 } },
         { text: 'Finite-state machines with alertness',         effects: { tech:+10, design:+7, bugs:+2 } },
-        { text: 'Utility-based AI with behavior trees',         effects: { tech:+15, design:+10, bugs:+4 }, gate: { statMin: { tech: 6 } } },
+        { text: 'Utility-based AI with behavior trees',         effects: { tech:+15, design:+10, bugs:+4 }, gate: { statMin: { tech: 60 } } },
       ]
     },
     {
@@ -481,7 +481,7 @@
       answers: [
         { text: 'Text only — player reads',                     effects: { polish:-1, tech:+1 } },
         { text: 'Programmer-voiced placeholders shipped',       effects: { polish:-3, design:-2, morale:-3 } },
-        { text: 'Full voiced cast with SAG talent',             effects: { polish:+13, design:+9 }, gate: { eraMin: 1995, statMin: { polish: 5 } } },
+        { text: 'Full voiced cast with SAG talent',             effects: { polish:+13, design:+9 }, gate: { eraMin: 1995, statMin: { polish: 50 } } },
       ]
     },
     {
@@ -490,7 +490,7 @@
       answers: [
         { text: 'Text-only with portraits',                     effects: { polish:+2, design:+2 } },
         { text: 'Pre-rendered CG',                              effects: { polish:+11, design:+7 }, gate: { eraMin: 1993 } },
-        { text: 'In-engine scripted with mocap',                effects: { polish:+14, tech:+10, bugs:+4 }, gate: { eraMin: 2000, statMin: { tech: 6 } } },
+        { text: 'In-engine scripted with mocap',                effects: { polish:+14, tech:+10, bugs:+4 }, gate: { eraMin: 2000, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -499,7 +499,7 @@
       answers: [
         { text: 'Instant game over — respect the player\u2019s time', effects: { design:+5, polish:-1 } },
         { text: 'Checkpoints every 5 minutes',                  effects: { design:+8, polish:+7 } },
-        { text: 'Roguelike permadeath + meta progression',      effects: { design:+14, tech:+6, bugs:+3 }, gate: { statMin: { design: 6 } } },
+        { text: 'Roguelike permadeath + meta progression',      effects: { design:+14, tech:+6, bugs:+3 }, gate: { statMin: { design: 60 } } },
       ]
     },
     {
@@ -526,7 +526,7 @@
       answers: [
         { text: 'English only',                                 effects: { tech:+2, polish:+1 } },
         { text: 'Five major European languages',                effects: { tech:+6, design:+5, polish:+4 } },
-        { text: 'Full 30+ language support with RTL',           effects: { tech:+14, design:+8, polish:+7, bugs:+4 }, gate: { statMin: { polish: 6 } } },
+        { text: 'Full 30+ language support with RTL',           effects: { tech:+14, design:+8, polish:+7, bugs:+4 }, gate: { statMin: { polish: 60 } } },
       ]
     },
     {
@@ -544,7 +544,7 @@
       answers: [
         { text: 'Closed — no mods',                             effects: { tech:+2, polish:+1 } },
         { text: 'File-format documentation',                    effects: { tech:+6, design:+4 } },
-        { text: 'Official mod SDK + Workshop integration',      effects: { tech:+12, design:+11, bugs:+3 }, gate: { eraMin: 2005, statMin: { tech: 6 } } },
+        { text: 'Official mod SDK + Workshop integration',      effects: { tech:+12, design:+11, bugs:+3 }, gate: { eraMin: 2005, statMin: { tech: 60 } } },
       ]
     },
     {
@@ -553,7 +553,7 @@
       answers: [
         { text: 'Photorealistic push',                          effects: { design:+10, tech:+8, bugs:+3 }, gate: { eraMin: 2004 } },
         { text: 'Bold stylized — ages well',                    effects: { design:+14, polish:+8 } },
-        { text: 'Hand-drawn 2D animation',                      effects: { design:+12, polish:+12 }, gate: { statMin: { design: 6 } } },
+        { text: 'Hand-drawn 2D animation',                      effects: { design:+12, polish:+12 }, gate: { statMin: { design: 60 } } },
       ]
     },
     {
@@ -571,7 +571,7 @@
       answers: [
         { text: 'No physics — tile-based movement',             effects: { tech:+3, polish:+4 } },
         { text: 'License Havok / existing engine',              effects: { tech:+10, polish:+6 }, gate: { eraMin: 2000 } },
-        { text: 'Roll our own with verlet integration',         effects: { tech:+15, bugs:+6, polish:-1 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Roll our own with verlet integration',         effects: { tech:+15, bugs:+6, polish:-1 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     // --- Business 'any' ---
@@ -590,7 +590,7 @@
       answers: [
         { text: 'Single-user, local files',                     effects: { tech:+3, polish:+4 } },
         { text: 'LAN file-sharing with record locks',           effects: { tech:+10, bugs:+3 } },
-        { text: 'Client-server with a daemon',                  effects: { tech:+15, polish:+6, bugs:+5 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Client-server with a daemon',                  effects: { tech:+15, polish:+6, bugs:+5 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -599,7 +599,7 @@
       answers: [
         { text: 'User\u2019s problem',                          effects: { tech:+1 } },
         { text: 'Daily copy to a separate file',                effects: { tech:+5, polish:+5 } },
-        { text: 'Full versioned history with undo',             effects: { tech:+12, design:+7, bugs:+4 }, gate: { statMin: { tech: 6 } } },
+        { text: 'Full versioned history with undo',             effects: { tech:+12, design:+7, bugs:+4 }, gate: { statMin: { tech: 60 } } },
       ]
     },
     {
@@ -608,7 +608,7 @@
       answers: [
         { text: 'Flat files with indexes',                      effects: { tech:+4, polish:+1, bugs:+2 } },
         { text: 'Embedded SQL (SQLite-style)',                  effects: { tech:+9, polish:+6 }, gate: { eraMin: 1998 } },
-        { text: 'Full client-server (Oracle / Postgres)',       effects: { tech:+14, polish:+5, bugs:+3 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Full client-server (Oracle / Postgres)',       effects: { tech:+14, polish:+5, bugs:+3 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -645,7 +645,7 @@
       answers: [
         { text: 'Classic server-rendered pages',                effects: { tech:+6, polish:+3 } },
         { text: 'Client-rendered SPA',                          effects: { tech:+9, design:+5, polish:-2, bugs:+2 }, gate: { eraMin: 2013 } },
-        { text: 'Isomorphic SSR with hydration',                effects: { tech:+14, design:+9, polish:+6, bugs:+4 }, gate: { eraMin: 2016, statMin: { tech: 7 } } },
+        { text: 'Isomorphic SSR with hydration',                effects: { tech:+14, design:+9, polish:+6, bugs:+4 }, gate: { eraMin: 2016, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -654,7 +654,7 @@
       answers: [
         { text: 'One server, one region',                       effects: { tech:+3, polish:+1 } },
         { text: 'CloudFront / Cloudflare CDN',                  effects: { tech:+9, polish:+8 }, gate: { eraMin: 2009 } },
-        { text: 'Edge workers with per-POP compute',            effects: { tech:+14, polish:+10, bugs:+3 }, gate: { eraMin: 2018, statMin: { tech: 7 } } },
+        { text: 'Edge workers with per-POP compute',            effects: { tech:+14, polish:+10, bugs:+3 }, gate: { eraMin: 2018, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -672,7 +672,7 @@
       answers: [
         { text: 'Community self-polices',                       effects: { tech:+2, morale:+3 } },
         { text: 'Flagging queue with small moderator team',     effects: { tech:+6, design:+5, polish:+4 } },
-        { text: 'ML classifier + human escalation tiers',       effects: { tech:+13, design:+9, polish:+5 }, gate: { eraMin: 2015, statMin: { tech: 7 } } },
+        { text: 'ML classifier + human escalation tiers',       effects: { tech:+13, design:+9, polish:+5 }, gate: { eraMin: 2015, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -681,7 +681,7 @@
       answers: [
         { text: 'Ship and measure with analytics',              effects: { tech:+3, polish:+2 } },
         { text: 'Feature flags with a/b toggles',               effects: { tech:+9, design:+5, polish:+4 }, gate: { eraMin: 2013 } },
-        { text: 'Full stat-sig platform with guardrail metrics', effects: { tech:+13, polish:+6 }, gate: { eraMin: 2018, statMin: { tech: 7 } } },
+        { text: 'Full stat-sig platform with guardrail metrics', effects: { tech:+13, polish:+6 }, gate: { eraMin: 2018, statMin: { tech: 70 } } },
       ]
     },
     // --- Mobile 'any' ---
@@ -700,7 +700,7 @@
       answers: [
         { text: 'Ship everything upfront',                      effects: { polish:+3, bugs:-1 } },
         { text: 'Download assets on demand',                    effects: { tech:+9, polish:+6, bugs:+3 } },
-        { text: 'Streaming on-demand resources',                effects: { tech:+13, design:+6, polish:+8 }, gate: { eraMin: 2018, statMin: { tech: 7 } } },
+        { text: 'Streaming on-demand resources',                effects: { tech:+13, design:+6, polish:+8 }, gate: { eraMin: 2018, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -709,7 +709,7 @@
       answers: [
         { text: 'None',                                         effects: { polish:-1, tech:+1 } },
         { text: 'Basic buzz on notifications',                  effects: { polish:+4, design:+2 } },
-        { text: 'Nuanced haptic vocabulary (iPhone Taptic)',    effects: { polish:+11, design:+9 }, gate: { eraMin: 2015, statMin: { polish: 6 } } },
+        { text: 'Nuanced haptic vocabulary (iPhone Taptic)',    effects: { polish:+11, design:+9 }, gate: { eraMin: 2015, statMin: { polish: 60 } } },
       ]
     },
     {
@@ -718,7 +718,7 @@
       answers: [
         { text: 'Light only — simpler',                         effects: { polish:+1, design:-2 } },
         { text: 'Manual toggle in settings',                    effects: { design:+7, polish:+7 }, gate: { eraMin: 2017 } },
-        { text: 'Follow system preference + per-screen tweaks', effects: { design:+11, polish:+11 }, gate: { eraMin: 2019, statMin: { design: 5 } } },
+        { text: 'Follow system preference + per-screen tweaks', effects: { design:+11, polish:+11 }, gate: { eraMin: 2019, statMin: { design: 50 } } },
       ]
     },
     {
@@ -727,7 +727,7 @@
       answers: [
         { text: 'Collect everything — it\u2019s fuel',          effects: { tech:+5, morale:-5, polish:-3 } },
         { text: 'Industry-standard retention',                  effects: { tech:+4, polish:+3 } },
-        { text: 'Zero-knowledge architecture',                  effects: { tech:+14, polish:+10, bugs:+4 }, gate: { eraMin: 2018, statMin: { tech: 7 } } },
+        { text: 'Zero-knowledge architecture',                  effects: { tech:+14, polish:+10, bugs:+4 }, gate: { eraMin: 2018, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -764,7 +764,7 @@
       answers: [
         { text: 'Email only',                                   effects: { tech:+1, polish:+2 } },
         { text: 'Intercom-style live chat',                     effects: { design:+8, polish:+9 }, gate: { eraMin: 2013 } },
-        { text: 'Full ticketing + SLA dashboards',              effects: { tech:+12, polish:+7, bugs:+2 }, gate: { statMin: { tech: 6 } } },
+        { text: 'Full ticketing + SLA dashboards',              effects: { tech:+12, polish:+7, bugs:+2 }, gate: { statMin: { tech: 60 } } },
       ]
     },
     {
@@ -773,7 +773,7 @@
       answers: [
         { text: 'None — focus on core',                         effects: { tech:+2, polish:+4 } },
         { text: 'Webhooks + public API docs',                   effects: { tech:+9, design:+6, polish:+3 } },
-        { text: 'Full marketplace with third-party apps',       effects: { tech:+14, design:+11, bugs:+5 }, gate: { eraMin: 2015, statMin: { tech: 7 } } },
+        { text: 'Full marketplace with third-party apps',       effects: { tech:+14, design:+11, bugs:+5 }, gate: { eraMin: 2015, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -792,7 +792,7 @@
       answers: [
         { text: 'Small models — cheap, fast',                   effects: { tech:+8, polish:+6 } },
         { text: 'Mid-size balanced',                            effects: { tech:+11, design:+6, polish:+4 } },
-        { text: 'Frontier-scale — best quality at any cost',    effects: { tech:+15, design:+10, bugs:+4, morale:-2 }, gate: { eraMin: 2022, statMin: { tech: 8 } } },
+        { text: 'Frontier-scale — best quality at any cost',    effects: { tech:+15, design:+10, bugs:+4, morale:-2 }, gate: { eraMin: 2022, statMin: { tech: 80 } } },
       ]
     },
     {
@@ -801,7 +801,7 @@
       answers: [
         { text: 'Licensed datasets only',                       effects: { tech:+5, polish:+8, morale:+3 } },
         { text: 'Scrape the web — fair use',                    effects: { tech:+10, design:+5, morale:-2 } },
-        { text: 'User data with opt-in',                        effects: { tech:+12, design:+8, polish:+6 }, gate: { statMin: { tech: 7 } } },
+        { text: 'User data with opt-in',                        effects: { tech:+12, design:+8, polish:+6 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -810,7 +810,7 @@
       answers: [
         { text: 'Disclaimer in footer',                         effects: { tech:+2, polish:-3 } },
         { text: 'Retrieval-augmented generation',               effects: { tech:+12, design:+6, polish:+7, bugs:+2 }, gate: { eraMin: 2022 } },
-        { text: 'Confidence score + refusal behavior',          effects: { tech:+14, design:+9, polish:+8 }, gate: { eraMin: 2023, statMin: { tech: 7 } } },
+        { text: 'Confidence score + refusal behavior',          effects: { tech:+14, design:+9, polish:+8 }, gate: { eraMin: 2023, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -819,7 +819,7 @@
       answers: [
         { text: 'Vibe-check by the team',                       effects: { tech:+3, polish:-2, bugs:+3 } },
         { text: 'Golden test set with regression',              effects: { tech:+10, polish:+7, bugs:-3 } },
-        { text: 'Automated eval harness + LLM-as-judge',        effects: { tech:+15, design:+6, polish:+8 }, gate: { eraMin: 2023, statMin: { tech: 7 } } },
+        { text: 'Automated eval harness + LLM-as-judge',        effects: { tech:+15, design:+6, polish:+8 }, gate: { eraMin: 2023, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -865,7 +865,7 @@
       answers: [
         { text: 'None — pentest after launch',                  effects: { tech:+2, bugs:+4 } },
         { text: 'Checklist-based self-assessment',              effects: { tech:+7, polish:+5, bugs:-2 } },
-        { text: 'Third-party audit + bug bounty',               effects: { tech:+14, polish:+8, bugs:-6 }, gate: { eraMin: 2010, statMin: { tech: 7 } } },
+        { text: 'Third-party audit + bug bounty',               effects: { tech:+14, polish:+8, bugs:-6 }, gate: { eraMin: 2010, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -874,7 +874,7 @@
       answers: [
         { text: 'printf() to stderr',                           effects: { tech:+3, bugs:+3 } },
         { text: 'Structured logs shipped to a log server',      effects: { tech:+9, polish:+5, bugs:-2 } },
-        { text: 'OpenTelemetry + distributed tracing',          effects: { tech:+14, polish:+7, bugs:-4 }, gate: { eraMin: 2019, statMin: { tech: 7 } } },
+        { text: 'OpenTelemetry + distributed tracing',          effects: { tech:+14, polish:+7, bugs:-4 }, gate: { eraMin: 2019, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -910,7 +910,7 @@
       answers: [
         { text: 'Comic Sans for now',                           effects: { polish:-5, design:-3, morale:+3 }, gate: { traitRequired: 'Contrarian' } },
         { text: 'Commission a logo + color palette',            effects: { design:+8, polish:+7 } },
-        { text: 'Full design system with motion rules',         effects: { design:+14, polish:+12 }, gate: { statMin: { design: 7 } } },
+        { text: 'Full design system with motion rules',         effects: { design:+14, polish:+12 }, gate: { statMin: { design: 70 } } },
       ]
     },
     {
@@ -919,7 +919,7 @@
       answers: [
         { text: 'Start fresh — no migration',                   effects: { tech:+3, morale:-3 } },
         { text: 'One-shot import tool',                         effects: { tech:+8, design:+5, bugs:+3 } },
-        { text: 'Dual-write + gradual cutover',                 effects: { tech:+13, polish:+6, bugs:+4 }, gate: { statMin: { tech: 7 } } },
+        { text: 'Dual-write + gradual cutover',                 effects: { tech:+13, polish:+6, bugs:+4 }, gate: { statMin: { tech: 70 } } },
       ]
     },
     {
@@ -937,7 +937,7 @@
       answers: [
         { text: 'Big annual release',                           effects: { polish:+5, design:+3 } },
         { text: 'Quarterly features + monthly patches',         effects: { tech:+8, polish:+6, bugs:-2 } },
-        { text: 'Continuous deployment to production',          effects: { tech:+12, polish:+5, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 7 } } },
+        { text: 'Continuous deployment to production',          effects: { tech:+12, polish:+5, bugs:+3 }, gate: { eraMin: 2015, statMin: { tech: 70 } } },
       ]
     },
     {
@@ -964,7 +964,7 @@
       answers: [
         { text: 'None — our vision leads',                      effects: { design:+3, morale:-2 } },
         { text: 'In-app feedback widget',                       effects: { design:+7, polish:+6 } },
-        { text: 'Monthly user research interviews',             effects: { design:+13, polish:+9 }, gate: { statMin: { design: 6 } } },
+        { text: 'Monthly user research interviews',             effects: { design:+13, polish:+9 }, gate: { statMin: { design: 60 } } },
       ]
     },
     {
@@ -991,7 +991,7 @@
       answers: [
         { text: 'Best effort — no SLA',                         effects: { tech:+3, polish:+1 } },
         { text: '99.9% with status page',                       effects: { tech:+10, polish:+7, bugs:+1 } },
-        { text: '99.99% multi-region active-active',            effects: { tech:+16, polish:+9, bugs:+6 }, gate: { eraMin: 2015, statMin: { tech: 8 } } },
+        { text: '99.99% multi-region active-active',            effects: { tech:+16, polish:+9, bugs:+6 }, gate: { eraMin: 2015, statMin: { tech: 80 } } },
       ]
     },
     {

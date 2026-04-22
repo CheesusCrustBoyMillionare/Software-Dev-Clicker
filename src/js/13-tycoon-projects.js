@@ -239,7 +239,7 @@
   // schedule. Founder + assigned employees both count equally.
   function avgTeamSpeed(proj) {
     const contributors = getContributorsFor(proj);
-    if (!contributors.length) return 5;
+    if (!contributors.length) return 50; // v11.2: 10-100 stat scale (was 5)
     let total = 0;
     for (const c of contributors) total += (c.stats?.speed || 0);
     return total / contributors.length;
@@ -247,8 +247,9 @@
   function applySpeedToDuration(proj, baseWeeks) {
     if (!baseWeeks) return baseWeeks;
     const avg = avgTeamSpeed(proj);
-    // 1 - 0.04 × (avg - 5), clamped to [0.7, 1.3] — 30% fastest, 30% slowest
-    let mul = Math.max(0.7, Math.min(1.3, 1 - (avg - 5) * 0.04));
+    // v11.2: baseline 50, factor 0.004 (was 5 / 0.04 on the old 1-10 scale).
+    // 1 - 0.004 × (avg - 50), clamped to [0.7, 1.3] — 30% fastest, 30% slowest
+    let mul = Math.max(0.7, Math.min(1.3, 1 - (avg - 50) * 0.004));
     // v11.1: Serial Founder trait — first project ships 30% faster. Applies
     // on top of Speed compression. Checked against shipped count, so this
     // only fires when no ships have landed yet in the current run.
@@ -451,9 +452,10 @@
       // Per-contributor trait multiplier (Lone Wolf, Veteran)
       const traitMul = computeContributorTraitMultiplier(c, contributors, proj);
 
-      proj.quality.tech    += (es.tech    * w.tech    * 0.8 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchTech   * devSpeedMult * fOut * fAxT);
-      proj.quality.design  += (es.design  * w.design  * 0.8 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchDesign * devSpeedMult * fOut * fAxD);
-      proj.quality.polish  += (es.polish  * w.polish  * 0.6 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchPolish * devSpeedMult * fOut * fAxP);
+      // v11.2: stats are 10-100 now; multipliers divided by 10 so effective output/tick is unchanged.
+      proj.quality.tech    += (es.tech    * w.tech    * 0.08 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchTech   * devSpeedMult * fOut * fAxT);
+      proj.quality.design  += (es.design  * w.design  * 0.08 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchDesign * devSpeedMult * fOut * fAxD);
+      proj.quality.polish  += (es.polish  * w.polish  * 0.06 * crunchMul * mm * perProjMul * teamMult * teamTraitMul * traitMul * researchPolish * devSpeedMult * fOut * fAxP);
       proj.bugs += (bugRisk * 0.3 * perProjMul);
       if (proj.crunching) {
         c.morale = Math.max(0, (c.morale || 70) - 3);
@@ -504,8 +506,9 @@
       const fPerf = c.isFounder ? perfMul : 1.0;
       const traitMul = computeContributorTraitMultiplier(c, contributors, proj);
 
-      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.6 * crunchMul * mm * perProjMul * fOut * traitMul));
-      proj.quality.polish += (es.polish * 0.4 * crunchMul * mm * perProjMul * teamTraitMul * traitMul * fOut * fAxP * fPerf);
+      // v11.2: stats are 10-100 now; polish multipliers divided by 10 so effective output is unchanged.
+      proj.bugs = Math.max(0, proj.bugs - (es.polish * 0.06 * crunchMul * mm * perProjMul * fOut * traitMul));
+      proj.quality.polish += (es.polish * 0.04 * crunchMul * mm * perProjMul * teamTraitMul * traitMul * fOut * fAxP * fPerf);
     }
 
     // Workaholic morale drain applies in polish phase too.
@@ -551,8 +554,9 @@
 
   // Mentor growth — called once per week from tycoonEmployees weekly tick.
   // For each project with a Mentor on the team, every junior (tier ≤ 2)
-  // teammate gains 0.1 of growth in a random stat. When a stat's growth
-  // pool crosses 1.0, the stat increments by 1 (capped at tier statCap + 1).
+  // teammate gains 1.0 of growth in a random stat. When a stat's growth
+  // pool crosses 10, the stat increments by 10 (capped at tier statCap + 10).
+  // v11.2: pool accrual, threshold, cap-headroom and step all 10x for 10-100 scale.
   function applyMentorGrowth() {
     if (!S.projects?.active) return;
     const TIERS = window.TYCOON_TIERS || [];
@@ -569,12 +573,12 @@
         // Pick a random axis per mentor per week
         for (let i = 0; i < mentors; i++) {
           const axis = ['tech','design','polish','speed'][Math.floor(Math.random() * 4)];
-          c.mentorGrowth[axis] = (c.mentorGrowth[axis] || 0) + 0.1;
-          if (c.mentorGrowth[axis] >= 1) {
-            const cap = (TIERS[c.tier]?.statCap || 10) + 1;
-            c.stats[axis] = Math.min(cap, (c.stats[axis] || 0) + 1);
-            c.mentorGrowth[axis] -= 1;
-            if (typeof log === 'function') log('\uD83C\uDF93 Mentor growth: ' + c.name + ' +1 ' + axis);
+          c.mentorGrowth[axis] = (c.mentorGrowth[axis] || 0) + 1.0;
+          if (c.mentorGrowth[axis] >= 10) {
+            const cap = (TIERS[c.tier]?.statCap || 100) + 10;
+            c.stats[axis] = Math.min(cap, (c.stats[axis] || 0) + 10);
+            c.mentorGrowth[axis] -= 10;
+            if (typeof log === 'function') log('\uD83C\uDF93 Mentor growth: ' + c.name + ' +10 ' + axis);
           }
         }
       }
@@ -1140,18 +1144,19 @@
       specialty: specialty || 'coder',
       tier: 1, // Junior
       exp: 0,
-      stats: { design: 4, tech: 4, speed: 4, polish: 3 },
+      // v11.2: stats scaled 10x (10-100 range).
+      stats: { design: 40, tech: 40, speed: 40, polish: 30 },
       morale: 70,
       age: 25,
       retireAge: 65,
       traits: trait ? [trait] : [],
       isFounder: true
     };
-    // Founder trait modifiers (Phase 1: simple +2 to primary stat)
-    if (trait === 'Perfectionist') S.founder.stats.polish += 2;
-    else if (trait === 'Sprinter')  S.founder.stats.speed  += 2;
-    else if (trait === 'Methodical') S.founder.stats.tech  += 2;
-    else if (trait === 'Creative')  S.founder.stats.design += 2;
+    // Founder trait modifiers (Phase 1: simple +20 to primary stat — 10x for 10-100 scale)
+    if (trait === 'Perfectionist') S.founder.stats.polish += 20;
+    else if (trait === 'Sprinter')  S.founder.stats.speed  += 20;
+    else if (trait === 'Methodical') S.founder.stats.tech  += 20;
+    else if (trait === 'Creative')  S.founder.stats.design += 20;
     // v3 roguelite: attach passions + mechanical + narrative traits.
     // Default to rank 50 (bottom of class) per Q1b — first run starts
     // at the bottom. Phase 6 will replace this with class-roster picker.

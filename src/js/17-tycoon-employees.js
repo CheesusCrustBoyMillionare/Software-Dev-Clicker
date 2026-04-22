@@ -55,36 +55,37 @@
   };
 
   // ---------- Specialty stat bias ----------
-  // v11.1: returns { tech, design, polish, speed } deltas applied to base
-  // stats so the rolled candidate visually specializes. Primary axis +2;
-  // the other two quality axes each -1. Speed is untouched (it governs
+  // v11.2: returns { tech, design, polish, speed } deltas applied to base
+  // stats so the rolled candidate visually specializes. Primary axis +20;
+  // the other two quality axes each -10. Speed is untouched (it governs
   // phase duration, not specialty). Net change to statSum = 0 so salary
   // calcs stay balanced.
   function specialtyStatBias(specialty) {
     const bias = { tech:0, design:0, polish:0, speed:0 };
     const primary = SPECIALTY_AXIS_LOCAL[specialty] || 'tech';
-    bias[primary] = 2;
+    bias[primary] = 20;
     for (const k of ['tech','design','polish']) {
-      if (k !== primary) bias[k] = -1;
+      if (k !== primary) bias[k] = -10;
     }
     return bias;
   }
 
   // ---------- Edu stat bias (secret, applied at interview reveal) ----------
-  // Returns { tech, design, polish, speed } deltas to add to base stats
+  // Returns { tech, design, polish, speed } deltas to add to base stats.
+  // v11.2: values scaled 10x to match the 10-100 stat range.
   function eduStatBias(edu, specialty) {
     const bias = { tech:0, design:0, polish:0, speed:0 };
     // Bachelor's (edu 2) is neutral
-    if (edu === 4) { // PhD: +1.5 avg to primary, -0.5 speed
+    if (edu === 4) { // PhD: +15 avg to primary, -5 speed
       const primary = isDesignSpecialty(specialty) ? 'design' : 'tech';
-      bias[primary] += 1.5;
-      bias.speed -= 0.5;
-    } else if (edu === 3) { // Master's: +1 to primary
+      bias[primary] += 15;
+      bias.speed -= 5;
+    } else if (edu === 3) { // Master's: +10 to primary
       const primary = isDesignSpecialty(specialty) ? 'design' : 'tech';
-      bias[primary] += 1;
-    } else if (edu === 1) { // CC: -0.5 avg but +0.5 polish
-      bias.tech -= 0.5;
-      bias.polish += 0.5;
+      bias[primary] += 10;
+    } else if (edu === 1) { // CC: -5 tech but +5 polish
+      bias.tech -= 5;
+      bias.polish += 5;
     } else if (edu === 0) { // Self-taught: high variance (applied in generator)
       // Handled via randomVariance below
     }
@@ -95,17 +96,18 @@
 
   // ---------- Trait catalog (Phase 2 subset) ----------
   // Full 20-trait catalog is in DESIGN_V2.md. Phase 2 uses ~10.
+  // v11.2: stat effects scaled 10x to match the 10-100 stat range.
   const TRAITS = {
-    'Perfectionist': { hint:'+2 Polish, -1 Speed', effect: { polish:+2, speed:-1 } },
-    'Sprinter':      { hint:'+2 Speed, -1 Polish', effect: { speed:+2, polish:-1 } },
-    'Methodical':    { hint:'+2 Tech, -1 Speed', effect: { tech:+2, speed:-1 } },
-    'Creative':      { hint:'+2 Design, unlocks innovation', effect: { design:+2 } },
-    'Mentor':        { hint:'+0.1/wk growth to juniors on team', effect: {} },
+    'Perfectionist': { hint:'+20 Polish, -10 Speed', effect: { polish:+20, speed:-10 } },
+    'Sprinter':      { hint:'+20 Speed, -10 Polish', effect: { speed:+20, polish:-10 } },
+    'Methodical':    { hint:'+20 Tech, -10 Speed', effect: { tech:+20, speed:-10 } },
+    'Creative':      { hint:'+20 Design, unlocks innovation', effect: { design:+20 } },
+    'Mentor':        { hint:'+1/wk growth to juniors on team', effect: {} },
     'Toxic':         { hint:'-0.5 morale/wk to every teammate on the same project', effect: {}, tag:'teamMoraleDrain' },
     'Team Player':   { hint:'+10% team synergy', effect: {} },
     'Veteran':       { hint:'+15% quality on sequels', effect: {} },
     'Negotiator':    { hint:'Asks for raises 2× as often; +0.1× salary', effect: {} },
-    'Lone Wolf':     { hint:'-5% synergy, +2 to solo work', effect: {} },
+    'Lone Wolf':     { hint:'-5% synergy, +20 to solo work', effect: {} },
   };
   const TRAIT_KEYS = Object.keys(TRAITS);
   window.TYCOON_TRAITS = TRAITS;
@@ -113,15 +115,18 @@
   // ---------- Tier definitions ----------
   // Mirror of v1's 8 tiers but simplified for tycoon use.
   // statRange: hire-time stat range for each tier; statCap: max any stat reaches without promotion
+  // v11.2: stats scale 10x (10-100 per axis instead of 1-10) for finer
+  // granularity. All consumers (MC gates, school boosts, dev/polish formulas)
+  // were rescaled simultaneously so effective output/cost stays balanced.
   const TIERS = [
-    { idx:0, name:'Intern',             statRange:[1,3], statCap:3, baseSalary: 25000 },
-    { idx:1, name:'Junior Dev',         statRange:[2,4], statCap:4, baseSalary: 45000 },
-    { idx:2, name:'Mid-Level Dev',      statRange:[3,6], statCap:6, baseSalary: 70000 },
-    { idx:3, name:'Senior Dev',         statRange:[5,7], statCap:7, baseSalary: 120000 },
-    { idx:4, name:'Staff Engineer',     statRange:[6,8], statCap:8, baseSalary: 200000 },
-    { idx:5, name:'Principal Engineer', statRange:[7,9], statCap:9, baseSalary: 350000 },
-    { idx:6, name:'Tech Lead',          statRange:[8,10],statCap:10,baseSalary: 500000 },
-    { idx:7, name:'CTO',                statRange:[9,10],statCap:10,baseSalary: 800000 },
+    { idx:0, name:'Intern',             statRange:[10,30],  statCap:30,  baseSalary: 25000 },
+    { idx:1, name:'Junior Dev',         statRange:[20,40],  statCap:40,  baseSalary: 45000 },
+    { idx:2, name:'Mid-Level Dev',      statRange:[30,60],  statCap:60,  baseSalary: 70000 },
+    { idx:3, name:'Senior Dev',         statRange:[50,70],  statCap:70,  baseSalary: 120000 },
+    { idx:4, name:'Staff Engineer',     statRange:[60,80],  statCap:80,  baseSalary: 200000 },
+    { idx:5, name:'Principal Engineer', statRange:[70,90],  statCap:90,  baseSalary: 350000 },
+    { idx:6, name:'Tech Lead',          statRange:[80,100], statCap:100, baseSalary: 500000 },
+    { idx:7, name:'CTO',                statRange:[90,100], statCap:100, baseSalary: 800000 },
   ];
   window.TYCOON_TIERS = TIERS;
 
@@ -194,24 +199,24 @@
     const baseStat = () => randInRange(lo, hi);
     const stats = { design: baseStat(), tech: baseStat(), speed: baseStat(), polish: baseStat() };
     // v11.1: specialty bias baked into base stats (replaces the old 1.5×/0.5×
-    // runtime multiplier in developOneWeek). Primary axis +2, other two
-    // quality axes -1 each. Primary may exceed statCap by 1 to reward
-    // specialization.
+    // runtime multiplier in developOneWeek). Primary axis +20, other two
+    // quality axes -10 each. Primary may exceed statCap by 10 to reward
+    // specialization. (v11.2: all numbers 10x for the 10-100 scale.)
     const sBias = specialtyStatBias(specialty);
     const primary = SPECIALTY_AXIS_LOCAL[specialty] || 'tech';
     for (const k of ['design','tech','polish','speed']) {
-      const cap = (k === primary) ? tierDef.statCap + 1 : tierDef.statCap;
+      const cap = (k === primary) ? tierDef.statCap + 10 : tierDef.statCap;
       stats[k] = Math.max(1, Math.min(cap, Math.round(stats[k] + (sBias[k] || 0))));
     }
     const bias = eduStatBias(edu, specialty);
     for (const k of ['design','tech','polish','speed']) {
-      const cap = (k === primary) ? tierDef.statCap + 1 : tierDef.statCap;
+      const cap = (k === primary) ? tierDef.statCap + 10 : tierDef.statCap;
       stats[k] = Math.max(1, Math.min(cap, Math.round(stats[k] + (bias[k] || 0))));
     }
-    // Self-taught high variance: random extreme in one stat
+    // Self-taught high variance: random extreme in one stat (v11.2: ±20 on 10-100 scale)
     if (edu === 0 && Math.random() < 0.3) {
       const k = randPick(['design','tech','polish','speed']);
-      stats[k] = Math.max(1, Math.min(tierDef.statCap, stats[k] + randInRange(-2, 2)));
+      stats[k] = Math.max(1, Math.min(tierDef.statCap, stats[k] + randInRange(-20, 20)));
     }
 
     // Traits: one visible pre-interview, one hidden until interview
@@ -227,7 +232,8 @@
 
     // Base salary ask: tier base × stat modifier × personality × era inflation
     const statSum = stats.design + stats.tech + stats.speed + stats.polish;
-    const statMod = 1 + Math.max(0, (statSum - 20)) * 0.05; // each point above 20 = +5%
+    // v11.2: threshold / factor scaled 10x (stats now 10-100); each point above 200 = +0.5%
+    const statMod = 1 + Math.max(0, (statSum - 200)) * 0.005;
     const era = (S.calendar?.year || 1980);
     const inflation = Math.pow(1.03, era - 1980);
     const askingSalary = Math.round(tierDef.baseSalary * statMod * personalityMult * inflation);
