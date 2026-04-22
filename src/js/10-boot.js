@@ -131,10 +131,12 @@ let _clockValidated = false;
       open = true;
       panel = document.createElement('div');
       panel.id = 'dbgPanel';
-      panel.style.cssText = 'position:fixed;bottom:60px;right:12px;z-index:9999;background:#1a1a2e;color:#e0e0e0;border:1px solid #444;border-radius:8px;padding:12px;font:12px monospace;width:260px;box-shadow:0 4px 20px rgba(0,0,0,.6)';
+      // v11.2: panel now scrolls internally and has a max height — tycoon
+      // section adds several rows that would otherwise push past the viewport.
+      panel.style.cssText = 'position:fixed;bottom:60px;right:12px;z-index:9999;background:#1a1a2e;color:#e0e0e0;border:1px solid #444;border-radius:8px;padding:12px;font:12px monospace;width:280px;max-height:85vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.6)';
       const title = document.createElement('div');
       title.style.cssText = 'font-weight:700;margin-bottom:8px;color:#f0883e;font-size:13px';
-      title.textContent = '\u{1F41B} Debug Panel';
+      title.textContent = '\u{1F41B} Debug Panel \u00b7 v' + (typeof GAME_VERSION !== 'undefined' ? GAME_VERSION : '?');
       panel.appendChild(title);
 
       // Year dropdown (v10: uses RELEASE_YEARS instead of linear slider)
@@ -346,6 +348,207 @@ let _clockValidated = false;
         spdRow.appendChild(b);
       });
       panel.appendChild(spdRow);
+
+      // ---------- Tycoon section (v11.2) ----------
+      // Only render once a tycoon career has started — otherwise none of the
+      // tycoon state (founder, cash, research) exists and the buttons are
+      // meaningless. The clicker-era controls above still render either way.
+      if (S.careerStarted && typeof window.tycoonTime !== 'undefined') {
+        const tyHeader = document.createElement('div');
+        tyHeader.style.cssText = 'margin:12px -4px 6px;padding:4px 8px;background:#2a1e3a;color:#c084fc;font-weight:700;font-size:11px;border-radius:4px;letter-spacing:.5px';
+        tyHeader.textContent = '\u{1F3AE} TYCOON';
+        panel.appendChild(tyHeader);
+
+        // Live status line: year-week, cash, morale
+        const statusLine = document.createElement('div');
+        statusLine.style.cssText = 'margin-bottom:6px;font-size:10.5px;color:#a5b4fc';
+        const fmtMoney = v => v >= 1e9 ? (v/1e9).toFixed(1)+'B' : v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : String(v|0);
+        const paintStatus = () => {
+          const y = S.calendar?.year || '?';
+          const w = S.calendar?.week || 1;
+          const cash = fmtMoney(S.cash || 0);
+          const team = (S.employees?.length || 0) + (S.founder ? 1 : 0);
+          statusLine.textContent = y + '-W' + w + ' \u00b7 $' + cash + ' \u00b7 Team: ' + team;
+        };
+        paintStatus();
+        panel.appendChild(statusLine);
+
+        // +Cash row
+        const cashRow = document.createElement('div');
+        cashRow.style.cssText = 'display:flex;gap:4px;margin-top:4px';
+        [['+$10K', 1e4], ['+$1M', 1e6], ['+$100M', 1e8]].forEach(([label, n]) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText = 'flex:1;padding:4px;background:#2a2a44;color:#7ee787;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
+          b.addEventListener('click', () => {
+            S.cash = (S.cash || 0) + n;
+            markDirty();
+            paintStatus();
+            if (typeof toast === 'function') toast('\u{1F4B0} +$' + fmtMoney(n));
+          });
+          cashRow.appendChild(b);
+        });
+        panel.appendChild(cashRow);
+
+        // Founder stats: Max All + Per-axis +10
+        const statsLabel = document.createElement('div');
+        statsLabel.style.cssText = 'margin-top:8px;font-size:11px;color:#c084fc;font-weight:700';
+        statsLabel.textContent = '\u{1F9E0} Founder Stats (10-100)';
+        panel.appendChild(statsLabel);
+        if (S.founder && S.founder.stats) {
+          const statsPreview = document.createElement('div');
+          statsPreview.style.cssText = 'font-size:10px;color:#888;margin-top:2px';
+          const paintStats = () => {
+            const s = S.founder.stats;
+            statsPreview.textContent = 'T' + (s.tech|0) + ' D' + (s.design|0) + ' P' + (s.polish|0) + ' S' + (s.speed|0);
+          };
+          paintStats();
+          panel.appendChild(statsPreview);
+
+          const maxBtn = document.createElement('button');
+          maxBtn.textContent = 'Max All \u2192 100';
+          maxBtn.style.cssText = 'width:100%;padding:4px;background:#2a2a44;color:#c084fc;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer;margin-top:4px;font-weight:700';
+          maxBtn.addEventListener('click', () => {
+            for (const k of ['tech','design','polish','speed']) S.founder.stats[k] = 100;
+            markDirty();
+            paintStats();
+            if (typeof toast === 'function') toast('\u{1F9E0} Founder maxed');
+          });
+          panel.appendChild(maxBtn);
+
+          const axisRow = document.createElement('div');
+          axisRow.style.cssText = 'display:flex;gap:4px;margin-top:4px';
+          [['+T', 'tech'], ['+D', 'design'], ['+P', 'polish'], ['+S', 'speed']].forEach(([label, axis]) => {
+            const b = document.createElement('button');
+            b.textContent = label + '10';
+            b.style.cssText = 'flex:1;padding:4px;background:#2a2a44;color:#c084fc;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
+            b.addEventListener('click', () => {
+              S.founder.stats[axis] = Math.min(100, (S.founder.stats[axis] || 0) + 10);
+              markDirty();
+              paintStats();
+            });
+            axisRow.appendChild(b);
+          });
+          panel.appendChild(axisRow);
+        } else {
+          const noFounder = document.createElement('div');
+          noFounder.style.cssText = 'font-size:10px;color:#888;margin-top:2px';
+          noFounder.textContent = '(no founder)';
+          panel.appendChild(noFounder);
+        }
+
+        // Research: +RP / Complete All
+        const rpLabel = document.createElement('div');
+        rpLabel.style.cssText = 'margin-top:8px;font-size:11px;color:#38bdf8;font-weight:700';
+        rpLabel.textContent = '\u{1F52C} Research';
+        panel.appendChild(rpLabel);
+        const rpRow = document.createElement('div');
+        rpRow.style.cssText = 'display:flex;gap:4px;margin-top:4px';
+        [['+50 RP', 50], ['+500 RP', 500], ['Finish', -1]].forEach(([label, n]) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText = 'flex:1;padding:4px;background:#2a2a44;color:#38bdf8;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
+          b.addEventListener('click', () => {
+            const ip = S.research?.inProgress;
+            if (!ip) { if (typeof toast === 'function') toast('\u{1F52C} No research in progress'); return; }
+            if (n === -1) {
+              window.tycoonResearch?.complete?.(ip.nodeId);
+              if (typeof toast === 'function') toast('\u{1F52C} Research complete');
+            } else {
+              ip.rpEarned = (ip.rpEarned || 0) + n;
+              markDirty();
+              if (typeof toast === 'function') toast('\u{1F52C} +' + n + ' RP');
+            }
+          });
+          rpRow.appendChild(b);
+        });
+        panel.appendChild(rpRow);
+        const completeAllBtn = document.createElement('button');
+        completeAllBtn.textContent = 'Complete ALL Research';
+        completeAllBtn.style.cssText = 'width:100%;padding:4px;background:#2a2a44;color:#38bdf8;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer;margin-top:4px';
+        completeAllBtn.addEventListener('click', () => {
+          if (!window.tycoonResearch) return;
+          if (!S.research) S.research = { completed: [], inProgress: null };
+          let added = 0;
+          for (const n of window.tycoonResearch.NODES) {
+            if (!S.research.completed.includes(n.id)) { S.research.completed.push(n.id); added++; }
+          }
+          markDirty();
+          if (typeof toast === 'function') toast('\u{1F52C} +' + added + ' research nodes');
+        });
+        panel.appendChild(completeAllBtn);
+
+        // Hire squad row
+        const hireLabel = document.createElement('div');
+        hireLabel.style.cssText = 'margin-top:8px;font-size:11px;color:#fbbf24;font-weight:700';
+        hireLabel.textContent = '\u{1F465} Hire Squad';
+        panel.appendChild(hireLabel);
+        const hireRow = document.createElement('div');
+        hireRow.style.cssText = 'display:flex;gap:4px;margin-top:4px';
+        [[ '+1', 1 ], [ '+3', 3 ], [ '+5 Sr', 5 ]].forEach(([label, count], i) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText = 'flex:1;padding:4px;background:#2a2a44;color:#fbbf24;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
+          b.addEventListener('click', () => {
+            if (!window.tycoonEmployees) return;
+            const opts = (i === 2) ? { tier: 3 } : {};  // +5 Sr = tier-3 seniors
+            let added = 0;
+            for (let k = 0; k < count; k++) {
+              const c = window.tycoonEmployees.generateCandidate(opts);
+              c.interviewed = true;
+              c.stats = c.hiddenStats;
+              c.traits = [c.visibleTrait, c.hiddenTrait].filter(Boolean);
+              c.personality = c.hiddenPersonality;
+              window.tycoonEmployees.hire(c);
+              added++;
+            }
+            paintStatus();
+            if (typeof toast === 'function') toast('\u{1F465} Hired ' + added);
+          });
+          hireRow.appendChild(b);
+        });
+        panel.appendChild(hireRow);
+
+        // Advance weeks
+        const weekLabel = document.createElement('div');
+        weekLabel.style.cssText = 'margin-top:8px;font-size:11px;color:#f0883e;font-weight:700';
+        weekLabel.textContent = '\u{23E9} Advance Time';
+        panel.appendChild(weekLabel);
+        const weekRow = document.createElement('div');
+        weekRow.style.cssText = 'display:flex;gap:4px;margin-top:4px';
+        [[ '+1 wk', 1 ], [ '+4 wks', 4 ], [ '+12 wks', 12 ], [ '+48 (1y)', 48 ]].forEach(([label, n]) => {
+          const b = document.createElement('button');
+          b.textContent = label;
+          b.style.cssText = 'flex:1;padding:4px;background:#2a2a44;color:#f0883e;border:1px solid #555;border-radius:3px;font-size:10px;cursor:pointer';
+          b.addEventListener('click', () => {
+            for (let k = 0; k < n; k++) window.tycoonTime.step();
+            paintStatus();
+            if (typeof toast === 'function') toast('\u{23E9} +' + n + ' week(s)');
+          });
+          weekRow.appendChild(b);
+        });
+        panel.appendChild(weekRow);
+
+        // Quality-of-life: "I'm stuck" — give a solid funding boost + maxed
+        // stats + basic research so the tester can skip straight to the
+        // content they want to exercise.
+        const yoloBtn = document.createElement('button');
+        yoloBtn.textContent = '\u{1F680} Jumpstart (Cash + Stats + Research)';
+        yoloBtn.style.cssText = 'width:100%;padding:6px;background:#2a1e3a;color:#fbbf24;border:1px solid #555;border-radius:4px;font-size:10px;cursor:pointer;margin-top:10px;font-weight:700';
+        yoloBtn.addEventListener('click', () => {
+          S.cash = Math.max(S.cash || 0, 5e6);
+          if (S.founder?.stats) for (const k of ['tech','design','polish','speed']) S.founder.stats[k] = 100;
+          if (window.tycoonResearch && S.research) {
+            for (const n of window.tycoonResearch.NODES.slice(0, 10)) {
+              if (!S.research.completed.includes(n.id)) S.research.completed.push(n.id);
+            }
+          }
+          markDirty();
+          paintStatus();
+          if (typeof toast === 'function') toast('\u{1F680} Jumpstarted');
+        });
+        panel.appendChild(yoloBtn);
+      }
 
       // Close button
       const closeBtn = document.createElement('div');
