@@ -695,14 +695,44 @@
 
   // ---------- Project card ----------
   function renderProjectCard(proj, isShipped) {
-    const progEl = (() => {
+    // v11.3: project cards now show months-left-until-ship alongside the
+    // progress bar so the player can plan runway without opening the info
+    // sheet. Computed the same way as the info sheet: sum of remaining
+    // weeks in the current phase plus full weeks of any still-to-come
+    // phases, divided by 4 (the game's weeks-per-month).
+    const etaInfo = (() => {
       if (isShipped) return null;
-      const elapsed = window.tycoonProjects.absoluteWeek() - proj.phaseStartedAtWeek;
-      const pct = Math.min(100, Math.max(0, (elapsed / proj.phaseWeeksRequired) * 100));
-      return h('div', { className: 't-progbar' },
-        h('div', { className: 't-progbar-fill', style: { width: pct + '%' } })
-      );
+      const curWeek = window.tycoonProjects.absoluteWeek();
+      const elapsed = curWeek - proj.phaseStartedAtWeek;
+      const weeksOfPhase = proj.phaseWeeksRequired || 0;
+      const scopeDef = window.PROJECT_SCOPES[proj.scope];
+      const phaseOrder = ['design', 'development', 'polish'];
+      const phaseIdx = phaseOrder.indexOf(proj.phase);
+      let weeksLeft = Math.max(0, weeksOfPhase - elapsed);
+      if (phaseIdx >= 0 && scopeDef?.phaseWeeks) {
+        for (let i = phaseIdx + 1; i < phaseOrder.length; i++) {
+          weeksLeft += scopeDef.phaseWeeks[phaseOrder[i]] || 0;
+        }
+      }
+      const pct = weeksOfPhase > 0
+        ? Math.min(100, Math.max(0, (elapsed / weeksOfPhase) * 100))
+        : 0;
+      const etaLabel = (() => {
+        if (weeksLeft <= 0) return 'Shipping this week';
+        if (weeksLeft === 1) return '~1 week left';
+        if (weeksLeft < 4) return '~' + weeksLeft + ' weeks left';
+        const months = Math.ceil(weeksLeft / 4);
+        return '~' + months + ' month' + (months === 1 ? '' : 's') + ' left';
+      })();
+      return { pct, etaLabel };
     })();
+    const progEl = etaInfo ? h('div', { className: 't-progbar' },
+      h('div', { className: 't-progbar-fill', style: { width: etaInfo.pct + '%' } })
+    ) : null;
+    const etaEl = etaInfo ? h('div', {
+      className: 't-proj-eta',
+      style: { color: '#8b949e', fontSize: '0.72rem', marginTop: '2px' }
+    }, '\u23F3 ' + etaInfo.etaLabel) : null;
 
     const qRow = h('div', { className: 't-proj-qual' },
       h('span', null, 'T ', h('span', { className: 'v' }, String(Math.round(proj.quality.tech)))),
@@ -760,6 +790,7 @@
         (proj.isContract ? ' · contract' : ' · own IP')),
       h('div', { className: 't-proj-phase ' + proj.phase }, proj.phase),
       progEl,
+      etaEl,
       qRow,
       criticEl
     );
